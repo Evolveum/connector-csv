@@ -1,10 +1,15 @@
 package com.evolveum.polygon.connector.csv;
 
 import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.csv.QuoteMode;
+import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.AbstractFilterTranslator;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
@@ -13,7 +18,9 @@ import org.identityconnectors.framework.spi.Connector;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.operations.*;
 
-import java.util.Set;
+import java.io.IOException;
+import java.io.Reader;
+import java.util.*;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -50,30 +57,163 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     @Override
     public Uid create(ObjectClass objectClass, Set<Attribute> set, OperationOptions operationOptions) {
+        //todo implement
         return null;
     }
 
     @Override
     public void delete(ObjectClass objectClass, Uid uid, OperationOptions operationOptions) {
-
+        //todo implement
     }
 
     @Override
     public Schema schema() {
-
-//        try (Reader in = Util.createReader(configuration)) {
-//            Iterable<CSVRecord> records = CSVFormat.RFC4180.withFirstRowAsHeader().parse(in);
-//            for (CSVRecord record : records) {
-//                String id = record.get("ID");
-//                String customerNo = record.get("CustomerNo");
-//                String name = record.get("Name");
-//            }
-//        } catch (IOException ex) {
-//            //todo handle
-//            ex.printStackTrace();
-//        }
-
+        //todo implement
         return null;
+    }
+
+    @Override
+    public void test() {
+        LOG.info("test::begin");
+
+        LOG.info("Validating configuration.");
+        configuration.validate();
+
+        LOG.info("Validating header.");
+        try (Reader reader = Util.createReader(configuration)) {
+            CSVFormat csv = createCsvFormat();
+            CSVParser parser = csv.parse(reader);
+
+            Map<String, Integer> headers = parser.getHeaderMap();
+            testHeader(headers);
+
+            LOG.info("Test configuration was successful.");
+        } catch (Exception ex) {
+            LOG.error("Test configuration was unsuccessful, reason: {0}.", ex.getMessage());
+            handleGenericException(ex, "Test configuration was unsuccessful");
+        }
+
+        LOG.info("test::end");
+    }
+
+    @Override
+    public FilterTranslator<String> createFilterTranslator(ObjectClass objectClass, OperationOptions operationOptions) {
+        Util.assertAccount(objectClass);
+
+        return new AbstractFilterTranslator<String>() {
+        };
+    }
+
+    @Override
+    public void executeQuery(ObjectClass objectClass, String uid, ResultsHandler handler, OperationOptions options) {
+        Util.assertAccount(objectClass);
+
+        CSVFormat csv = createCsvFormat();
+        try (Reader in = Util.createReader(configuration)) {
+            CSVParser parser = csv.parse(in);
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                ConnectorObject obj = createConnectorObject(iterator.next());
+
+                if (StringUtil.isEmpty(uid) || !uid.equals(obj.getUid().getUidValue())) {
+                    continue;
+                }
+
+                if (!handler.handle(obj)) {
+                    break;
+                }
+            }
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during query execution");
+        }
+    }
+
+    @Override
+    public Uid authenticate(ObjectClass objectClass, String s, GuardedString guardedString, OperationOptions options) {
+        //todo implement
+        return null;
+    }
+
+    @Override
+    public Uid resolveUsername(ObjectClass objectClass, String s, OperationOptions operationOptions) {
+        //todo implement
+        return null;
+    }
+
+    @Override
+    public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options) {
+        //todo implement
+    }
+
+    @Override
+    public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+        //todo implement
+        return null;
+    }
+
+    @Override
+    public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {
+        //todo implement
+        return null;
+    }
+
+    @Override
+    public Uid removeAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {
+        //todo implement
+        return null;
+    }
+
+    @Override
+    public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {
+        //todo implement
+        return null;
+    }
+
+    private void testHeader(Map<String, Integer> headers) {
+        boolean uniqueFound = false;
+        boolean passwordFound = false;
+
+        Map<String, Integer> headerCount = new HashMap<>();
+        for (String header : headers.keySet()) {
+            if (!headerCount.containsKey(header)) {
+                headerCount.put(header, 0);
+            }
+
+            headerCount.put(header, headerCount.get(header) + 1);
+        }
+
+        for (String header : headers.keySet()) {
+            int count = headerCount.containsKey(header) ? headerCount.get(header) : 0;
+
+            if (count != 1) {
+                throw new ConfigurationException("Column header '" + header
+                        + "' occurs more than once (" + count + ").");
+            }
+
+            if (header.equals(configuration.getUniqueAttribute())) {
+                uniqueFound = true;
+                continue;
+            }
+
+            if (StringUtil.isNotEmpty(configuration.getPasswordAttribute())
+                    && header.equals(configuration.getPasswordAttribute())) {
+                passwordFound = true;
+            }
+
+            if (uniqueFound && passwordFound) {
+                break;
+            }
+        }
+
+        if (!uniqueFound) {
+            throw new ConfigurationException("Header in csv file doesn't contain "
+                    + "unique attribute name as defined in configuration.");
+        }
+
+        if (StringUtil.isNotEmpty(configuration.getPasswordAttribute()) && !passwordFound) {
+            throw new ConfigurationException("Header in csv file doesn't contain "
+                    + "password attribute name as defined in configuration.");
+        }
     }
 
     private CSVFormat createCsvFormat() {
@@ -92,57 +232,63 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 .withFirstRecordAsHeader();
     }
 
-    @Override
-    public void test() {
+    private ConnectorObject createConnectorObject(CSVRecord record) {
+        ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
 
+        Map<String, String> map = record.toMap();
+        for (String name : map.keySet()) {
+            if (StringUtil.isEmpty(map.get(name))) {
+                continue;
+            }
+
+            String value = map.get(name);
+            if (name.equals(configuration.getUniqueAttribute())) {
+                builder.setUid(value);
+
+                if (!isUniqueAndNameAttributeEqual()) {
+                    continue;
+                }
+            }
+
+            if (name.equals(configuration.getNameAttribute())) {
+                builder.setName(new Name(value));
+                continue;
+            }
+
+            if (name.equals(configuration.getPasswordAttribute())) {
+                builder.addAttribute(OperationalAttributes.PASSWORD_NAME, new GuardedString(value.toCharArray()));
+                continue;
+            }
+
+            builder.addAttribute(name, createAttributeValues(value));
+        }
+
+        return builder.build();
     }
 
-    @Override
-    public FilterTranslator<String> createFilterTranslator(ObjectClass objectClass, OperationOptions operationOptions) {
-        Util.assertAccount(objectClass);
+    private List<String> createAttributeValues(String attributeValue) {
+        List<String> values = new ArrayList<>();
+        values.add(attributeValue);
 
-        return new AbstractFilterTranslator<String>() {
-
-        };
+        return values;
     }
 
-    @Override
-    public void executeQuery(ObjectClass objectClass, String s, ResultsHandler resultsHandler, OperationOptions operationOptions) {
+    private boolean isUniqueAndNameAttributeEqual() {
+        String uniqueAttribute = configuration.getUniqueAttribute();
+        String nameAttribute = configuration.getNameAttribute();
 
+        return uniqueAttribute == null ? nameAttribute == null : uniqueAttribute.equals(nameAttribute);
     }
 
-    @Override
-    public Uid authenticate(ObjectClass objectClass, String s, GuardedString guardedString, OperationOptions operationOptions) {
-        return null;
-    }
+    private void handleGenericException(Exception ex, String message) {
+        if (ex instanceof ConnectorException) {
+            throw (ConnectorException) ex;
+        }
 
-    @Override
-    public Uid resolveUsername(ObjectClass objectClass, String s, OperationOptions operationOptions) {
-        return null;
-    }
+        if (ex instanceof IOException) {
+            throw new ConnectorIOException(message + ", IO exception occurred, reason: " + ex.getMessage(), ex);
+        }
 
-    @Override
-    public void sync(ObjectClass objectClass, SyncToken syncToken, SyncResultsHandler syncResultsHandler, OperationOptions operationOptions) {
-
-    }
-
-    @Override
-    public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-        return null;
-    }
-
-    @Override
-    public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions operationOptions) {
-        return null;
-    }
-
-    @Override
-    public Uid removeAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions operationOptions) {
-        return null;
-    }
-
-    @Override
-    public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions operationOptions) {
-        return null;
+        throw new ConnectorException(message + ", reason: " + ex.getMessage(), ex);
     }
 }
