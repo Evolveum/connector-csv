@@ -23,10 +23,10 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     private String fieldDelimiter = ";";
     private String escape = "\\";
-    private String commentMarker = "//";
+    private String commentMarker = "#";
     private boolean ignoreEmptyLines = true;
     private String quote = "\"";
-    private String quoteMode = QuoteMode.ALL.name();
+    private String quoteMode = QuoteMode.MINIMAL.name();
     private String recordSeparator = "\r\n";
     private boolean ignoreSurroundingSpaces = false;
     private boolean trailingDelimiter = false;

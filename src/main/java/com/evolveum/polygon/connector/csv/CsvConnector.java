@@ -4,9 +4,7 @@ import org.apache.commons.csv.*;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.exceptions.*;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.AbstractFilterTranslator;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
@@ -20,10 +18,9 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.Writer;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * //todo locking!
- *
  * Created by Viliam Repan (lazyman).
  */
 @ConnectorClass(
@@ -36,7 +33,11 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     private static final Log LOG = Log.getLog(CsvConnector.class);
 
+    private static final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock();
+
     private CsvConfiguration configuration;
+
+    private Map<String, Integer> headers;
 
     @Override
     public Configuration getConfiguration() {
@@ -50,6 +51,12 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         }
 
         this.configuration = (CsvConfiguration) configuration;
+
+        try {
+            this.headers = getHeader();
+        } catch (Exception ex) {
+            handleGenericException(ex, "Couldn't initialize connector");
+        }
     }
 
     @Override
@@ -57,9 +64,52 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     @Override
-    public Uid create(ObjectClass objectClass, Set<Attribute> set, OperationOptions options) {
-        //todo implement
-        return null;
+    public Uid create(ObjectClass objectClass, Set<Attribute> attributes, OperationOptions options) {
+        Util.assertAccount(objectClass);
+
+        Attribute uidAttr = getAttribute(configuration.getUniqueAttribute(), attributes);
+        if (uidAttr == null || uidAttr.getValue().isEmpty() || uidAttr.getValue().get(0) == null) {
+            throw new UnknownUidException("Unique attribute not defined or is empty.");
+        }
+
+        Uid uid = new Uid(uidAttr.getValue().get(0).toString());
+
+        LOCK.writeLock().lock();
+
+        File tmp = createTmpFile();
+
+        try (Reader reader = Util.createReader(configuration);
+             Writer writer = Util.createWriter(tmp, true, configuration)) {
+
+            CSVFormat csv = createCsvFormatReader();
+            CSVParser parser = csv.parse(reader);
+
+            csv = createCsvFormatWriter();
+            CSVPrinter printer = csv.print(writer);
+
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                ConnectorObject obj = createConnectorObject(record);
+
+                if (uid.equals(obj.getUid().getUidValue())) {
+                    throw new AlreadyExistsException("Account already exists '" + uid.getUidValue() + "'.");
+                }
+
+                printer.print(record);
+            }
+
+            printer.printRecord(createRecord(attributes));
+
+            configuration.getFilePath().delete();
+            tmp.renameTo(configuration.getFilePath());
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during account '" + uid + "' delete");
+        } finally {
+            LOCK.writeLock().unlock();
+        }
+
+        return uid;
     }
 
     @Override
@@ -67,11 +117,13 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         Util.assertAccount(objectClass);
         Util.notNull(uid, "Uid must not be null");
 
-        File tmp = new File(configuration.getFilePath().getPath() + "." + System.currentTimeMillis() + TMP_EXTENSION);
+        File tmp = createTmpFile();
 
-        CSVFormat csv = createCsvFormat();
+        CSVFormat csv = createCsvFormatReader();
         try (Reader reader = Util.createReader(configuration);
              Writer writer = Util.createWriter(tmp, false, configuration)) {
+
+            LOCK.writeLock().lock();
 
             CSVPrinter printer = csv.print(writer);
             CSVParser parser = csv.parse(reader);
@@ -91,6 +143,9 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             tmp.renameTo(configuration.getFilePath());
         } catch (Exception ex) {
             handleGenericException(ex, "Error during account '" + uid + "' delete");
+        } finally {
+            LOCK.writeLock().unlock();
+            //todo tmp cleanup or something...
         }
     }
 
@@ -101,7 +156,9 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         SchemaBuilder builder = new SchemaBuilder(CsvConnector.class);
 
         try (Reader reader = Util.createReader(configuration)) {
-            CSVFormat csv = createCsvFormat();
+            LOCK.readLock().lock();
+
+            CSVFormat csv = createCsvFormatReader();
             CSVParser parser = csv.parse(reader);
 
             Map<String, Integer> headers = parser.getHeaderMap();
@@ -115,6 +172,8 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             builder.defineObjectClass(objClassBuilder.build());
         } catch (Exception ex) {
             handleGenericException(ex, "Couldn't generate connector schema");
+        } finally {
+            LOCK.readLock().unlock();
         }
 
         LOG.info("schema::end");
@@ -129,18 +188,14 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         configuration.validate();
 
         LOG.info("Validating header.");
-        try (Reader reader = Util.createReader(configuration)) {
-            CSVFormat csv = createCsvFormat();
-            CSVParser parser = csv.parse(reader);
-
-            Map<String, Integer> headers = parser.getHeaderMap();
-            testHeader(headers);
-
-            LOG.info("Test configuration was successful.");
+        try {
+            getHeader();
         } catch (Exception ex) {
             LOG.error("Test configuration was unsuccessful, reason: {0}.", ex.getMessage());
             handleGenericException(ex, "Test configuration was unsuccessful");
         }
+
+        LOG.info("Test configuration was successful.");
 
         LOG.info("test::end");
     }
@@ -157,8 +212,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     public void executeQuery(ObjectClass objectClass, String uid, ResultsHandler handler, OperationOptions options) {
         Util.assertAccount(objectClass);
 
-        CSVFormat csv = createCsvFormat();
+        CSVFormat csv = createCsvFormatReader();
         try (Reader reader = Util.createReader(configuration)) {
+            LOCK.readLock().lock();
+
             CSVParser parser = csv.parse(reader);
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
@@ -174,17 +231,34 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             }
         } catch (Exception ex) {
             handleGenericException(ex, "Error during query execution");
+        } finally {
+            LOCK.readLock().unlock();
         }
     }
 
     @Override
     public Uid authenticate(ObjectClass objectClass, String s, GuardedString guardedString, OperationOptions options) {
-        //todo implement
+        Util.assertAccount(objectClass);
+
+        CSVFormat csv = createCsvFormatReader();
+        try (Reader reader = Util.createReader(configuration)) {
+            LOCK.readLock().lock();
+
+
+            CSVParser parser = csv.parse(reader);
+
+            //todo implement
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during authentication");
+        } finally {
+            LOCK.readLock().unlock();
+        }
+
         return null;
     }
 
     @Override
-    public Uid resolveUsername(ObjectClass objectClass, String s, OperationOptions operationOptions) {
+    public Uid resolveUsername(ObjectClass objectClass, String s, OperationOptions options) {
         //todo implement
         return null;
     }
@@ -218,6 +292,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         return null;
     }
 
+    // todo remove obsolete column name count check
     private void testHeader(Map<String, Integer> headers) {
         boolean uniqueFound = false;
         boolean passwordFound = false;
@@ -265,8 +340,21 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         }
     }
 
+    private CSVFormat createCsvFormatReader() {
+        return createCsvFormat().withFirstRecordAsHeader();
+    }
+
+    private CSVFormat createCsvFormatWriter() {
+        String[] names = new String[headers.size()];
+        for (String name : headers.keySet()) {
+            names[headers.get(name)] = name;
+        }
+
+        return createCsvFormat().withHeader(names);
+    }
+
     private CSVFormat createCsvFormat() {
-        return CSVFormat.valueOf(configuration.getFieldDelimiter())
+        return CSVFormat.newFormat(Util.toCharacter(configuration.getFieldDelimiter()))
                 .withAllowMissingColumnNames(false)
                 .withEscape(Util.toCharacter(configuration.getEscape()))
                 .withCommentMarker(Util.toCharacter(configuration.getCommentMarker()))
@@ -275,10 +363,9 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 .withIgnoreSurroundingSpaces(configuration.isIgnoreSurroundingSpaces())
                 .withQuote(Util.toCharacter(configuration.getQuote()))
                 .withQuoteMode(QuoteMode.valueOf(configuration.getQuoteMode()))
-                .withRecordSeparator(Util.toCharacter(configuration.getRecordSeparator()))
+                .withRecordSeparator(configuration.getRecordSeparator())
                 .withTrailingDelimiter(configuration.isTrailingDelimiter())
-                .withTrim(configuration.isTrim())
-                .withFirstRecordAsHeader();
+                .withTrim(configuration.isTrim());
     }
 
     private ConnectorObject createConnectorObject(CSVRecord record) {
@@ -313,6 +400,37 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         }
 
         return builder.build();
+    }
+
+    private List<Object> createRecord(Set<Attribute> attributes) {
+        final List<Object> record = new ArrayList<>();
+
+        for (String columnName : headers.keySet()) {
+            Attribute attribute = getAttribute(columnName, attributes);
+            if (attribute == null || attribute.getValue() == null || attribute.getValue().isEmpty()) {
+                record.add(null);
+            } else {
+                List values = attribute.getValue();
+                if (values.size() > 1) {
+                    throw new ConnectorException("Multiple values not supported");
+                } else {
+                    Object object = values.get(0);
+                    if (object instanceof GuardedString) {
+                        GuardedString pwd = (GuardedString) object;
+                        pwd.access(new GuardedString.Accessor() {
+
+                            public void access(char[] chars) {
+                                record.add(new String(chars));
+                            }
+                        });
+                    } else {
+                        record.add(object);
+                    }
+                }
+            }
+        }
+
+        return record;
     }
 
     private List<String> createAttributeValues(String attributeValue) {
@@ -365,5 +483,44 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         }
 
         return infos;
+    }
+
+    private File createTmpFile() {
+        return new File(configuration.getFilePath().getPath() + "." + System.currentTimeMillis() + TMP_EXTENSION);
+    }
+
+    private Attribute getAttribute(String name, Set<Attribute> attributes) {
+        if (name.equals(configuration.getPasswordAttribute())) {
+            name = OperationalAttributes.PASSWORD_NAME;
+        }
+        if (name.equals(configuration.getNameAttribute())) {
+            name = Name.NAME;
+        }
+
+        for (Attribute attribute : attributes) {
+            if (attribute.getName().equals(name)) {
+                return attribute;
+            }
+        }
+
+        return null;
+    }
+
+    private Map<String, Integer> getHeader() throws IOException {
+        try (Reader reader = Util.createReader(configuration)) {
+            LOCK.readLock().lock();
+
+            CSVFormat csv = createCsvFormatReader();
+            CSVParser parser = csv.parse(reader);
+
+            Map<String, Integer> headers = parser.getHeaderMap();
+            testHeader(headers);
+
+            return headers;
+        } catch (IllegalArgumentException ex) {
+            throw new ConfigurationException(ex);
+        } finally {
+            LOCK.readLock().unlock();
+        }
     }
 }
