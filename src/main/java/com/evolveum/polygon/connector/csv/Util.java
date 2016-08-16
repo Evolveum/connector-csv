@@ -22,6 +22,12 @@ public class Util {
         }
     }
 
+    public static void notNull(Object object, String message) {
+        if (object == null) {
+            throw new IllegalArgumentException(message);
+        }
+    }
+
     public static BufferedReader createReader(CsvConfiguration configuration) throws IOException {
         return createReader(configuration.getFilePath(), configuration);
     }
@@ -30,6 +36,14 @@ public class Util {
         FileInputStream fis = new FileInputStream(path);
         InputStreamReader in = new InputStreamReader(fis, configuration.getEncoding());
         return new BufferedReader(in);
+    }
+
+    public static BufferedWriter createWriter(File path, boolean append, CsvConfiguration configuration)
+            throws IOException {
+
+        FileOutputStream fos = new FileOutputStream(path, append);
+        OutputStreamWriter out = new OutputStreamWriter(fos, configuration.getEncoding());
+        return new BufferedWriter(out);
     }
 
     public static Character toCharacter(String value) {
@@ -45,7 +59,7 @@ public class Util {
         return value.charAt(0);
     }
 
-    public static void validateNotEmpty(String str, String message) {
+    public static void notEmpty(String str, String message) {
         if (StringUtil.isEmpty(str)) {
             throw new ConfigurationException(message);
         }

@@ -243,18 +243,18 @@ public class CsvConfiguration extends AbstractConfiguration {
             throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
         }
 
-        Util.validateNotEmpty(encoding, "Encoding is not defined.");
+        Util.notEmpty(encoding, "Encoding is not defined.");
 
         if (!Charset.isSupported(encoding)) {
             throw new ConfigurationException("Encoding '" + encoding + "' is not supported");
         }
 
-        Util.validateNotEmpty(fieldDelimiter, "Field delimiter can't be null or empty");
-        Util.validateNotEmpty(escape, "Escape character is not defined");
-        Util.validateNotEmpty(commentMarker, "Comment marker character is not defined");
-        Util.validateNotEmpty(quote, "Quote character is not defined");
+        Util.notEmpty(fieldDelimiter, "Field delimiter can't be null or empty");
+        Util.notEmpty(escape, "Escape character is not defined");
+        Util.notEmpty(commentMarker, "Comment marker character is not defined");
+        Util.notEmpty(quote, "Quote character is not defined");
 
-        Util.validateNotEmpty(quoteMode, "Quote mode is not defined");
+        Util.notEmpty(quoteMode, "Quote mode is not defined");
         boolean found = false;
         for (QuoteMode qm : QuoteMode.values()) {
             if (qm.name().equalsIgnoreCase(quoteMode)) {
@@ -273,7 +273,7 @@ public class CsvConfiguration extends AbstractConfiguration {
                     + sb.toString() + "]");
         }
 
-        Util.validateNotEmpty(recordSeparator, "Record separator is not defined");
+        Util.notEmpty(recordSeparator, "Record separator is not defined");
 
         if (StringUtil.isEmpty(uniqueAttribute)) {
             throw new ConfigurationException("Unique attribute is not defined.");

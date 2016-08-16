@@ -1,9 +1,6 @@
 package com.evolveum.polygon.connector.csv;
 
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
-import org.apache.commons.csv.QuoteMode;
+import org.apache.commons.csv.*;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
@@ -18,11 +15,15 @@ import org.identityconnectors.framework.spi.Connector;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.operations.*;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.Reader;
+import java.io.Writer;
 import java.util.*;
 
 /**
+ * //todo locking!
+ *
  * Created by Viliam Repan (lazyman).
  */
 @ConnectorClass(
@@ -56,20 +57,68 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     @Override
-    public Uid create(ObjectClass objectClass, Set<Attribute> set, OperationOptions operationOptions) {
+    public Uid create(ObjectClass objectClass, Set<Attribute> set, OperationOptions options) {
         //todo implement
         return null;
     }
 
     @Override
-    public void delete(ObjectClass objectClass, Uid uid, OperationOptions operationOptions) {
-        //todo implement
+    public void delete(ObjectClass objectClass, Uid uid, OperationOptions options) {
+        Util.assertAccount(objectClass);
+        Util.notNull(uid, "Uid must not be null");
+
+        File tmp = new File(configuration.getFilePath().getPath() + "." + System.currentTimeMillis() + TMP_EXTENSION);
+
+        CSVFormat csv = createCsvFormat();
+        try (Reader reader = Util.createReader(configuration);
+             Writer writer = Util.createWriter(tmp, false, configuration)) {
+
+            CSVPrinter printer = csv.print(writer);
+            CSVParser parser = csv.parse(reader);
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                ConnectorObject obj = createConnectorObject(record);
+
+                if (uid.equals(obj.getUid().getUidValue())) {
+                    continue;
+                }
+
+                printer.print(record);
+            }
+
+            configuration.getFilePath().delete();
+            tmp.renameTo(configuration.getFilePath());
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during account '" + uid + "' delete");
+        }
     }
 
     @Override
     public Schema schema() {
-        //todo implement
-        return null;
+        LOG.info("schema::begin");
+
+        SchemaBuilder builder = new SchemaBuilder(CsvConnector.class);
+
+        try (Reader reader = Util.createReader(configuration)) {
+            CSVFormat csv = createCsvFormat();
+            CSVParser parser = csv.parse(reader);
+
+            Map<String, Integer> headers = parser.getHeaderMap();
+            if (headers == null || headers.isEmpty()) {
+                throw new ConfigurationException("Schema can't be generated. First line in CSV is missing");
+            }
+
+            ObjectClassInfoBuilder objClassBuilder = new ObjectClassInfoBuilder();
+            objClassBuilder.addAllAttributeInfo(createAttributeInfo(headers));
+
+            builder.defineObjectClass(objClassBuilder.build());
+        } catch (Exception ex) {
+            handleGenericException(ex, "Couldn't generate connector schema");
+        }
+
+        LOG.info("schema::end");
+        return builder.build();
     }
 
     @Override
@@ -109,8 +158,8 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         Util.assertAccount(objectClass);
 
         CSVFormat csv = createCsvFormat();
-        try (Reader in = Util.createReader(configuration)) {
-            CSVParser parser = csv.parse(in);
+        try (Reader reader = Util.createReader(configuration)) {
+            CSVParser parser = csv.parse(reader);
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
                 ConnectorObject obj = createConnectorObject(iterator.next());
@@ -290,5 +339,31 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         }
 
         throw new ConnectorException(message + ", reason: " + ex.getMessage(), ex);
+    }
+
+    private List<AttributeInfo> createAttributeInfo(Map<String, Integer> names) {
+        List<AttributeInfo> infos = new ArrayList<>();
+        for (String name : names.keySet()) {
+            if (name.equals(configuration.getUniqueAttribute())) {
+                continue;
+            }
+            if (name.equals(configuration.getNameAttribute())) {
+                continue;
+            }
+            if (name.equals(configuration.getPasswordAttribute())) {
+                infos.add(OperationalAttributeInfos.PASSWORD);
+                continue;
+            }
+
+            AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
+            if (name.equals(configuration.getPasswordAttribute())) {
+                builder.setType(GuardedString.class);
+            } else {
+                builder.setType(String.class);
+            }
+            infos.add(builder.build());
+        }
+
+        return infos;
     }
 }
