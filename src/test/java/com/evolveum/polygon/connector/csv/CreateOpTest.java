@@ -17,7 +17,7 @@ import static org.testng.AssertJUnit.*;
 /**
  * Created by Viliam Repan (lazyman).
  */
-public class CreateTest extends BaseTest {
+public class CreateOpTest extends BaseTest {
 
     @Override
     protected CsvConfiguration createConfiguration() {
@@ -45,8 +45,25 @@ public class CreateTest extends BaseTest {
         assertEquals(uidValue, uid.getUidValue());
 
         ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
-        assertAttribute(newObject, Name.NAME, "vilo repan");
-        assertAttribute(newObject, "firstName", "vilo");
+        assertConnectorObject(attributes, newObject);
+    }
+
+    private void assertConnectorObject(Set<Attribute> expected, ConnectorObject object) {
+        Set<Attribute> real = object.getAttributes();
+        assertEquals(expected.size(), real.size());
+
+        for (Attribute attr : expected) {
+            List<Object> expValues = attr.getValue();
+
+            String name = attr.getName();
+            if ("uid".equals(name)) {
+                name = Uid.NAME;
+            }
+            Attribute realAttr = object.getAttributeByName(name);
+            assertNotNull(realAttr);
+
+            assertEquals(expValues, realAttr.getValue());
+        }
     }
 
     private void assertAttribute(ConnectorObject object, String attrName, String value) {

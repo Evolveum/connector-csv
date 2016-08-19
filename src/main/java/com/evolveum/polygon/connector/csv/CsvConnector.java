@@ -6,7 +6,6 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.*;
 import org.identityconnectors.framework.common.objects.*;
-import org.identityconnectors.framework.common.objects.filter.AbstractFilterTranslator;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
@@ -132,7 +131,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 CSVRecord record = iterator.next();
                 ConnectorObject obj = createConnectorObject(record);
 
-                if (uid.equals(obj.getUid().getUidValue())) {
+                if (uid.equals(obj.getUid())) {
                     continue;
                 }
 

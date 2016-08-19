@@ -1,4 +1,4 @@
-package com.evolveum.polygon.connector.csv;
+package com.evolveum.polygon.connector.csv.util;
 
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
