@@ -204,8 +204,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     public FilterTranslator<String> createFilterTranslator(ObjectClass objectClass, OperationOptions operationOptions) {
         Util.assertAccount(objectClass);
 
-        return new AbstractFilterTranslator<String>() {
-        };
+        return new CsvFilterTranslator();
     }
 
     @Override
@@ -221,7 +220,15 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             while (iterator.hasNext()) {
                 ConnectorObject obj = createConnectorObject(iterator.next());
 
-                if (StringUtil.isEmpty(uid) || !uid.equals(obj.getUid().getUidValue())) {
+                if (uid == null) {
+                    if (!handler.handle(obj)) {
+                        break;
+                    } else {
+                        continue;
+                    }
+                }
+
+                if (!uid.equals(obj.getUid().getUidValue())) {
                     continue;
                 }
 
@@ -237,7 +244,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     @Override
-    public Uid authenticate(ObjectClass objectClass, String s, GuardedString guardedString, OperationOptions options) {
+    public Uid authenticate(ObjectClass objectClass, String username, GuardedString password, OperationOptions options) {
         Util.assertAccount(objectClass);
 
         CSVFormat csv = createCsvFormatReader();
@@ -258,7 +265,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     @Override
-    public Uid resolveUsername(ObjectClass objectClass, String s, OperationOptions options) {
+    public Uid resolveUsername(ObjectClass objectClass, String username, OperationOptions options) {
         //todo implement
         return null;
     }
