@@ -19,4 +19,8 @@ public class ListResultHandler implements ResultsHandler {
 
         return true;
     }
+
+    public List<ConnectorObject> getObjects() {
+        return objects;
+    }
 }

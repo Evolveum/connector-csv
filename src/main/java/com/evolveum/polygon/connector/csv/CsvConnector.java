@@ -11,6 +11,7 @@ import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.operations.*;
+import org.w3c.dom.Attr;
 
 import java.io.File;
 import java.io.IOException;
@@ -243,12 +244,23 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     @Override
     public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options) {
+        LOG.info("Sync started");
+        Util.assertAccount(objectClass);
+
         //todo implement
+
+        LOG.info("Sync finished");
     }
 
     @Override
     public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+        LOG.info("Get latest sync token started");
+        Util.assertAccount(objectClass);
+
         //todo implement
+
+        LOG.info("Get latest sync token finished");
+
         return null;
     }
 
@@ -357,18 +369,25 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         Util.assertAccount(objectClass);
         Util.notNull(uid, "Uid must not be null");
 
+        if (attributes == null && Operation.DELETE != operation) {
+            throw new IllegalArgumentException("Attribute set can't be null");
+        }
+
+        LOCK.writeLock().lock();
+
         File tmp = createTmpFile();
 
-        CSVFormat csv = createCsvFormatReader();
         try (Reader reader = Util.createReader(configuration);
              Writer writer = Util.createWriter(tmp, configuration)) {
 
-            LOCK.writeLock().lock();
-
             boolean found = false;
 
-            CSVPrinter printer = csv.print(writer);
+            CSVFormat csv = createCsvFormatReader();
             CSVParser parser = csv.parse(reader);
+
+            csv = createCsvFormatWriter();
+            CSVPrinter printer = csv.print(writer);
+
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
                 CSVRecord record = iterator.next();
@@ -385,13 +404,27 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                     case DELETE:
                         continue;
                     case UPDATE:
-//todo implement
+                        obj.getAttributes().addAll(attributes);
                         break;
                     case ADD_ATTR_VALUE:
-//todo implement
-                        break;
                     case REMOVE_ATTR_VALUE:
-//todo implement
+                        for (Attribute attr :attributes) {
+                            Attribute objAttr = obj.getAttributeByName(attr.getName());
+                            if (objAttr == null) {
+                                continue;
+                            }
+
+                            List<Object> values = objAttr.getValue();
+                            for (Object newValue : attr.getValue()) {
+                                if (Operation.ADD_ATTR_VALUE.equals(operation) && !values.contains(newValue)) {
+                                    values.add(newValue);
+                                }
+
+                                if (Operation.REMOVE_ATTR_VALUE.equals(operation) && values.contains(newValue)) {
+                                    values.remove(newValue);
+                                }
+                            }
+                        }
                         break;
                 }
             }
@@ -412,28 +445,11 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         return uid;
     }
 
-    // todo remove obsolete column name count check
     private void testHeader(Map<String, Integer> headers) {
         boolean uniqueFound = false;
         boolean passwordFound = false;
 
-        Map<String, Integer> headerCount = new HashMap<>();
         for (String header : headers.keySet()) {
-            if (!headerCount.containsKey(header)) {
-                headerCount.put(header, 0);
-            }
-
-            headerCount.put(header, headerCount.get(header) + 1);
-        }
-
-        for (String header : headers.keySet()) {
-            int count = headerCount.containsKey(header) ? headerCount.get(header) : 0;
-
-            if (count != 1) {
-                throw new ConfigurationException("Column header '" + header
-                        + "' occurs more than once (" + count + ").");
-            }
-
             if (header.equals(configuration.getUniqueAttribute())) {
                 uniqueFound = true;
                 continue;
