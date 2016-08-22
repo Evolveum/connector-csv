@@ -38,10 +38,10 @@ public class Util {
         return new BufferedReader(in);
     }
 
-    public static BufferedWriter createWriter(File path, boolean append, CsvConfiguration configuration)
+    public static BufferedWriter createWriter(File path, CsvConfiguration configuration)
             throws IOException {
 
-        FileOutputStream fos = new FileOutputStream(path, append);
+        FileOutputStream fos = new FileOutputStream(path);
         OutputStreamWriter out = new OutputStreamWriter(fos, configuration.getEncoding());
         return new BufferedWriter(out);
     }

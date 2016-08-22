@@ -30,6 +30,11 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     public static final String TMP_EXTENSION = ".tmp";
 
+    private enum Operation {
+
+        DELETE, UPDATE, ADD_ATTR_VALUE, REMOVE_ATTR_VALUE;
+    }
+
     private static final Log LOG = Log.getLog(CsvConnector.class);
 
     private static final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock();
@@ -64,6 +69,8 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     @Override
     public Uid create(ObjectClass objectClass, Set<Attribute> attributes, OperationOptions options) {
+        LOG.info("Create started");
+
         Util.assertAccount(objectClass);
 
         Attribute uidAttr = getAttribute(configuration.getUniqueAttribute(), attributes);
@@ -78,7 +85,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         File tmp = createTmpFile();
 
         try (Reader reader = Util.createReader(configuration);
-             Writer writer = Util.createWriter(tmp, true, configuration)) {
+             Writer writer = Util.createWriter(tmp, configuration)) {
 
             CSVFormat csv = createCsvFormatReader();
             CSVParser parser = csv.parse(reader);
@@ -108,49 +115,21 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             LOCK.writeLock().unlock();
         }
 
+        LOG.info("Create finished");
+
         return uid;
     }
 
     @Override
     public void delete(ObjectClass objectClass, Uid uid, OperationOptions options) {
-        Util.assertAccount(objectClass);
-        Util.notNull(uid, "Uid must not be null");
-
-        File tmp = createTmpFile();
-
-        CSVFormat csv = createCsvFormatReader();
-        try (Reader reader = Util.createReader(configuration);
-             Writer writer = Util.createWriter(tmp, false, configuration)) {
-
-            LOCK.writeLock().lock();
-
-            CSVPrinter printer = csv.print(writer);
-            CSVParser parser = csv.parse(reader);
-            Iterator<CSVRecord> iterator = parser.iterator();
-            while (iterator.hasNext()) {
-                CSVRecord record = iterator.next();
-                ConnectorObject obj = createConnectorObject(record);
-
-                if (uid.equals(obj.getUid())) {
-                    continue;
-                }
-
-                printer.print(record);
-            }
-
-            configuration.getFilePath().delete();
-            tmp.renameTo(configuration.getFilePath());
-        } catch (Exception ex) {
-            handleGenericException(ex, "Error during account '" + uid + "' delete");
-        } finally {
-            LOCK.writeLock().unlock();
-            //todo tmp cleanup or something...
-        }
+        LOG.info("Delete for {0} with options {1} started", uid, options);
+        doUpdate(Operation.DELETE, objectClass, uid, null, options);
+        LOG.info("Delete for {0} finished", uid);
     }
 
     @Override
     public Schema schema() {
-        LOG.info("schema::begin");
+        LOG.info("Schema started");
 
         SchemaBuilder builder = new SchemaBuilder(CsvConnector.class);
 
@@ -175,8 +154,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             LOCK.readLock().unlock();
         }
 
-        LOG.info("schema::end");
-        return builder.build();
+        Schema schema = builder.build();
+        LOG.info("Schema finished");
+
+        return schema;
     }
 
     @Override
@@ -244,29 +225,20 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     @Override
     public Uid authenticate(ObjectClass objectClass, String username, GuardedString password, OperationOptions options) {
-        Util.assertAccount(objectClass);
+        LOG.info("Authenticate for {0} with options {1} started", username, options);
+        Uid uid = resolveUsername(objectClass, username, null, options, false);
+        LOG.info("Authenticate for {0} finished, uid {1}", username, uid);
 
-        CSVFormat csv = createCsvFormatReader();
-        try (Reader reader = Util.createReader(configuration)) {
-            LOCK.readLock().lock();
-
-
-            CSVParser parser = csv.parse(reader);
-
-            //todo implement
-        } catch (Exception ex) {
-            handleGenericException(ex, "Error during authentication");
-        } finally {
-            LOCK.readLock().unlock();
-        }
-
-        return null;
+        return uid;
     }
 
     @Override
     public Uid resolveUsername(ObjectClass objectClass, String username, OperationOptions options) {
-        //todo implement
-        return null;
+        LOG.info("Resolve username for {0} with options {1} started", username, options);
+        Uid uid = resolveUsername(objectClass, username, null, options, false);
+        LOG.info("Resolve username for {0} finished, uid {1}", username, uid);
+
+        return uid;
     }
 
     @Override
@@ -282,20 +254,162 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     @Override
     public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {
-        //todo implement
-        return null;
+        LOG.info("Add attribute values for {0} with options {1} started", uid, options);
+        uid = doUpdate(Operation.ADD_ATTR_VALUE, objectClass, uid, set, options);
+        LOG.info("Add attribute values for {0} finished", uid);
+
+        return uid;
     }
 
     @Override
     public Uid removeAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {
-        //todo implement
-        return null;
+        LOG.info("Remove attribute values for {0} with options {1} started", uid, options);
+        uid = doUpdate(Operation.REMOVE_ATTR_VALUE, objectClass, uid, set, options);
+        LOG.info("Remove attribute values for {0} finished", uid);
+
+        return uid;
     }
 
     @Override
     public Uid update(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {
-        //todo implement
+        LOG.info("Update for {0} with options {1} started", uid, options);
+        uid = doUpdate(Operation.UPDATE, objectClass, uid, set, options);
+        LOG.info("Update for {0} finished", uid);
+
+        return uid;
+    }
+
+    private Uid resolveUsername(ObjectClass objectClass, String username, GuardedString password,
+                                OperationOptions options, boolean authenticate) {
+        Util.assertAccount(objectClass);
+
+        if (StringUtil.isEmpty(username)) {
+            throw new InvalidCredentialException("Username must not be empty");
+        }
+
+        if (authenticate && StringUtil.isEmpty(configuration.getPasswordAttribute())) {
+            throw new ConfigurationException("Password attribute not defined in configuration");
+        }
+
+        if (authenticate && password == null) {
+            throw new InvalidPasswordException("Password is not defined");
+        }
+
+        CSVFormat csv = createCsvFormatReader();
+        try (Reader reader = Util.createReader(configuration)) {
+            LOCK.readLock().lock();
+
+            ConnectorObject object = null;
+
+            CSVParser parser = csv.parse(reader);
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                ConnectorObject obj = createConnectorObject(iterator.next());
+
+                Name name = obj.getName();
+                if (name != null && name.is(username)) {
+                    object = obj;
+                    break;
+                }
+            }
+
+            if (object == null) {
+                String message = authenticate ? "Invalid username and/or password" : "Invalid username";
+                throw new InvalidCredentialException(message);
+            }
+
+            if (authenticate) {
+                GuardedString objPassword = AttributeUtil.getPasswordValue(object.getAttributes());
+                if (objPassword == null) {
+                    throw new InvalidPasswordException("Password not defined for username '" + username + "'");
+                }
+
+                // we don't want to authenticate against empty password
+                SimpleAccessor acc = new SimpleAccessor();
+                objPassword.access(acc);
+                if (StringUtil.isEmpty(acc.getPassword())) {
+                    throw new InvalidPasswordException("Password not defined for username '" + username + "'");
+                }
+
+                if (!objPassword.equals(password)) {
+                    throw new InvalidPasswordException("Invalid username and/or password");
+                }
+            }
+
+            Uid uid = object.getUid();
+            if (uid == null) {
+                throw new UnknownUidException("Unique attribute doesn't have value for account '" + username + "'");
+            }
+
+            return uid;
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during authentication");
+        } finally {
+            LOCK.readLock().unlock();
+        }
+
         return null;
+    }
+
+    private Uid doUpdate(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
+                         OperationOptions oo) {
+
+        Util.assertAccount(objectClass);
+        Util.notNull(uid, "Uid must not be null");
+
+        File tmp = createTmpFile();
+
+        CSVFormat csv = createCsvFormatReader();
+        try (Reader reader = Util.createReader(configuration);
+             Writer writer = Util.createWriter(tmp, configuration)) {
+
+            LOCK.writeLock().lock();
+
+            boolean found = false;
+
+            CSVPrinter printer = csv.print(writer);
+            CSVParser parser = csv.parse(reader);
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                ConnectorObject obj = createConnectorObject(record);
+
+                if (!uid.equals(obj.getUid())) {
+                    printer.print(record);
+                    continue;
+                }
+
+                found = true;
+
+                switch (operation) {
+                    case DELETE:
+                        continue;
+                    case UPDATE:
+//todo implement
+                        break;
+                    case ADD_ATTR_VALUE:
+//todo implement
+                        break;
+                    case REMOVE_ATTR_VALUE:
+//todo implement
+                        break;
+                }
+            }
+
+            configuration.getFilePath().delete();
+            tmp.renameTo(configuration.getFilePath());
+
+            if (!found) {
+                throw new UnknownUidException("Account '" + uid + "' not found");
+            }
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
+        } finally {
+            LOCK.writeLock().unlock();
+            //todo tmp cleanup or something...
+        }
+
+        return uid;
     }
 
     // todo remove obsolete column name count check
