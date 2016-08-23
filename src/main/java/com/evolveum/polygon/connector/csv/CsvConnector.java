@@ -222,7 +222,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     @Override
     public Uid authenticate(ObjectClass objectClass, String username, GuardedString password, OperationOptions options) {
         LOG.info("Authenticate for {0} with options {1} started", username, options);
-        Uid uid = resolveUsername(objectClass, username, null, options, false);
+        Uid uid = resolveUsername(objectClass, username, password, options, true);
         LOG.info("Authenticate for {0} finished, uid {1}", username, uid);
 
         return uid;
@@ -315,7 +315,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 ConnectorObject obj = createConnectorObject(iterator.next());
 
                 Name name = obj.getName();
-                if (name != null && name.is(username)) {
+                if (name != null && username.equals(AttributeUtil.getStringValue(name))) {
                     object = obj;
                     break;
                 }
