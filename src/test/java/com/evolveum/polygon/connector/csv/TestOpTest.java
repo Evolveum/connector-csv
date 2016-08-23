@@ -11,7 +11,7 @@ public class TestOpTest extends BaseTest {
 
     @Test
     public void testGoodConfiguration() throws Exception {
-        ConnectorFacade connector = setupConnector("/create-backup-empty.csv");
+        ConnectorFacade connector = setupConnector("/create-empty.csv");
         connector.test();
     }
 

@@ -10,8 +10,8 @@ import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
 import org.identityconnectors.framework.spi.ConnectorClass;
+import org.identityconnectors.framework.spi.PoolableConnector;
 import org.identityconnectors.framework.spi.operations.*;
-import org.w3c.dom.Attr;
 
 import java.io.File;
 import java.io.IOException;
@@ -27,7 +27,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
         displayNameKey = "UI_CSV_CONNECTOR_NAME",
         configurationClass = CsvConfiguration.class)
 public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, SchemaOp, SearchOp<String>,
-        UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp {
+        UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, PoolableConnector {
 
     public static final String TMP_EXTENSION = ".tmp";
 
@@ -43,6 +43,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     private CsvConfiguration configuration;
 
     private Map<String, Integer> headers;
+
+    @Override
+    public void checkAlive() {
+    }
 
     @Override
     public Configuration getConfiguration() {
@@ -134,25 +138,15 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
         SchemaBuilder builder = new SchemaBuilder(CsvConnector.class);
 
-        try (Reader reader = Util.createReader(configuration)) {
-            LOCK.readLock().lock();
-
-            CSVFormat csv = createCsvFormatReader();
-            CSVParser parser = csv.parse(reader);
-
-            Map<String, Integer> headers = parser.getHeaderMap();
-            if (headers == null || headers.isEmpty()) {
-                throw new ConfigurationException("Schema can't be generated. First line in CSV is missing");
-            }
+        try {
+            this.headers = getHeader();
 
             ObjectClassInfoBuilder objClassBuilder = new ObjectClassInfoBuilder();
             objClassBuilder.addAllAttributeInfo(createAttributeInfo(headers));
 
             builder.defineObjectClass(objClassBuilder.build());
         } catch (Exception ex) {
-            handleGenericException(ex, "Couldn't generate connector schema");
-        } finally {
-            LOCK.readLock().unlock();
+            handleGenericException(ex, "Couldn't initialize connector");
         }
 
         Schema schema = builder.build();
@@ -192,9 +186,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     public void executeQuery(ObjectClass objectClass, String uid, ResultsHandler handler, OperationOptions options) {
         Util.assertAccount(objectClass);
 
+        LOCK.readLock().lock();
+
         CSVFormat csv = createCsvFormatReader();
         try (Reader reader = Util.createReader(configuration)) {
-            LOCK.readLock().lock();
 
             CSVParser parser = csv.parse(reader);
             Iterator<CSVRecord> iterator = parser.iterator();
@@ -307,9 +302,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             throw new InvalidPasswordException("Password is not defined");
         }
 
+        LOCK.readLock().lock();
+
         CSVFormat csv = createCsvFormatReader();
         try (Reader reader = Util.createReader(configuration)) {
-            LOCK.readLock().lock();
 
             ConnectorObject object = null;
 
@@ -408,7 +404,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                         break;
                     case ADD_ATTR_VALUE:
                     case REMOVE_ATTR_VALUE:
-                        for (Attribute attr :attributes) {
+                        for (Attribute attr : attributes) {
                             Attribute objAttr = obj.getAttributeByName(attr.getName());
                             if (objAttr == null) {
                                 continue;
@@ -643,13 +639,18 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     private Map<String, Integer> getHeader() throws IOException {
+        LOCK.readLock().lock();
+
         try (Reader reader = Util.createReader(configuration)) {
-            LOCK.readLock().lock();
 
             CSVFormat csv = createCsvFormatReader();
             CSVParser parser = csv.parse(reader);
 
             Map<String, Integer> headers = parser.getHeaderMap();
+            if (headers.isEmpty()) {
+                throw new ConfigurationException("Csv file doesn't contain header");
+            }
+
             testHeader(headers);
 
             return headers;

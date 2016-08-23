@@ -4,8 +4,6 @@ import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.objects.*;
-import org.identityconnectors.framework.common.objects.filter.Filter;
-import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
 import java.util.HashSet;
@@ -32,7 +30,7 @@ public class CreateOpTest extends BaseTest {
 
     @Test
     public void createWithoutUid() throws Exception {
-        ConnectorFacade connector = setupConnector("/create-backup-empty.csv");
+        ConnectorFacade connector = setupConnector("/create-empty.csv");
 
         final String uidValue = "uid=vilo,dc=example,dc=com";
         Set<Attribute> attributes = new HashSet<>();

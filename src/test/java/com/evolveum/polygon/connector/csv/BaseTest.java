@@ -14,7 +14,7 @@ import java.io.IOException;
  */
 public abstract class BaseTest {
 
-    private static final String CSV_FILE_PATH = "./target/data.csv";
+    public static final String CSV_FILE_PATH = "./target/data.csv";
 
     protected CsvConfiguration createConfiguration() {
         CsvConfiguration config = new CsvConfiguration();
