@@ -43,6 +43,7 @@ public class CreateOpTest extends BaseTest {
         assertEquals(uidValue, uid.getUidValue());
 
         ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
         assertConnectorObject(attributes, newObject);
     }
 
