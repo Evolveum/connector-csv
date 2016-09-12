@@ -1,14 +1,19 @@
 package com.evolveum.polygon.connector.csv;
 
+import com.evolveum.polygon.connector.csv.util.CsvTestUtil;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.*;
+import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
+import java.io.File;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.testng.AssertJUnit.*;
@@ -25,6 +30,8 @@ public class CreateOpTest extends BaseTest {
 
     private CsvConfiguration createConfigurationNameEqualsUid() {
         CsvConfiguration config = new CsvConfiguration();
+
+        config.setFilePath(new File(BaseTest.CSV_FILE_PATH));
         config.setUniqueAttribute("uid");
         config.setPasswordAttribute("password");
 
@@ -33,6 +40,7 @@ public class CreateOpTest extends BaseTest {
 
     private CsvConfiguration createConfigurationDifferent() {
         CsvConfiguration config = new CsvConfiguration();
+        config.setFilePath(new File(BaseTest.CSV_FILE_PATH));
 
         config.setUniqueAttribute("uid");
         config.setPasswordAttribute("password");
@@ -58,6 +66,15 @@ public class CreateOpTest extends BaseTest {
         ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
         assertNotNull(newObject);
         assertConnectorObject(attributes, newObject);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, NEW_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, NEW_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, NEW_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, NEW_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), NEW_UID);
+        assertEquals(expectedRecord, realRecord);
     }
 
     @Test(expectedExceptions = InvalidAttributeValueException.class)
@@ -90,7 +107,17 @@ public class CreateOpTest extends BaseTest {
 
         ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
         assertNotNull(newObject);
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
         assertConnectorObject(attributes, newObject);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, NEW_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, NEW_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, NEW_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, NEW_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), NEW_UID);
+        assertEquals(expectedRecord, realRecord);
     }
 
     @Test(expectedExceptions = InvalidAttributeValueException.class)

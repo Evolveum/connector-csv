@@ -18,11 +18,11 @@ import java.util.Objects;
  */
 public class CsvTestUtil {
 
-    public Map<String, String> findRecord(CsvConfiguration config, String value) throws IOException {
+    public static Map<String, String> findRecord(CsvConfiguration config, String value) throws IOException {
         return findRecord(config, BaseTest.ATTR_UID, value);
     }
 
-    public Map<String, String> findRecord(CsvConfiguration config, String uniqueColumn, String value)
+    public static Map<String, String> findRecord(CsvConfiguration config, String uniqueColumn, String value)
             throws IOException {
         Util.notNull(config, "CsvConfiguration must not be null");
         Util.notEmpty(uniqueColumn, "Unique column name must not be empty");

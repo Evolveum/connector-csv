@@ -79,12 +79,12 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
         Util.assertAccount(objectClass);
 
-        Attribute uidAttr = getAttribute(configuration.getUniqueAttribute(), attributes);
-        if (uidAttr == null || uidAttr.getValue().isEmpty() || uidAttr.getValue().get(0) == null) {
+        String uidValue = findUidValue(attributes);
+        if (StringUtil.isEmpty(uidValue)) {
             throw new UnknownUidException("Unique attribute not defined or is empty.");
         }
 
-        Uid uid = new Uid(uidAttr.getValue().get(0).toString());
+        Uid uid = new Uid(uidValue);
 
         LOCK.writeLock().lock();
 
@@ -579,18 +579,16 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 && configuration.getPasswordAttribute().equals(column);
     }
 
-    private List<Object> createNewRecord(Set<Attribute> attributes) {
-        final Object[] record = new Object[header.getColumnSet().size()];
-
-        Attribute nameAttr = getAttribute(Name.NAME, attributes);
+    private String findUidValue(Set<Attribute> attributes) {
+        Attribute nameAttr = AttributeUtil.getNameFromAttributes(attributes);
         Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
 
-        Attribute uniqueAttr = getAttribute(configuration.getUniqueAttribute(), attributes);
+        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), attributes);
         Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
 
         if (isUniqueAndNameAttributeEqual()) {
             if (name == null && uid != null) {
-                name = uid;
+                Util.setValue(nameAttr, uid);
             } else if (uid == null && name != null) {
                 uid = name;
             } else if (uid != null && name != null) {
@@ -603,6 +601,18 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         if (uid == null) {
             throw new InvalidAttributeValueException("Unique attribute value not defined");
         }
+
+        return uid.toString();
+    }
+
+    private List<Object> createNewRecord(Set<Attribute> attributes) {
+        final Object[] record = new Object[header.getColumnSet().size()];
+
+        Attribute nameAttr = AttributeUtil.getNameFromAttributes(attributes);
+        Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
+
+        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), attributes);
+        Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
 
         Map<String, Integer> columns = header.getColumns();
         for (String column : columns.keySet()) {
