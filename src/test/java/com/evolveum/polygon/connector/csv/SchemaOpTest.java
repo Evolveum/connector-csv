@@ -72,8 +72,9 @@ public class SchemaOpTest extends BaseTest {
         assertFalse(info.isContainer());
         Set<AttributeInfo> attrInfos = info.getAttributeInfo();
         assertNotNull(attrInfos);
-        assertEquals(4, attrInfos.size());
+        assertEquals(5, attrInfos.size());
 
+        testAttribute("uid", attrInfos, false, false);
         testAttribute("firstName", attrInfos, false, false);
         testAttribute("lastName", attrInfos, false, false);
         testAttribute("__NAME__", attrInfos, true, false);
@@ -101,10 +102,9 @@ public class SchemaOpTest extends BaseTest {
         assertFalse(info.isContainer());
         Set<AttributeInfo> attrInfos = info.getAttributeInfo();
         assertNotNull(attrInfos);
-        assertEquals(5, attrInfos.size());
+        assertEquals(4, attrInfos.size());
 
         testAttribute("firstName", attrInfos, false, false);
-        testAttribute("lastName", attrInfos, false, false);
         testAttribute("uid", attrInfos, true, false);
         testAttribute("__NAME__", attrInfos, true, false);
         testAttribute("__PASSWORD__", attrInfos, false, true);
