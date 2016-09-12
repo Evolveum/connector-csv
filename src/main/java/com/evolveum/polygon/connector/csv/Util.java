@@ -5,7 +5,6 @@ import org.apache.commons.csv.QuoteMode;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.*;
@@ -83,15 +82,5 @@ public class Util {
                 .withRecordSeparator(configuration.getRecordSeparator())
                 .withTrailingDelimiter(configuration.isTrailingDelimiter())
                 .withTrim(configuration.isTrim());
-    }
-
-    public static void setValue(Attribute attr, Object value) {
-        notNull(attr, "Attribute must not be null");
-
-        attr.getValue().clear();
-
-        if (value != null) {
-            attr.getValue().add(value);
-        }
     }
 }

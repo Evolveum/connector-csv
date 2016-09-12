@@ -79,11 +79,9 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
         Util.assertAccount(objectClass);
 
-        String uidValue = findUidValue(attributes);
-        if (StringUtil.isEmpty(uidValue)) {
-            throw new UnknownUidException("Unique attribute not defined or is empty.");
-        }
+        attributes = normalize(attributes);
 
+        String uidValue = findUidValue(attributes);
         Uid uid = new Uid(uidValue);
 
         LOCK.writeLock().lock();
@@ -579,24 +577,57 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 && configuration.getPasswordAttribute().equals(column);
     }
 
-    private String findUidValue(Set<Attribute> attributes) {
-        Attribute nameAttr = AttributeUtil.getNameFromAttributes(attributes);
+    private Set<Attribute> normalize(Set<Attribute> attributes) {
+        Set<Attribute> result = new HashSet<>();
+        result.addAll(attributes);
+
+        Attribute nameAttr = AttributeUtil.getNameFromAttributes(result);
         Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
 
-        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), attributes);
+        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), result);
         Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
 
         if (isUniqueAndNameAttributeEqual()) {
             if (name == null && uid != null) {
-                Util.setValue(nameAttr, uid);
+                if (nameAttr == null) {
+                    nameAttr = AttributeBuilder.build(Name.NAME, uid);
+                    result.add(nameAttr);
+                }
             } else if (uid == null && name != null) {
-                uid = name;
+                if (uniqueAttr == null) {
+                    uniqueAttr = AttributeBuilder.build(configuration.getUniqueAttribute(), name);
+                    result.add(uniqueAttr);
+                }
             } else if (uid != null && name != null) {
                 if (!name.equals(uid)) {
                     throw new InvalidAttributeValueException("Unique attribute value doesn't match name attribute value");
                 }
             }
         }
+
+        Set<String> columns = header.getColumnSet();
+        for (Attribute attribute: result) {
+            String attrName = attribute.getName();
+            if (Uid.NAME.equals(attrName) || Name.NAME.equals(attrName)
+                    || OperationalAttributes.PASSWORD_NAME.equals(attrName)) {
+                continue;
+            }
+
+            if (!columns.contains(attrName)) {
+                throw new ConnectorException("Unknown attribute " + attrName);
+            }
+
+            if (!isUniqueAndNameAttributeEqual() && isName(attrName)) {
+                throw new ConnectorException("Column used as " + Name.NAME + " attribute");
+            }
+        }
+
+        return result;
+    }
+
+    private String findUidValue(Set<Attribute> attributes) {
+        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), attributes);
+        Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
 
         if (uid == null) {
             throw new InvalidAttributeValueException("Unique attribute value not defined");
