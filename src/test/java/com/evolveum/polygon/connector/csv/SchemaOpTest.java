@@ -80,6 +80,36 @@ public class SchemaOpTest extends BaseTest {
         testAttribute("__PASSWORD__", attrInfos, false, true);
     }
 
+    @Test
+    public void uniqueDifferentThanNameSchema() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setUniqueAttribute("uid");
+        config.setNameAttribute("lastName");
+        config.setPasswordAttribute("password");
+
+        ConnectorFacade connector = setupConnector("/schema-good.csv", config);
+
+        Schema schema = connector.schema();
+        assertNotNull(schema);
+        Set<ObjectClassInfo> objClassInfos = schema.getObjectClassInfo();
+        assertNotNull(objClassInfos);
+        assertEquals(1, objClassInfos.size());
+
+        ObjectClassInfo info = objClassInfos.iterator().next();
+        assertNotNull(info);
+        assertEquals(ObjectClass.ACCOUNT.getObjectClassValue(), info.getType());
+        assertFalse(info.isContainer());
+        Set<AttributeInfo> attrInfos = info.getAttributeInfo();
+        assertNotNull(attrInfos);
+        assertEquals(5, attrInfos.size());
+
+        testAttribute("firstName", attrInfos, false, false);
+        testAttribute("lastName", attrInfos, false, false);
+        testAttribute("uid", attrInfos, true, false);
+        testAttribute("__NAME__", attrInfos, true, false);
+        testAttribute("__PASSWORD__", attrInfos, false, true);
+    }
+
     private void testAttribute(String name, Set<AttributeInfo> attrInfos, boolean unique, boolean password) {
         Iterator<AttributeInfo> iterator = attrInfos.iterator();
 

@@ -1,5 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
+import org.identityconnectors.common.Base64;
+import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
@@ -56,9 +58,16 @@ public class UpdateOpTest extends BaseTest {
         assertNotNull(uid);
         assertEquals("vilo", uid.getUidValue());
 
-//        String result = TestUtils.compareFiles(TestUtils.getTestFile("update.csv"),
-//                TestUtils.getTestFile("update-result-delete.csv"));
-//        assertNull(result, "File updated incorrectly: " + result);
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+
+        attributes.clear();
+        attributes.add(createAttribute("firstName", "vilo"));
+        attributes.add(createAttribute(Uid.NAME, AttributeUtil.getStringValue(uid)));
+        attributes.add(createAttribute(Name.NAME, AttributeUtil.getStringValue(uid)));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(Base64.encode("asdf".getBytes()).toCharArray())));
+
+        assertConnectorObject(attributes, newObject);
     }
 
     @Test

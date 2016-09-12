@@ -1,6 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
 import org.apache.commons.csv.*;
+import org.identityconnectors.common.IOUtil;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
@@ -103,20 +104,23 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 CSVRecord record = iterator.next();
                 ConnectorObject obj = createConnectorObject(record);
 
-                if (uid.equals(obj.getUid().getUidValue())) {
+                if (uid.equals(obj.getUid())) {
                     throw new AlreadyExistsException("Account already exists '" + uid.getUidValue() + "'.");
                 }
 
-                printer.print(record);
+                printer.printRecord(record);
             }
 
-            printer.printRecord(createRecord(attributes));
+            printer.printRecord(createNewRecord(attributes));
 
             configuration.getFilePath().delete();
             tmp.renameTo(configuration.getFilePath());
         } catch (Exception ex) {
             handleGenericException(ex, "Error during account '" + uid + "' delete");
         } finally {
+            if (!tmp.equals(configuration.getFilePath())) {
+                tmp.delete();
+            }
             LOCK.writeLock().unlock();
         }
 
@@ -391,7 +395,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 ConnectorObject obj = createConnectorObject(record);
 
                 if (!uid.equals(obj.getUid())) {
-                    printer.print(record);
+                    printer.printRecord(record);
                     continue;
                 }
 
@@ -413,8 +417,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         } catch (Exception ex) {
             handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
         } finally {
+            if (!tmp.equals(configuration.getFilePath())) {
+                tmp.delete();
+            }
             LOCK.writeLock().unlock();
-            //todo tmp cleanup or something...
         }
 
         return uid;
@@ -424,7 +430,22 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         Set<Attribute> result = new HashSet<>();
         switch (operation) {
             case UPDATE:
-                result.addAll(attributes);
+                result.addAll(obj.getAttributes());
+                for (Attribute attr : attributes) {
+                    Attribute resultAttr = AttributeUtil.find(attr.getName(), result);
+                    if (resultAttr == null){
+                        if (attr.getValue() == null || attr.getValue().isEmpty()) {
+                            continue;
+                        } else {
+                            result.add(attr);
+                        }
+                    } else {
+                        result.remove(resultAttr);
+                        if (attr.getValue() != null && !attr.getValue().isEmpty()) {
+                            result.add(attr);
+                        }
+                    }
+                }
                 break;
             case ADD_ATTR_VALUE:
                 result.addAll(obj.getAttributes());
@@ -497,7 +518,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     private CSVFormat createCsvFormatReader() {
-        return createCsvFormat().withFirstRecordAsHeader();
+        return Util.createCsvFormat(configuration).withFirstRecordAsHeader();
     }
 
     private CSVFormat createCsvFormatWriter() {
@@ -508,22 +529,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             names[columns.get(column)] = column;
         }
 
-        return createCsvFormat().withHeader(names);
-    }
-
-    private CSVFormat createCsvFormat() {
-        return CSVFormat.newFormat(Util.toCharacter(configuration.getFieldDelimiter()))
-                .withAllowMissingColumnNames(false)
-                .withEscape(Util.toCharacter(configuration.getEscape()))
-                .withCommentMarker(Util.toCharacter(configuration.getCommentMarker()))
-                .withIgnoreEmptyLines(configuration.isIgnoreEmptyLines())
-                .withIgnoreHeaderCase(false)
-                .withIgnoreSurroundingSpaces(configuration.isIgnoreSurroundingSpaces())
-                .withQuote(Util.toCharacter(configuration.getQuote()))
-                .withQuoteMode(QuoteMode.valueOf(configuration.getQuoteMode()))
-                .withRecordSeparator(configuration.getRecordSeparator())
-                .withTrailingDelimiter(configuration.isTrailingDelimiter())
-                .withTrim(configuration.isTrim());
+        return Util.createCsvFormat(configuration).withHeader(names);
     }
 
     private ConnectorObject createConnectorObject(CSVRecord record) {
@@ -560,8 +566,79 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         return builder.build();
     }
 
+    private boolean isUid(String column) {
+        return configuration.getUniqueAttribute().equals(column);
+    }
+
+    private boolean isName(String column) {
+        return configuration.getNameAttribute().equals(column);
+    }
+
+    private boolean isPassword(String column) {
+        return StringUtil.isNotEmpty(configuration.getPasswordAttribute())
+                && configuration.getPasswordAttribute().equals(column);
+    }
+
+    private List<Object> createNewRecord(Set<Attribute> attributes) {
+        final Object[] record = new Object[header.getColumnSet().size()];
+
+        Attribute nameAttr = getAttribute(Name.NAME, attributes);
+        Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
+
+        Attribute uniqueAttr = getAttribute(configuration.getUniqueAttribute(), attributes);
+        Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
+
+        if (isUniqueAndNameAttributeEqual()) {
+            if (name == null && uid != null) {
+                name = uid;
+            } else if (uid == null && name != null) {
+                uid = name;
+            } else if (uid != null && name != null) {
+                if (!name.equals(uid)) {
+                    throw new InvalidAttributeValueException("Unique attribute value doesn't match name attribute value");
+                }
+            }
+        }
+
+        if (uid == null) {
+            throw new InvalidAttributeValueException("Unique attribute value not defined");
+        }
+
+        Map<String, Integer> columns = header.getColumns();
+        for (String column : columns.keySet()) {
+            Object value;
+            if (isPassword(column)) {
+                Attribute attr = AttributeUtil.find(OperationalAttributes.PASSWORD_NAME, attributes);
+                if (attr == null) {
+                    continue;
+                }
+
+                GuardedString gs = AttributeUtil.getGuardedStringValue(attr);
+                SimpleAccessor accessor = new SimpleAccessor();
+                gs.access(accessor);
+
+                value = accessor.getPassword();
+            } else if (isName(column)) {
+                value = name;
+            } else if (isUid(column)) {
+                value = uid;
+            } else {
+                Attribute attr = AttributeUtil.find(column, attributes);
+                if (attr == null) {
+                    continue;
+                }
+
+                value = AttributeUtil.getSingleValue(attr);
+            }
+
+            record[columns.get(column)] = value;
+        }
+
+        return Arrays.asList(record);
+    }
+
     private List<Object> createRecord(Set<Attribute> attributes) {
-        final List<Object> record = new ArrayList<>();
+        final Object[] record = new Object[header.getColumnSet().size()];
 
         Set<String> supportedAttributes = header.getAttributeSet();
         for (Attribute attr : attributes) {
@@ -570,32 +647,36 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             }
         }
 
-//        for (String columnName : headers.keySet()) {
-//            Attribute attribute = getAttribute(columnName, attributes);
-//            if (attribute == null || attribute.getValue() == null || attribute.getValue().isEmpty()) {
-//                record.add(null);
-//            } else {
-//                List values = attribute.getValue();
-//                if (values.size() > 1) {
-//                    throw new ConnectorException("Multiple values not supported");
-//                } else {
-//                    Object object = values.get(0);
-//                    if (object instanceof GuardedString) {
-//                        GuardedString pwd = (GuardedString) object;
-//                        pwd.access(new GuardedString.Accessor() {
-//
-//                            public void access(char[] chars) {
-//                                record.add(new String(chars));
-//                            }
-//                        });
-//                    } else {
-//                        record.add(object);
-//                    }
-//                }
-//            }
-//        }
+        Map<String, Integer> attrMap = header.getAttributes();
+        for (String name : attrMap.keySet()) {
+            final int index = attrMap.get(name);
 
-        return record;
+            Attribute attribute = getAttribute(name, attributes);
+            if (attribute == null || attribute.getValue() == null || attribute.getValue().isEmpty()) {
+                record[index] = null;
+            } else {
+                List values = attribute.getValue();
+                if (values.size() > 1) {
+                    throw new ConnectorException("Multiple values not supported");
+                } else {
+                    Object object = values.get(0);
+                    if (object instanceof GuardedString) {
+                        GuardedString pwd = (GuardedString) object;
+                        pwd.access(new GuardedString.Accessor() {
+
+                            @Override
+                            public void access(char[] chars) {
+                                record[index] = new String(chars);
+                            }
+                        });
+                    } else {
+                        record[index] = object;
+                    }
+                }
+            }
+        }
+
+        return Arrays.asList(record);
     }
 
     private List<String> createAttributeValues(String attributeValue) {
@@ -624,15 +705,33 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         throw new ConnectorException(message + ", reason: " + ex.getMessage(), ex);
     }
 
+    private Set<AttributeInfo.Flags> createFlags(AttributeInfo.Flags... flags) {
+        Set<AttributeInfo.Flags> set = new HashSet<>();
+        set.addAll(Arrays.asList(flags));
+
+        return set;
+    }
+
     private List<AttributeInfo> createAttributeInfo(Map<String, Integer> columns) {
         List<AttributeInfo> infos = new ArrayList<>();
         for (String name : columns.keySet()) {
             if (name.equals(configuration.getUniqueAttribute())) {
+                // unique column
+                AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
+                builder.setFlags(createFlags(
+                        AttributeInfo.Flags.REQUIRED,
+                        AttributeInfo.Flags.NOT_RETURNED_BY_DEFAULT));
+                builder.setType(String.class);
+
+                infos.add(builder.build());
+
                 continue;
             }
+
             if (name.equals(configuration.getNameAttribute())) {
                 continue;
             }
+
             if (name.equals(configuration.getPasswordAttribute())) {
                 infos.add(OperationalAttributeInfos.PASSWORD);
                 continue;
@@ -691,6 +790,18 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                     attribute = OperationalAttributes.PASSWORD_NAME;
                 } else if (name.equals(configuration.getNameAttribute())) {
                     attribute = Name.NAME;
+
+                    if (isUniqueAndNameAttributeEqual()) {
+                        result.put(new CsvHeader(name, Uid.NAME), headers.get(name));
+                        result.put(new CsvHeader(name, name), headers.get(name));
+                    }
+                } else if (name.equals(configuration.getUniqueAttribute())) {
+                    attribute = Uid.NAME;
+
+                    if (isUniqueAndNameAttributeEqual()) {
+                        result.put(new CsvHeader(name, Name.NAME), headers.get(name));
+                        result.put(new CsvHeader(name, name), headers.get(name));
+                    }
                 }
 
                 result.put(new CsvHeader(name, attribute), headers.get(name));

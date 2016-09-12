@@ -38,7 +38,6 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     private int preserveLastTokens = 10;
 
-
     @ConfigurationProperty(
             displayMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE",
             helpMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE_HELP", required = true)

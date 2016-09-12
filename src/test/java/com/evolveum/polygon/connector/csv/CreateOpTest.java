@@ -3,11 +3,12 @@ package com.evolveum.polygon.connector.csv;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.Test;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 import static org.testng.AssertJUnit.*;
@@ -17,8 +18,20 @@ import static org.testng.AssertJUnit.*;
  */
 public class CreateOpTest extends BaseTest {
 
-    @Override
-    protected CsvConfiguration createConfiguration() {
+    private static final String NEW_UID = "uid=vilo,dc=example,dc=com";
+    private static final String NEW_FIRST_NAME = "viliam";
+    private static final String NEW_LAST_NAME = "repan";
+    private static final String NEW_PASSWORD = "asdf123";
+
+    private CsvConfiguration createConfigurationNameEqualsUid() {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setUniqueAttribute("uid");
+        config.setPasswordAttribute("password");
+
+        return config;
+    }
+
+    private CsvConfiguration createConfigurationDifferent() {
         CsvConfiguration config = new CsvConfiguration();
 
         config.setUniqueAttribute("uid");
@@ -26,6 +39,127 @@ public class CreateOpTest extends BaseTest {
         config.setNameAttribute("lastName");
 
         return config;
+    }
+
+    @Test
+    public void createAccountAllAttributesNameEqualsUid() throws Exception {
+        ConnectorFacade connector = setupConnector("/create-empty.csv", createConfigurationNameEqualsUid());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+        assertNotNull(uid);
+        assertEquals(NEW_UID, uid.getUidValue());
+
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+        assertConnectorObject(attributes, newObject);
+    }
+
+    @Test(expectedExceptions = InvalidAttributeValueException.class)
+    public void createAccountNameEqualsUidWrongName() throws Exception {
+        ConnectorFacade connector = setupConnector("/create-empty.csv", createConfigurationNameEqualsUid());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID + "different"));
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+
+        connector.create(ObjectClass.ACCOUNT, attributes, null);
+    }
+
+    @Test
+    public void createAccountNameEqualsUidNoUid() throws Exception {
+        ConnectorFacade connector = setupConnector("/create-empty.csv", createConfigurationNameEqualsUid());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+
+        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+        assertNotNull(uid);
+        assertEquals(NEW_UID, uid.getUidValue());
+
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+        assertConnectorObject(attributes, newObject);
+    }
+
+    @Test(expectedExceptions = InvalidAttributeValueException.class)
+    public void createAccountNoUidAtAll() throws Exception {
+        ConnectorFacade connector = setupConnector("/create-empty.csv", createConfigurationNameEqualsUid());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+
+        connector.create(ObjectClass.ACCOUNT, attributes, null);
+    }
+
+    @Test
+    public void createAccountNameEqualsUidNoName() throws Exception {
+        ConnectorFacade connector = setupConnector("/create-empty.csv", createConfigurationNameEqualsUid());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+
+        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+        assertNotNull(uid);
+        assertEquals(NEW_UID, uid.getUidValue());
+
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+        assertConnectorObject(attributes, newObject);
+    }
+
+    @Test
+    public void createAccountAllAttributesDifferent() throws Exception {
+        ConnectorFacade connector = setupConnector("/create-empty.csv", createConfigurationDifferent());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+        assertNotNull(uid);
+        assertEquals(NEW_UID, uid.getUidValue());
+
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+        assertConnectorObject(attributes, newObject);
+    }
+
+    @Test
+    public void createAccountDifferentNameNotEqualUid() throws Exception {
+        ConnectorFacade connector = setupConnector("/create-empty.csv", createConfigurationDifferent());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID + "different"));
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+        assertNotNull(uid);
+        assertEquals(NEW_UID, uid.getUidValue());
+
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+        assertConnectorObject(attributes, newObject);
     }
 
     @Test
@@ -45,38 +179,5 @@ public class CreateOpTest extends BaseTest {
         ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
         assertNotNull(newObject);
         assertConnectorObject(attributes, newObject);
-    }
-
-    private void assertConnectorObject(Set<Attribute> expected, ConnectorObject object) {
-        Set<Attribute> real = object.getAttributes();
-        assertEquals(expected.size(), real.size());
-
-        for (Attribute attr : expected) {
-            List<Object> expValues = attr.getValue();
-
-            String name = attr.getName();
-            if ("uid".equals(name)) {
-                name = Uid.NAME;
-            }
-            Attribute realAttr = object.getAttributeByName(name);
-            assertNotNull(realAttr);
-
-            assertEquals(expValues, realAttr.getValue());
-        }
-    }
-
-    private void assertAttribute(ConnectorObject object, String attrName, String value) {
-        Attribute attribute = object.getAttributeByName(attrName);
-        assertNotNull(attribute);
-
-        List<Object> values = attribute.getValue();
-        assertNotNull(values);
-        assertEquals(1, values.size());
-
-        assertEquals(value, values.get(0));
-    }
-
-    private Attribute createAttribute(String name, Object... values) {
-        return AttributeBuilder.build(name, values);
     }
 }

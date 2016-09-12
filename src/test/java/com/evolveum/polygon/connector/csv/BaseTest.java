@@ -4,10 +4,19 @@ import org.apache.commons.io.FileUtils;
 import org.identityconnectors.framework.api.APIConfiguration;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.api.ConnectorFacadeFactory;
+import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
+import org.identityconnectors.framework.common.objects.ConnectorObject;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.test.common.TestHelpers;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
+import java.util.Set;
+
+import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertNotNull;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -15,6 +24,11 @@ import java.io.IOException;
 public abstract class BaseTest {
 
     public static final String CSV_FILE_PATH = "./target/data.csv";
+
+    public static final String ATTR_UID = "uid";
+    public static final String ATTR_FIRST_NAME = "firstName";
+    public static final String ATTR_LAST_NAME = "lastName";
+    public static final String ATTR_PASSWORD = "password";
 
     protected CsvConfiguration createConfiguration() {
         CsvConfiguration config = new CsvConfiguration();
@@ -42,5 +56,38 @@ public abstract class BaseTest {
 
         APIConfiguration impl = TestHelpers.createTestConfiguration(CsvConnector.class, config);
         return factory.newInstance(impl);
+    }
+
+    protected void assertConnectorObject(Set<Attribute> expected, ConnectorObject object) {
+        Set<Attribute> real = object.getAttributes();
+        assertEquals(expected.size(), real.size());
+
+        for (Attribute attr : expected) {
+            List<Object> expValues = attr.getValue();
+
+            String name = attr.getName();
+            if ("uid".equals(name)) {
+                name = Uid.NAME;
+            }
+            Attribute realAttr = object.getAttributeByName(name);
+            assertNotNull(realAttr);
+
+            assertEquals(expValues, realAttr.getValue());
+        }
+    }
+
+    protected void assertAttribute(ConnectorObject object, String attrName, String value) {
+        Attribute attribute = object.getAttributeByName(attrName);
+        assertNotNull(attribute);
+
+        List<Object> values = attribute.getValue();
+        assertNotNull(values);
+        assertEquals(1, values.size());
+
+        assertEquals(value, values.get(0));
+    }
+
+    protected Attribute createAttribute(String name, Object... values) {
+        return AttributeBuilder.build(name, values);
     }
 }

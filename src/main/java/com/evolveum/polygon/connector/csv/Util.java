@@ -1,5 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.QuoteMode;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -63,5 +65,22 @@ public class Util {
         if (StringUtil.isEmpty(str)) {
             throw new ConfigurationException(message);
         }
+    }
+
+    public static CSVFormat createCsvFormat(CsvConfiguration configuration) {
+        notNull(configuration, "CsvConfiguration must not be null");
+
+        return CSVFormat.newFormat(toCharacter(configuration.getFieldDelimiter()))
+                .withAllowMissingColumnNames(false)
+                .withEscape(toCharacter(configuration.getEscape()))
+                .withCommentMarker(toCharacter(configuration.getCommentMarker()))
+                .withIgnoreEmptyLines(configuration.isIgnoreEmptyLines())
+                .withIgnoreHeaderCase(false)
+                .withIgnoreSurroundingSpaces(configuration.isIgnoreSurroundingSpaces())
+                .withQuote(toCharacter(configuration.getQuote()))
+                .withQuoteMode(QuoteMode.valueOf(configuration.getQuoteMode()))
+                .withRecordSeparator(configuration.getRecordSeparator())
+                .withTrailingDelimiter(configuration.isTrailingDelimiter())
+                .withTrim(configuration.isTrim());
     }
 }
