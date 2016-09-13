@@ -14,6 +14,10 @@ public class CsvFilterTranslator extends AbstractFilterTranslator<String> {
 
     @Override
     protected String createEqualsExpression(EqualsFilter filter, boolean not) {
+        if (not) {
+            return null;
+        }
+
         Attribute attr = filter.getAttribute();
         if (!attr.is(Uid.NAME)) {
             return null;

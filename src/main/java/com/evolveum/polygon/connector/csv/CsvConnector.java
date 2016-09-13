@@ -372,6 +372,8 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             return uid;
         }
 
+        attributes = normalize(attributes);
+
         LOCK.writeLock().lock();
 
         File tmp = createTmpFile();
@@ -578,6 +580,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     private Set<Attribute> normalize(Set<Attribute> attributes) {
+        if (attributes == null) {
+            return null;
+        }
+
         Set<Attribute> result = new HashSet<>();
         result.addAll(attributes);
 

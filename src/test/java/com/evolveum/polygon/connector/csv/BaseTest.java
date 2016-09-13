@@ -23,6 +23,8 @@ import static org.testng.AssertJUnit.assertNotNull;
  */
 public abstract class BaseTest {
 
+    public static final String TEMPLATE_FOLDER_PATH = "./src/test/resources";
+
     public static final String CSV_FILE_PATH = "./target/data.csv";
 
     public static final String ATTR_UID = "uid";
@@ -31,9 +33,26 @@ public abstract class BaseTest {
     public static final String ATTR_PASSWORD = "password";
 
     protected CsvConfiguration createConfiguration() {
+        return createConfigurationNameEqualsUid();
+    }
+
+    protected CsvConfiguration createConfigurationNameEqualsUid() {
         CsvConfiguration config = new CsvConfiguration();
-        config.setUniqueAttribute("uid");
-        config.setPasswordAttribute("password");
+
+        config.setFilePath(new File(BaseTest.CSV_FILE_PATH));
+        config.setUniqueAttribute(ATTR_UID);
+        config.setPasswordAttribute(ATTR_PASSWORD);
+
+        return config;
+    }
+
+    protected CsvConfiguration createConfigurationDifferent() {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setFilePath(new File(BaseTest.CSV_FILE_PATH));
+
+        config.setUniqueAttribute(ATTR_UID);
+        config.setPasswordAttribute(ATTR_PASSWORD);
+        config.setNameAttribute(ATTR_LAST_NAME);
 
         return config;
     }
@@ -46,7 +65,7 @@ public abstract class BaseTest {
         File file = new File(CSV_FILE_PATH);
         file.delete();
 
-        FileUtils.copyFile(new File("./src/test/resources" + csvTemplate), new File(CSV_FILE_PATH));
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + csvTemplate), new File(CSV_FILE_PATH));
 
         config.setFilePath(new File(CSV_FILE_PATH));
 
@@ -66,9 +85,6 @@ public abstract class BaseTest {
             List<Object> expValues = attr.getValue();
 
             String name = attr.getName();
-            if ("uid".equals(name)) {
-                name = Uid.NAME;
-            }
             Attribute realAttr = object.getAttributeByName(name);
             assertNotNull(realAttr);
 

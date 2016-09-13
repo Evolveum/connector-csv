@@ -1,16 +1,19 @@
 package com.evolveum.polygon.connector.csv;
 
+import com.evolveum.polygon.connector.csv.util.CsvTestUtil;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.*;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import static org.testng.AssertJUnit.assertEquals;
@@ -21,40 +24,185 @@ import static org.testng.AssertJUnit.assertNotNull;
  */
 public class UpdateOpTest extends BaseTest {
 
-    private ConnectorFacade connector;
+    private static final String TEMPLATE_UPDATE = "/update.csv";
 
-    @BeforeMethod
-    public void before() throws Exception {
-        connector = setupConnector("/update.csv");
-    }
+    private static final String VILO_UID = "vilo";
+    private static final String VILO_LAST_NAME = "repan";
+    private static final String VILO_FIRST_NAME = "viliam";
+    private static final String VILO_PASSWORD = "Z29vZA==";
 
-    @AfterMethod
-    public void after() {
-        connector = null;
-    }
+    private static final String CHANGED_VALUE = "repantest";
 
     @Test(expectedExceptions = ConnectorException.class)
-    public void badObjectClass() {
-        connector.update(ObjectClass.GROUP, new Uid("vilo"), new HashSet<Attribute>(), null);
+    public void badObjectClass() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
+
+        connector.update(ObjectClass.GROUP, new Uid(VILO_UID), new HashSet<Attribute>(), null);
     }
 
     @Test(expectedExceptions = UnknownUidException.class)
-    public void notExistingUid() {
+    public void notExistingUid() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
+
         connector.update(ObjectClass.ACCOUNT, new Uid("unknown"), new HashSet<Attribute>(), null);
     }
 
     @Test(expectedExceptions = ConnectorException.class)
     public void updateNonExistingAttribute() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
+
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build("nonExisting", "repantest"));
-        connector.update(ObjectClass.ACCOUNT, new Uid("vilo"), attributes, null);
+        attributes.add(AttributeBuilder.build("nonExisting", CHANGED_VALUE));
+        connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
+    }
+
+    @Test(expectedExceptions = InvalidAttributeValueException.class)
+    public void updateAttributeDeleteName() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(Name.NAME, CHANGED_VALUE));
+        connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
     }
 
     @Test
+    public void updateDifferentAttributeDeleteName() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationDifferent());
+
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(Name.NAME));
+        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(CHANGED_VALUE));
+        attributes.add(createAttribute(ATTR_UID, VILO_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, VILO_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, CHANGED_VALUE);
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
+    }
+
+    /**
+     * uid column is not editable
+     *
+     * @throws Exception
+     */
+    @Test(expectedExceptions = ConnectorException.class)
+    public void updateAttributeUid() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
+
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_UID, CHANGED_VALUE));
+        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        connector.getObject(ObjectClass.ACCOUNT, real, null);
+    }
+
+    @Test
+    public void updateNameAttribute() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
+
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(Name.NAME, CHANGED_VALUE));
+        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(CHANGED_VALUE));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, VILO_LAST_NAME));   // probably should not be here
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, CHANGED_VALUE);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, CHANGED_VALUE);
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
+    }
+
+    @Test
+    public void updateDifferentNameAttribute() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationDifferent());
+
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(Name.NAME, CHANGED_VALUE));
+        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(CHANGED_VALUE));
+        attributes.add(createAttribute(ATTR_UID, VILO_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, VILO_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, CHANGED_VALUE);
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
+    }
+
+    @Test
+    public void updateOtherAttribute() throws Exception {
+
+    }
+
+    @Test(expectedExceptions = InvalidAttributeValueException.class)
+    public void updateDifferentOtherAttributeMultivalue() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationDifferent());
+
+
+    }
+
+    //----------------------
+
+
+    @Test
     public void updateAttributeDelete() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
+
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build("lastName"));
-        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid("vilo"), attributes, null);
+        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
         assertNotNull(uid);
         assertEquals("vilo", uid.getUidValue());
 
@@ -72,9 +220,11 @@ public class UpdateOpTest extends BaseTest {
 
     @Test
     public void updateAttributeAdd() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
+
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build("lastName", "repantest"));
-        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid("vilo"), attributes, null);
+        attributes.add(AttributeBuilder.build("lastName", CHANGED_VALUE));
+        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
         assertNotNull(uid);
         assertEquals("vilo", uid.getUidValue());
 
@@ -85,10 +235,12 @@ public class UpdateOpTest extends BaseTest {
 
     @Test
     public void renameWhenUniqueEqualsNamingAttribute() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
+
         Set<Attribute> attributes = new HashSet<>();
 
         attributes.add(new Name("troll"));
-        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid("vilo"), attributes, null);
+        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
         assertNotNull(uid);
         assertEquals(uid.getUidValue(), "troll");
 
