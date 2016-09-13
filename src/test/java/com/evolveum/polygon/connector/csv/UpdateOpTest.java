@@ -121,13 +121,11 @@ public class UpdateOpTest extends BaseTest {
     public void updateNameAttribute() throws Exception {
         ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
 
-        Uid expected = new Uid(VILO_UID);
-
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(Name.NAME, CHANGED_VALUE));
-        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+        Uid real = connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
 
-        AssertJUnit.assertEquals(expected, real);
+        AssertJUnit.assertEquals(new Uid(CHANGED_VALUE), real);
 
         ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
         assertNotNull(object);
@@ -146,7 +144,7 @@ public class UpdateOpTest extends BaseTest {
         expectedRecord.put(ATTR_LAST_NAME, CHANGED_VALUE);
         expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
 
-        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), CHANGED_VALUE);
         assertEquals(expectedRecord, realRecord);
     }
 

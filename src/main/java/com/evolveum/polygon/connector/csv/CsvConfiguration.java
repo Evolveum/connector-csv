@@ -36,6 +36,8 @@ public class CsvConfiguration extends AbstractConfiguration {
     private String nameAttribute = null;
     private String passwordAttribute = null;
 
+    private String multivalueDelimiter = null;
+
     private int preserveLastTokens = 10;
 
     @ConfigurationProperty(
@@ -148,6 +150,17 @@ public class CsvConfiguration extends AbstractConfiguration {
             helpMessageKey = "UI_CSV_TRIM_HELP")
     public boolean isTrim() {
         return trim;
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_CSV_MULTI_VALUE_DELIMITER",
+            helpMessageKey = "UI_CSV_MULTI_VALUE_DELIMITER_HELP")
+    public String getMultivalueDelimiter() {
+        return multivalueDelimiter;
+    }
+
+    public void setMultivalueDelimiter(String multivalueDelimiter) {
+        this.multivalueDelimiter = multivalueDelimiter;
     }
 
     public void setFilePath(File filePath) {

@@ -392,9 +392,15 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
                 CSVRecord record = iterator.next();
-                ConnectorObject obj = createConnectorObject(record);
+                Map<String, String> data = record.toMap();
 
-                if (!uid.equals(obj.getUid())) {
+                String uidValue = data.get(configuration.getUniqueAttribute());
+                if (StringUtil.isEmpty(uidValue)) {
+                    continue;
+                }
+
+                Uid recordUid = new Uid(uidValue);
+                if (!uid.equals(recordUid)) {
                     printer.printRecord(record);
                     continue;
                 }
@@ -402,9 +408,13 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 found = true;
 
                 if (!Operation.DELETE.equals(operation)) {
-                    Set<Attribute> updated = updateObject(operation, obj, attributes);
+                    List<Object> updated = updateObject(operation, data, attributes);
 
-                    printer.printRecord(createRecord(updated));
+                    int uidIndex = header.getColumns().get(configuration.getUniqueAttribute());
+                    Object newUidValue = updated.get(uidIndex);
+                    uid = new Uid(newUidValue.toString());
+
+                    printer.printRecord(updated);
                 }
             }
 
@@ -424,6 +434,50 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         }
 
         return uid;
+    }
+
+    private List<Object> updateObject(Operation operation, Map<String, String> data, Set<Attribute> attributes) {
+        Object[] result = new Object[header.getColumnSet().size()];
+
+        // prefill actual data
+        Map<String, Integer> columns = header.getColumns();
+        for (String column : columns.keySet()) {
+            result[columns.get(column)] = data.get(column);
+        }
+
+        // update data based on attributes parameter
+        switch (operation) {
+            case UPDATE:
+                for (Attribute attribute : attributes) {
+                    //todo handle multivalue attributes
+                    String name = attribute.getName();
+                    if (name.equals(Uid.NAME)) {
+                        result[columns.get(configuration.getUniqueAttribute())] = AttributeUtil.getSingleValue(attribute);
+                    } else if (name.equals(Name.NAME)) {
+                        result[columns.get(configuration.getNameAttribute())] = AttributeUtil.getSingleValue(attribute);
+                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+                        GuardedString gs = AttributeUtil.getGuardedStringValue(attribute);
+                        if (gs == null) {
+                            result[columns.get(configuration.getPasswordAttribute())] = null;
+                        } else {
+                            SimpleAccessor sa = new SimpleAccessor();
+                            gs.access(sa);
+                            result[columns.get(configuration.getPasswordAttribute())] = sa.getPassword();
+                        }
+                    } else {
+                        result[columns.get(name)] = AttributeUtil.getSingleValue(attribute);
+                    }
+                }
+                break;
+            case ADD_ATTR_VALUE:
+
+                break;
+            case REMOVE_ATTR_VALUE:
+
+                break;
+        }
+
+        return Arrays.asList(result);
     }
 
     private Set<Attribute> updateObject(Operation operation, ConnectorObject obj, Set<Attribute> attributes) {
