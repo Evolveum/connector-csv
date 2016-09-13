@@ -82,7 +82,7 @@ public class UpdateOpTest extends BaseTest {
 
         attributes = new HashSet<>();
         attributes.add(new Name(CHANGED_VALUE));
-        attributes.add(createAttribute(ATTR_UID, VILO_UID));
+        attributes.add(createAttribute(Uid.NAME, VILO_UID));
         attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
         attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
         assertConnectorObject(attributes, object);
@@ -134,8 +134,9 @@ public class UpdateOpTest extends BaseTest {
 
         attributes = new HashSet<>();
         attributes.add(new Name(CHANGED_VALUE));
+        attributes.add(createAttribute(Uid.NAME, CHANGED_VALUE));
         attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
-        attributes.add(createAttribute(ATTR_LAST_NAME, VILO_LAST_NAME));   // probably should not be here
+        attributes.add(createAttribute(ATTR_LAST_NAME, VILO_LAST_NAME));
         attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
         assertConnectorObject(attributes, object);
 
@@ -166,7 +167,7 @@ public class UpdateOpTest extends BaseTest {
 
         attributes = new HashSet<>();
         attributes.add(new Name(CHANGED_VALUE));
-        attributes.add(createAttribute(ATTR_UID, VILO_UID));
+        attributes.add(createAttribute(Uid.NAME, VILO_UID));
         attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
         attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
         assertConnectorObject(attributes, object);
@@ -183,69 +184,45 @@ public class UpdateOpTest extends BaseTest {
 
     @Test
     public void updateOtherAttribute() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
 
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_LAST_NAME, CHANGED_VALUE));
+        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(VILO_UID));
+        attributes.add(createAttribute(Uid.NAME, VILO_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, CHANGED_VALUE));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, VILO_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, CHANGED_VALUE);
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
     }
 
     @Test(expectedExceptions = InvalidAttributeValueException.class)
     public void updateDifferentOtherAttributeMultivalue() throws Exception {
         ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationDifferent());
 
-
-    }
-
-    //----------------------
-
-
-    @Test
-    public void updateAttributeDelete() throws Exception {
-        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
+        Uid expected = new Uid(VILO_UID);
 
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build("lastName"));
-        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
-        assertNotNull(uid);
-        assertEquals("vilo", uid.getUidValue());
-
-        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
-        assertNotNull(newObject);
-
-        attributes.clear();
-        attributes.add(createAttribute("firstName", "vilo"));
-        attributes.add(createAttribute(Uid.NAME, AttributeUtil.getStringValue(uid)));
-        attributes.add(createAttribute(Name.NAME, AttributeUtil.getStringValue(uid)));
-        attributes.add(AttributeBuilder.buildPassword(new GuardedString(Base64.encode("asdf".getBytes()).toCharArray())));
-
-        assertConnectorObject(attributes, newObject);
-    }
-
-    @Test
-    public void updateAttributeAdd() throws Exception {
-        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
-
-        Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build("lastName", CHANGED_VALUE));
-        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
-        assertNotNull(uid);
-        assertEquals("vilo", uid.getUidValue());
-
-//        String result = TestUtils.compareFiles(TestUtils.getTestFile("update.csv"),
-//                TestUtils.getTestFile("update-result-add.csv"));
-//        assertNull(result, "File updated incorrectly: " + result);
-    }
-
-    @Test
-    public void renameWhenUniqueEqualsNamingAttribute() throws Exception {
-        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE);
-
-        Set<Attribute> attributes = new HashSet<>();
-
-        attributes.add(new Name("troll"));
-        Uid uid = connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
-        assertNotNull(uid);
-        assertEquals(uid.getUidValue(), "troll");
-
-//        String result = TestUtils.compareFiles(TestUtils.getTestFile("update.csv"),
-//                TestUtils.getTestFile("update-result-rename.csv"));
-//        assertNull(result, "File updated incorrectly: " + result);
+        attributes.add(AttributeBuilder.build(ATTR_LAST_NAME, CHANGED_VALUE, "second value"));
+        connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
     }
 }
