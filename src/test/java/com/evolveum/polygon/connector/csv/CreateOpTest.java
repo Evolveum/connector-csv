@@ -200,4 +200,42 @@ public class CreateOpTest extends BaseTest {
         Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), NEW_UID);
         assertEquals(expectedRecord, realRecord);
     }
+
+    @Test
+    public void createAccountAllAttributesNameEqualsUidMultilineMultivalue() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        ConnectorFacade connector = setupConnector("/create.csv", config);
+
+        final String SECOND_LAST_NAME = "von\nBahnhof";
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME, SECOND_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+        assertNotNull(uid);
+        assertEquals(NEW_UID, uid.getUidValue());
+
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+        attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(Uid.NAME, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME, SECOND_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, newObject);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, NEW_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, NEW_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, NEW_LAST_NAME + "," + SECOND_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, NEW_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), NEW_UID);
+        assertEquals(expectedRecord, realRecord);
+    }
 }
