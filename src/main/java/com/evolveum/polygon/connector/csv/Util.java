@@ -2,6 +2,7 @@ package com.evolveum.polygon.connector.csv;
 
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
+import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.security.GuardedByteArray;
 import org.identityconnectors.common.security.GuardedString;
@@ -11,6 +12,7 @@ import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -89,11 +91,18 @@ public class Util {
     }
 
     public static String createRawValue(Attribute attribute, CsvConfiguration configuration) {
-        if (attribute == null || attribute.getValue() == null || attribute.getValue().isEmpty()) {
+        if (attribute == null) {
             return null;
         }
 
-        List<Object> values = attribute.getValue();
+        return createRawValue(attribute.getValue(), configuration);
+    }
+
+    public static String createRawValue(List<Object> values, CsvConfiguration configuration) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+
         if (values.size() > 1 && StringUtil.isEmpty(configuration.getMultivalueDelimiter())) {
             throw new ConnectorException("Multivalue delimiter not defined in connector configuration");
         }
@@ -125,5 +134,86 @@ public class Util {
         }
 
         return sb.toString();
+    }
+
+    public static <T extends Object> List<T> createAttributeValues(String raw, Class<T> type,
+                                                                    CsvConfiguration configuration) {
+        if (StringUtil.isEmpty(raw)) {
+            return new ArrayList<>();
+        }
+
+        List<T> result = new ArrayList<>();
+
+        if (StringUtil.isEmpty(configuration.getMultivalueDelimiter())) {
+            Object value = createValue(raw, type);
+            if (value != null) {
+                result.add((T) value);
+            }
+        } else {
+            String[] array = raw.split(configuration.getMultivalueDelimiter());
+            for (String item : array) {
+                if (StringUtil.isEmpty(item)) {
+                    continue;
+                }
+
+                T value = (T) createValue(item, type);
+                if (value != null) {
+                    result.add(value);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static <T extends Object> Object createValue(String raw, Class<T> type) {
+        if (StringUtil.isEmpty(raw)) {
+            return null;
+        }
+
+        if (GuardedString.class.equals(type)) {
+            return new GuardedString(raw.toCharArray());
+        } else if (GuardedByteArray.class.equals(type)) {
+            byte[] bytes = Base64.decode(raw);
+            return new GuardedByteArray(bytes);
+        }
+
+        return raw;
+    }
+
+    public static List<Object> addValues(List<Object> base, List<Object> toAdd) {
+        List<Object> result = new ArrayList<>();
+        if (base != null) {
+            result.addAll(base);
+        }
+
+        for (Object add : toAdd) {
+            if (add == null || result.contains(add)) {
+                continue;
+            }
+
+            result.add(add);
+        }
+
+        return result;
+    }
+
+    public static List<Object> removeValues(List<Object> base, List<Object> toRemove) {
+        List<Object> result = new ArrayList<>();
+        if (base != null) {
+            result.addAll(base);
+        }
+
+        for (Object remove : toRemove) {
+            if (remove == null) {
+                continue;
+            }
+
+            if (result.contains(remove)) {
+                result.remove(remove);
+            }
+        }
+
+        return result;
     }
 }

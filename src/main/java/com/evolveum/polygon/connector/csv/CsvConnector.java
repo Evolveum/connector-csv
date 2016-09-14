@@ -469,11 +469,31 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 }
                 break;
             case ADD_ATTR_VALUE:
-
-                break;
             case REMOVE_ATTR_VALUE:
+                for (Attribute attribute : attributes) {
+                    Class type = String.class;
+                    Integer index;
 
-                break;
+                    String name = attribute.getName();
+                    if (name.equals(Uid.NAME)) {
+                        index = columns.get(configuration.getUniqueAttribute());
+                    } else if (name.equals(Name.NAME)) {
+                        index = columns.get(configuration.getNameAttribute());
+                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+                        index = columns.get(configuration.getPasswordAttribute());
+                        type = GuardedString.class;
+                    } else {
+                        index = columns.get(name);
+                    }
+
+                    List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
+                    List<Object> updated = Operation.ADD_ATTR_VALUE.equals(operation) ?
+                            Util.addValues(current, attribute.getValue()) :
+                            Util.removeValues(current, attribute.getValue());
+
+                    String value = Util.createRawValue(updated, configuration);
+                    result[index] = value;
+                }
         }
 
         return Arrays.asList(result);
@@ -530,11 +550,12 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
         Map<String, String> map = record.toMap();
         for (String name : map.keySet()) {
-            if (StringUtil.isEmpty(map.get(name))) {
+            String value = map.get(name);
+
+            if (StringUtil.isEmpty(value)) {
                 continue;
             }
 
-            String value = map.get(name);
             if (name.equals(configuration.getUniqueAttribute())) {
                 builder.setUid(value);
 
