@@ -25,14 +25,14 @@ import static org.testng.AssertJUnit.fail;
  */
 public class UpdateOpTest extends BaseTest {
 
-    private static final String TEMPLATE_UPDATE = "/update.csv";
+    public static final String TEMPLATE_UPDATE = "/update.csv";
 
-    private static final String VILO_UID = "vilo";
-    private static final String VILO_LAST_NAME = "repan";
-    private static final String VILO_FIRST_NAME = "viliam";
-    private static final String VILO_PASSWORD = "Z29vZA==";
+    public static final String VILO_UID = "vilo";
+    public static final String VILO_LAST_NAME = "repan";
+    public static final String VILO_FIRST_NAME = "viliam";
+    public static final String VILO_PASSWORD = "Z29vZA==";
 
-    private static final String CHANGED_VALUE = "repantest";
+    public static final String CHANGED_VALUE = "repantest";
 
     @Test(expectedExceptions = ConnectorException.class)
     public void badObjectClass() throws Exception {

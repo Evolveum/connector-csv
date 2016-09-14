@@ -38,8 +38,6 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     private String multivalueDelimiter = null;
 
-    private int preserveLastTokens = 10;
-
     @ConfigurationProperty(
             displayMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE",
             helpMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE_HELP", required = true)
@@ -66,13 +64,6 @@ public class CsvConfiguration extends AbstractConfiguration {
             helpMessageKey = "UI_CSV_PASSWORD_ATTRIBUTE_HELP")
     public String getPasswordAttribute() {
         return passwordAttribute;
-    }
-
-    @ConfigurationProperty(
-            displayMessageKey = "UI_CSV_PRESERVE_LAST_TOKENS",
-            helpMessageKey = "UI_CSV_PRESERVE_LAST_TOKENS_HELP")
-    public int getPreserveLastTokens() {
-        return preserveLastTokens;
     }
 
     @ConfigurationProperty(
@@ -227,16 +218,9 @@ public class CsvConfiguration extends AbstractConfiguration {
         this.trim = trim;
     }
 
-    public void setPreserveLastTokens(int preserveLastTokens) {
-        this.preserveLastTokens = preserveLastTokens;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
     @Override
     public void validate() {
-        LOG.info("begin");
+        LOG.info("Csv configuration validation started");
 
         if (filePath == null) {
             throw new ConfigurationException("File path is not defined");
@@ -277,7 +261,7 @@ public class CsvConfiguration extends AbstractConfiguration {
         if (!found) {
             StringBuilder sb = new StringBuilder();
             for (QuoteMode qm : QuoteMode.values()) {
-                sb.append(qm.name()).append(", ");
+                sb.append(qm.name()).append(",");
             }
             sb.deleteCharAt(sb.length() - 1);
 
@@ -300,6 +284,6 @@ public class CsvConfiguration extends AbstractConfiguration {
             LOG.warn("Password attribute is not defined.");
         }
 
-        LOG.info("end");
+        LOG.info("Csv configuration validation finished");
     }
 }
