@@ -92,17 +92,6 @@ public abstract class BaseTest {
         }
     }
 
-    protected void assertAttribute(ConnectorObject object, String attrName, String value) {
-        Attribute attribute = object.getAttributeByName(attrName);
-        assertNotNull(attribute);
-
-        List<Object> values = attribute.getValue();
-        assertNotNull(values);
-        assertEquals(1, values.size());
-
-        assertEquals(value, values.get(0));
-    }
-
     protected Attribute createAttribute(String name, Object... values) {
         return AttributeBuilder.build(name, values);
     }

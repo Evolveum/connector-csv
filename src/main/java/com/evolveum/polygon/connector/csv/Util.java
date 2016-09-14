@@ -3,11 +3,15 @@ package com.evolveum.polygon.connector.csv;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
 import org.identityconnectors.common.StringUtil;
+import org.identityconnectors.common.security.GuardedByteArray;
+import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.*;
+import java.util.List;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -82,5 +86,44 @@ public class Util {
                 .withRecordSeparator(configuration.getRecordSeparator())
                 .withTrailingDelimiter(configuration.isTrailingDelimiter())
                 .withTrim(configuration.isTrim());
+    }
+
+    public static String createRawValue(Attribute attribute, CsvConfiguration configuration) {
+        if (attribute == null || attribute.getValue() == null || attribute.getValue().isEmpty()) {
+            return null;
+        }
+
+        List<Object> values = attribute.getValue();
+        if (values.size() > 1 && StringUtil.isEmpty(configuration.getMultivalueDelimiter())) {
+            throw new ConnectorException("Multivalue delimiter not defined in connector configuration");
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < values.size(); i++) {
+            Object obj = values.get(i);
+            if (obj instanceof GuardedString) {
+                GuardedString gs = (GuardedString) obj;
+                StringAccessor sa = new StringAccessor();
+                gs.access(sa);
+
+                sb.append(sa.getValue());
+            } else if (obj instanceof GuardedByteArray) {
+                GuardedByteArray ga = (GuardedByteArray) obj;
+                ByteArrayAccessor ba = new ByteArrayAccessor();
+                ga.access(ba);
+
+                String value = org.identityconnectors.common.Base64.encode(ba.getValue());
+                sb.append(value);
+            } else {
+                sb.append(obj);
+            }
+
+            if (i + 1 < values.size()) {
+                sb.append(configuration.getMultivalueDelimiter());
+            }
+        }
+
+        return sb.toString();
     }
 }

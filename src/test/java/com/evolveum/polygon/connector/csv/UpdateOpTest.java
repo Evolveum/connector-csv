@@ -18,6 +18,7 @@ import java.util.Set;
 
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.fail;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -56,53 +57,12 @@ public class UpdateOpTest extends BaseTest {
         connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
     }
 
-    @Test(expectedExceptions = InvalidAttributeValueException.class)
-    public void updateAttributeDeleteName() throws Exception {
-        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
-
-        Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build(Name.NAME, CHANGED_VALUE));
-        connector.update(ObjectClass.ACCOUNT, new Uid(VILO_UID), attributes, null);
-    }
-
-    @Test
-    public void updateDifferentAttributeDeleteName() throws Exception {
-        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationDifferent());
-
-        Uid expected = new Uid(VILO_UID);
-
-        Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build(Name.NAME));
-        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
-
-        AssertJUnit.assertEquals(expected, real);
-
-        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
-        assertNotNull(object);
-
-        attributes = new HashSet<>();
-        attributes.add(new Name(CHANGED_VALUE));
-        attributes.add(createAttribute(Uid.NAME, VILO_UID));
-        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
-        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
-        assertConnectorObject(attributes, object);
-
-        Map<String, String> expectedRecord = new HashMap<>();
-        expectedRecord.put(ATTR_UID, VILO_UID);
-        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
-        expectedRecord.put(ATTR_LAST_NAME, CHANGED_VALUE);
-        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
-
-        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
-        assertEquals(expectedRecord, realRecord);
-    }
-
     /**
      * uid column is not editable
      *
      * @throws Exception
      */
-    @Test(expectedExceptions = ConnectorException.class)
+    @Test
     public void updateAttributeUid() throws Exception {
         ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
 
@@ -112,9 +72,27 @@ public class UpdateOpTest extends BaseTest {
         attributes.add(AttributeBuilder.build(ATTR_UID, CHANGED_VALUE));
         Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
 
-        AssertJUnit.assertEquals(expected, real);
+        AssertJUnit.assertEquals(new Uid(CHANGED_VALUE), real);
 
-        connector.getObject(ObjectClass.ACCOUNT, real, null);
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(CHANGED_VALUE));
+        attributes.add(createAttribute(Uid.NAME, CHANGED_VALUE));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, VILO_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, CHANGED_VALUE);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, VILO_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), CHANGED_VALUE);
+        assertEquals(expectedRecord, realRecord);
     }
 
     @Test
@@ -141,7 +119,7 @@ public class UpdateOpTest extends BaseTest {
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_UID, CHANGED_VALUE);
         expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
-        expectedRecord.put(ATTR_LAST_NAME, CHANGED_VALUE);
+        expectedRecord.put(ATTR_LAST_NAME, VILO_LAST_NAME);
         expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
 
         Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), CHANGED_VALUE);
@@ -213,14 +191,51 @@ public class UpdateOpTest extends BaseTest {
         assertEquals(expectedRecord, realRecord);
     }
 
-    @Test(expectedExceptions = InvalidAttributeValueException.class)
-    public void updateDifferentOtherAttributeMultivalue() throws Exception {
+    @Test(expectedExceptions = ConnectorException.class)
+    public void updateDifferentOtherAttributeMultivalueNotDefined() throws Exception {
         ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationDifferent());
 
         Uid expected = new Uid(VILO_UID);
 
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build(ATTR_LAST_NAME, CHANGED_VALUE, "second value"));
+        attributes.add(AttributeBuilder.build(ATTR_FIRST_NAME, CHANGED_VALUE, "second value"));
         connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+    }
+
+    @Test
+    public void updateDifferentOtherAttributeMultivalue() throws Exception {
+        CsvConfiguration config = createConfigurationDifferent();
+        config.setMultivalueDelimiter(",");
+
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, config);
+
+        Uid expected = new Uid(VILO_UID);
+
+        final String SECOND_VALUE = "second value";
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_FIRST_NAME, CHANGED_VALUE, SECOND_VALUE));
+        Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(VILO_LAST_NAME));
+        attributes.add(createAttribute(Uid.NAME, VILO_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, CHANGED_VALUE, SECOND_VALUE));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, VILO_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, CHANGED_VALUE + "," + SECOND_VALUE);
+        expectedRecord.put(ATTR_LAST_NAME, VILO_LAST_NAME );
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
     }
 }

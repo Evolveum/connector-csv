@@ -5,16 +5,16 @@ import org.identityconnectors.common.security.GuardedString;
 /**
  * Created by Viliam Repan (lazyman).
  */
-public class SimpleAccessor implements GuardedString.Accessor {
+public class StringAccessor implements GuardedString.Accessor {
 
-    private String password;
+    private String value;
 
     @Override
     public void access(char[] chars) {
-        password = chars == null ? null : String.valueOf(chars);
+        value = chars == null ? null : String.valueOf(chars);
     }
 
-    public String getPassword() {
-        return password;
+    public String getValue() {
+        return value;
     }
 }
