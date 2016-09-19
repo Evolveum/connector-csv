@@ -30,7 +30,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
         displayNameKey = "UI_CSV_CONNECTOR_NAME",
         configurationClass = CsvConfiguration.class)
 public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, SchemaOp, SearchOp<String>,
-        UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, PoolableConnector {
+        UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, PoolableConnector {
 
     public static final String TMP_EXTENSION = ".tmp";
 
@@ -241,27 +241,27 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         return uid;
     }
 
-    @Override
-    public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options) {
-        LOG.info("Sync started");
-        Util.assertAccount(objectClass);
-
-        //todo implement
-
-        LOG.info("Sync finished");
-    }
-
-    @Override
-    public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-        LOG.info("Get latest sync token started");
-        Util.assertAccount(objectClass);
-
-        //todo implement
-
-        LOG.info("Get latest sync token finished");
-
-        return null;
-    }
+//    @Override
+//    public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options) {
+//        LOG.info("Sync started");
+//        Util.assertAccount(objectClass);
+//
+//        //todo implement
+//
+//        LOG.info("Sync finished");
+//    }
+//
+//    @Override
+//    public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+//        LOG.info("Get latest sync token started");
+//        Util.assertAccount(objectClass);
+//
+//        //todo implement
+//
+//        LOG.info("Get latest sync token finished");
+//
+//        return null;
+//    }
 
     @Override
     public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {
@@ -490,6 +490,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                             Util.addValues(current, attribute.getValue()) :
                             Util.removeValues(current, attribute.getValue());
 
+                    if (isUid(name) && updated.size() != 1) {
+                        throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
+                    }
+
                     String value = Util.createRawValue(updated, configuration);
                     result[index] = value;
                 }
@@ -717,6 +721,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     private void handleGenericException(Exception ex, String message) {
+        if (ex instanceof IllegalArgumentException) {
+            throw (IllegalArgumentException) ex;
+        }
+
         if (ex instanceof ConnectorException) {
             throw (ConnectorException) ex;
         }

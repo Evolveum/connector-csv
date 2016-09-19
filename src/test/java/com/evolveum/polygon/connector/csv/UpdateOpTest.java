@@ -191,6 +191,17 @@ public class UpdateOpTest extends BaseTest {
         assertEquals(expectedRecord, realRecord);
     }
 
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void updateUidAttributeWithTwoValues() throws Exception {
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationNameEqualsUid());
+
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_UID, "first", "second"));
+        connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
+    }
+
     @Test(expectedExceptions = ConnectorException.class)
     public void updateDifferentOtherAttributeMultivalueNotDefined() throws Exception {
         ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, createConfigurationDifferent());

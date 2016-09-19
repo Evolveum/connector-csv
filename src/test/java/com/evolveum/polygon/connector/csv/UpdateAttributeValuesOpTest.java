@@ -69,36 +69,131 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
     @Test
     public void addDuplicateValueToAttribute() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, config);
 
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_LAST_NAME, VILO_LAST_NAME));
+        Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(VILO_UID));
+        attributes.add(createAttribute(Uid.NAME, VILO_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, VILO_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, VILO_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, VILO_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
     }
 
     @Test
     public void removeValueFromAttribute() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, config);
 
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_LAST_NAME, VILO_LAST_NAME));
+        Uid real = connector.removeAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(VILO_UID));
+        attributes.add(createAttribute(Uid.NAME, VILO_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, VILO_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, "");
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
     }
 
     @Test
     public void removeNonExistingValueFromAttribute() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, config);
 
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_LAST_NAME, "unexisting value"));
+        Uid real = connector.removeAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        AssertJUnit.assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(VILO_UID));
+        attributes.add(createAttribute(Uid.NAME, VILO_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, VILO_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, VILO_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(VILO_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, VILO_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, VILO_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, VILO_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, VILO_PASSWORD);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), VILO_UID);
+        assertEquals(expectedRecord, realRecord);
     }
 
-    @Test
-    public void addValueToName() throws Exception {
-
-    }
-
-    @Test
-    public void removeValueFromName() throws Exception {
-
-    }
-
-    @Test
+    @Test(expectedExceptions = IllegalArgumentException.class)
     public void addValueFromUniqueAttribute() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, config);
 
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_UID, "second value"));
+        connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
     }
 
-    @Test
+    @Test(expectedExceptions = IllegalArgumentException.class)
     public void removeValueFromUniqueAttribute() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        ConnectorFacade connector = setupConnector(TEMPLATE_UPDATE, config);
 
+        Uid expected = new Uid(VILO_UID);
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ATTR_UID, VILO_UID));
+        connector.removeAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
     }
 }
