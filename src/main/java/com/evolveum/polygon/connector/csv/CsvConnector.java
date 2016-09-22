@@ -30,7 +30,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
         displayNameKey = "UI_CSV_CONNECTOR_NAME",
         configurationClass = CsvConfiguration.class)
 public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, SchemaOp, SearchOp<String>,
-        UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, PoolableConnector {
+        UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, PoolableConnector {
 
     public static final String TMP_EXTENSION = ".tmp";
 
@@ -241,27 +241,117 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         return uid;
     }
 
-//    @Override
-//    public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options) {
-//        LOG.info("Sync started");
-//        Util.assertAccount(objectClass);
-//
-//        //todo implement
-//
-//        LOG.info("Sync finished");
-//    }
-//
-//    @Override
-//    public SyncToken getLatestSyncToken(ObjectClass objectClass) {
-//        LOG.info("Get latest sync token started");
-//        Util.assertAccount(objectClass);
-//
-//        //todo implement
-//
-//        LOG.info("Get latest sync token finished");
-//
-//        return null;
-//    }
+    @Override
+    public void sync(ObjectClass objectClass, SyncToken token, SyncResultsHandler handler, OperationOptions options) {
+        LOG.info("Sync started");
+        Util.assertAccount(objectClass);
+
+        long tokenLongValue = getTokenValue(token);
+        LOG.info("Token {0}", tokenLongValue);
+
+        if (tokenLongValue == -1) {
+            //token doesn't exist, we only create new sync file - we're synchronizing from now on
+            createNewSyncFile();
+            LOG.info("Token value was not defined {0}, only creating new sync file, synchronizing from now on.", token);
+            return;
+        }
+
+        File csv = configuration.getFilePath();
+        boolean hasFileChanged = false;
+        if (csv.lastModified() > tokenLongValue) {
+            hasFileChanged = true;
+            LOG.info("Csv file has changed on {0} which is after time {1}, based on token value {2}",
+                    Util.printDate(csv.lastModified()), Util.printDate(tokenLongValue), tokenLongValue);
+        }
+
+        if (!hasFileChanged) {
+            LOG.info("File has not changed after {0} (token value {1}), diff will be skipped.",
+                    Util.printDate(tokenLongValue), tokenLongValue);
+            return;
+        }
+
+        doSync(tokenLongValue, handler);
+
+        LOG.info("Sync finished");
+    }
+
+    private void doSync(long token, SyncResultsHandler handler) {
+        // todo copy current file, load old file in memory to map, scroll through newly
+        // created file do a "diff", cleanup old sync files
+    }
+
+    private long getTokenValue(SyncToken token) {
+        if (token == null || token.getValue() == null) {
+            return -1;
+        }
+        String object = token.getValue().toString();
+        if (!object.matches("[0-9]{13}")) {
+            return -1;
+        }
+
+        return Long.parseLong(object);
+    }
+
+    @Override
+    public SyncToken getLatestSyncToken(ObjectClass objectClass) {
+        LOG.info("Get latest sync token started");
+        Util.assertAccount(objectClass);
+
+        String csvFileName = configuration.getFilePath().getName();
+        String[] oldCsvFiles = listTokenFiles();
+        String token = null;
+        if (oldCsvFiles.length != 0) {
+            Arrays.sort(oldCsvFiles);
+            String latestCsvFile = oldCsvFiles[oldCsvFiles.length - 1];
+            token = latestCsvFile.replaceFirst(csvFileName + "\\.", "");
+
+            LOG.info("Get latest sync token finished, returning {0}", token);
+            return new SyncToken(token);
+        }
+
+        token = createNewSyncFile();
+
+        LOG.info("Get latest sync token finished, returning {0}", token);
+
+        return new SyncToken(token);
+    }
+
+    private String createNewSyncFile() {
+        LOCK.writeLock().lock();
+
+        String token = null;
+        try {
+            LOG.info("Old csv files were not found, creating token, synchronizing from \"now\".");
+
+            File csv = configuration.getFilePath();
+            long timestamp = csv.lastModified();
+            File last = new File(csv.getParentFile(), csv.getName() + "." + timestamp);
+            Util.copyAndReplace(csv, last);
+
+            token = Long.toString(timestamp);
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during get latest sync token operation");
+        } finally {
+            LOCK.writeLock().unlock();
+        }
+
+        return token;
+    }
+
+    private String[] listTokenFiles() {
+        File csv = configuration.getFilePath();
+        if (!csv.exists()) {
+            throw new ConnectorIOException("Csv file '" + csv + "' not found.");
+        }
+
+        File parentFolder = csv.getParentFile();
+        if (!parentFolder.exists() || !parentFolder.isDirectory()) {
+            throw new ConnectorIOException("Parent folder for '" + csv + "' doesn't exist, or is not a directory.");
+        }
+
+        String csvFileName = csv.getName();
+        return parentFolder.list(new TokenFileNameFilter(csvFileName));
+    }
 
     @Override
     public Uid addAttributeValues(ObjectClass objectClass, Uid uid, Set<Attribute> set, OperationOptions options) {

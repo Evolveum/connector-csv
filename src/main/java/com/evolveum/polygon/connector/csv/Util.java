@@ -12,13 +12,19 @@ import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.*;
+import java.nio.channels.FileChannel;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
  * Created by Viliam Repan (lazyman).
  */
 public class Util {
+
+    public static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
 
     public static void assertAccount(ObjectClass oc) {
         if (oc == null) {
@@ -137,7 +143,7 @@ public class Util {
     }
 
     public static <T extends Object> List<T> createAttributeValues(String raw, Class<T> type,
-                                                                    CsvConfiguration configuration) {
+                                                                   CsvConfiguration configuration) {
         if (StringUtil.isEmpty(raw)) {
             return new ArrayList<>();
         }
@@ -215,5 +221,26 @@ public class Util {
         }
 
         return result;
+    }
+
+    public static void copyAndReplace(File from, File to) throws IOException {
+        if (to.exists()) {
+            to.delete();
+        }
+
+        to.createNewFile();
+
+        try (FileInputStream fis = new FileInputStream(from);
+             FileOutputStream fos = new FileOutputStream(to)) {
+
+            FileChannel inChannel = fis.getChannel();
+            FileChannel outChannel = fos.getChannel();
+
+            inChannel.transferTo(0, inChannel.size(), outChannel);
+        }
+    }
+
+    public static String printDate(long millis) {
+        return DATE_FORMAT.format(new Date(millis));
     }
 }
