@@ -38,6 +38,15 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     private String multivalueDelimiter = null;
 
+    private int preserverOldSyncFiles = 10;
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_PRESERVE_OLD_SYNC_FILES",
+            helpMessageKey = "UI_PRESERVE_OLD_SYNC_FILES_HELP")
+    public int getPreserverOldSyncFiles() {
+        return preserverOldSyncFiles;
+    }
+
     @ConfigurationProperty(
             displayMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE",
             helpMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE_HELP", required = true)
@@ -162,6 +171,9 @@ public class CsvConfiguration extends AbstractConfiguration {
         this.passwordAttribute = passwordAttribute;
     }
 
+    public void setPreserverOldSyncFiles(int preserverOldSyncFiles) {
+        this.preserverOldSyncFiles = preserverOldSyncFiles;
+    }
 
     public void setUniqueAttribute(String uniqueAttribute) {
         this.uniqueAttribute = uniqueAttribute;
