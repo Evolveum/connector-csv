@@ -183,7 +183,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     public void setNameAttribute(String nameAttribute) {
-        this.nameAttribute = nameAttribute;
+        this.nameAttribute = StringUtil.isEmpty(nameAttribute) ? this.uniqueAttribute : nameAttribute;
     }
 
     public void setEncoding(String encoding) {
