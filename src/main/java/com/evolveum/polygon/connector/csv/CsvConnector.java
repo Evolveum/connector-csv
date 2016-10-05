@@ -192,6 +192,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         if (!configuration.isIgnoreEmptyLines()) {
             return false;
         }
+
         Collection<String> values = record.toMap().values();
         boolean empty = true;
         for (String value : values) {
@@ -347,6 +348,9 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             boolean shouldContinue = true;
             while (iterator.hasNext()) {
                 CSVRecord record = iterator.next();
+                if (isRecordEmpty(record)) {
+                    continue;
+                }
 
                 String uid = record.get(configuration.getUniqueAttribute());
                 if (StringUtil.isEmpty(uid)) {
