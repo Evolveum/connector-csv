@@ -188,6 +188,21 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         return new CsvFilterTranslator();
     }
 
+    private boolean isRecordEmpty(CSVRecord record) {
+        if (!configuration.isIgnoreEmptyLines()) {
+            return false;
+        }
+        Collection<String> values = record.toMap().values();
+        boolean empty = true;
+        for (String value : values) {
+            if (StringUtil.isNotBlank(value)) {
+                empty = false;
+            }
+        }
+
+        return empty;
+    }
+
     @Override
     public void executeQuery(ObjectClass objectClass, String uid, ResultsHandler handler, OperationOptions options) {
         Util.assertAccount(objectClass);
@@ -200,7 +215,12 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             CSVParser parser = csv.parse(reader);
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
-                ConnectorObject obj = createConnectorObject(iterator.next());
+                CSVRecord record = iterator.next();
+                if (isRecordEmpty(record)) {
+                    continue;
+                }
+
+                ConnectorObject obj = createConnectorObject(record);
 
                 if (uid == null) {
                     if (!handler.handle(obj)) {
