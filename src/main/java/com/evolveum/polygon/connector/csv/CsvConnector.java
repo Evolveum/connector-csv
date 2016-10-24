@@ -1012,6 +1012,10 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     private List<AttributeInfo> createAttributeInfo(Map<String, Integer> columns) {
         List<AttributeInfo> infos = new ArrayList<>();
         for (String name : columns.keySet()) {
+            if (name == null || name.isEmpty()) {
+                continue;
+            }
+
             if (name.equals(configuration.getUniqueAttribute())) {
                 // unique column
                 AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
