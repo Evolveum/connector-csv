@@ -823,6 +823,12 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
                 continue;
             }
 
+            // TODO: better solution?
+            // ignore columns without header name
+            if (StringUtil.isEmpty(name)) {
+                continue;
+            }
+
             if (name.equals(configuration.getUniqueAttribute())) {
                 builder.setUid(value);
 
