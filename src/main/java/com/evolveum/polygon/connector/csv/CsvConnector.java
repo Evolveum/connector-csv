@@ -41,9 +41,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
     private static final Log LOG = Log.getLog(CsvConnector.class);
 
-    private static final ReentrantReadWriteLock LOCK = new ReentrantReadWriteLock();
-
-    private static final ReentrantReadWriteLock SYNC_LOCK = new ReentrantReadWriteLock();
+    private static final Map<String, ReentrantReadWriteLock> LOCKS = new HashMap<>();
 
     private CsvConfiguration configuration;
 
@@ -77,6 +75,16 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     public void dispose() {
     }
 
+    private synchronized ReentrantReadWriteLock getLock() {
+        ReentrantReadWriteLock lock = LOCKS.get(configuration.getFilePath().getPath());
+        if (lock == null) {
+            lock = new ReentrantReadWriteLock();
+            LOCKS.put(configuration.getFilePath().getPath(), lock);
+        }
+
+        return lock;
+    }
+
     @Override
     public Uid create(ObjectClass objectClass, Set<Attribute> attributes, OperationOptions options) {
         LOG.info("Create started");
@@ -88,7 +96,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         String uidValue = findUidValue(attributes);
         Uid uid = new Uid(uidValue);
 
-        LOCK.writeLock().lock();
+        getLock().writeLock().lock();
 
         File tmp = createTmpFile();
 
@@ -123,7 +131,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             if (!tmp.equals(configuration.getFilePath())) {
                 tmp.delete();
             }
-            LOCK.writeLock().unlock();
+            getLock().writeLock().unlock();
         }
 
         LOG.info("Create finished");
@@ -208,7 +216,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     public void executeQuery(ObjectClass objectClass, String uid, ResultsHandler handler, OperationOptions options) {
         Util.assertAccount(objectClass);
 
-        LOCK.readLock().lock();
+        getLock().readLock().lock();
 
         CSVFormat csv = createCsvFormatReader();
         try (Reader reader = Util.createReader(configuration)) {
@@ -242,7 +250,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         } catch (Exception ex) {
             handleGenericException(ex, "Error during query execution");
         } finally {
-            LOCK.readLock().unlock();
+            getLock().readLock().unlock();
         }
     }
 
@@ -493,7 +501,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     private String createNewSyncFile() {
-        LOCK.writeLock().lock();
+        getLock().writeLock().lock();
 
         String token = null;
         try {
@@ -508,7 +516,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         } catch (Exception ex) {
             handleGenericException(ex, "Error during get latest sync token operation");
         } finally {
-            LOCK.writeLock().unlock();
+            getLock().writeLock().unlock();
         }
 
         return token;
@@ -572,7 +580,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             throw new InvalidPasswordException("Password is not defined");
         }
 
-        LOCK.readLock().lock();
+        getLock().readLock().lock();
 
         CSVFormat csv = createCsvFormatReader();
         try (Reader reader = Util.createReader(configuration)) {
@@ -623,7 +631,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         } catch (Exception ex) {
             handleGenericException(ex, "Error during authentication");
         } finally {
-            LOCK.readLock().unlock();
+            getLock().readLock().unlock();
         }
 
         return null;
@@ -642,7 +650,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
 
         attributes = normalize(attributes);
 
-        LOCK.writeLock().lock();
+        getLock().writeLock().lock();
 
         File tmp = createTmpFile();
 
@@ -698,7 +706,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
             if (!tmp.equals(configuration.getFilePath())) {
                 tmp.delete();
             }
-            LOCK.writeLock().unlock();
+            getLock().writeLock().unlock();
         }
 
         return uid;
@@ -1056,7 +1064,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
     }
 
     private Map<String, Integer> getHeader() throws IOException {
-        LOCK.readLock().lock();
+        getLock().readLock().lock();
 
         try (Reader reader = Util.createReader(configuration)) {
 
@@ -1074,7 +1082,7 @@ public class CsvConnector implements Connector, CreateOp, DeleteOp, TestOp, Sche
         } catch (IllegalArgumentException ex) {
             throw new ConfigurationException(ex);
         } finally {
-            LOCK.readLock().unlock();
+            getLock().readLock().unlock();
         }
     }
 }
