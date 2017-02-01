@@ -1,5 +1,6 @@
-package com.evolveum.polygon.connector.csv;
+package com.evolveum.polygon.connector.csv.util;
 
+import com.evolveum.polygon.connector.csv.CsvConfiguration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
 import org.identityconnectors.common.Base64;
@@ -8,6 +9,7 @@ import org.identityconnectors.common.security.GuardedByteArray;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
@@ -25,6 +27,22 @@ import java.util.List;
 public class Util {
 
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
+
+    public static void handleGenericException(Exception ex, String message) {
+        if (ex instanceof IllegalArgumentException) {
+            throw (IllegalArgumentException) ex;
+        }
+
+        if (ex instanceof ConnectorException) {
+            throw (ConnectorException) ex;
+        }
+
+        if (ex instanceof IOException) {
+            throw new ConnectorIOException(message + ", IO exception occurred, reason: " + ex.getMessage(), ex);
+        }
+
+        throw new ConnectorException(message + ", reason: " + ex.getMessage(), ex);
+    }
 
     public static void assertAccount(ObjectClass oc) {
         if (oc == null) {

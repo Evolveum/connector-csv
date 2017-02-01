@@ -1,5 +1,6 @@
 package com.evolveum.polygon.connector.csv;
 
+import com.evolveum.polygon.connector.csv.util.Util;
 import org.apache.commons.csv.QuoteMode;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
@@ -39,6 +40,8 @@ public class CsvConfiguration extends AbstractConfiguration {
     private String multivalueDelimiter = null;
 
     private int preserverOldSyncFiles = 10;
+
+    private File objectClassDefinition = null;
 
     @ConfigurationProperty(
             displayMessageKey = "UI_PRESERVE_OLD_SYNC_FILES",
@@ -157,6 +160,17 @@ public class CsvConfiguration extends AbstractConfiguration {
             helpMessageKey = "UI_CSV_MULTI_VALUE_DELIMITER_HELP")
     public String getMultivalueDelimiter() {
         return multivalueDelimiter;
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_CSV_OBJECT_CLASS_DEFINITION",
+            helpMessageKey = "UI_CSV_OBJECT_CLASS_DEFINITION_HELP")
+    public File getObjectClassDefinition() {
+        return objectClassDefinition;
+    }
+
+    public void setObjectClassDefinition(File objectClassDefinition) {
+        this.objectClassDefinition = objectClassDefinition;
     }
 
     public void setMultivalueDelimiter(String multivalueDelimiter) {

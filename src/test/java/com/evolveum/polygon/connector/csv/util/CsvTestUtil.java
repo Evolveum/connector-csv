@@ -2,7 +2,6 @@ package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.BaseTest;
 import com.evolveum.polygon.connector.csv.CsvConfiguration;
-import com.evolveum.polygon.connector.csv.Util;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
