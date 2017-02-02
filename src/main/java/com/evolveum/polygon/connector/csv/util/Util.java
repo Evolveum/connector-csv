@@ -1,6 +1,7 @@
 package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.CsvConfiguration;
+import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
 import org.identityconnectors.common.Base64;
@@ -20,6 +21,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -27,6 +29,52 @@ import java.util.List;
 public class Util {
 
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
+
+    public static final String TMP_EXTENSION = ".tmp";
+
+    public static final String DEFAULT_COLUMN_NAME = "col";
+
+    public static <T> T getSafeValue(Map<String, Object> map, String key, T defValue, Class<T> type) {
+        if (map == null) {
+            return defValue;
+        }
+
+        Object value = map.get(key);
+        if (value == null) {
+            return defValue;
+        }
+
+        String strValue = value.toString();
+        if (String.class.equals(type)) {
+            return (T) strValue;
+        } else if (Integer.class.equals(type)) {
+            return (T) Integer.valueOf(strValue);
+        } else if (Boolean.class.equals(type)) {
+            return (T) Boolean.valueOf(strValue);
+        } else if (File.class.equals(type)) {
+            return (T) new File(strValue);
+        }
+
+        return defValue;
+    }
+
+    public static BufferedReader createReader(ObjectClassHandlerConfiguration configuration) throws IOException {
+        return createReader(configuration.getFilePath(), configuration);
+    }
+
+    public static BufferedReader createReader(File path, ObjectClassHandlerConfiguration configuration) throws IOException {
+        FileInputStream fis = new FileInputStream(path);
+        InputStreamReader in = new InputStreamReader(fis, configuration.getEncoding());
+        return new BufferedReader(in);
+    }
+
+    public static BufferedWriter createWriter(File path, ObjectClassHandlerConfiguration configuration)
+            throws IOException {
+
+        FileOutputStream fos = new FileOutputStream(path);
+        OutputStreamWriter out = new OutputStreamWriter(fos, configuration.getEncoding());
+        return new BufferedWriter(out);
+    }
 
     public static void checkCanReadFile(File file) {
         if (file == null) {
@@ -58,16 +106,6 @@ public class Util {
         }
 
         throw new ConnectorException(message + ", reason: " + ex.getMessage(), ex);
-    }
-
-    public static void assertAccount(ObjectClass oc) {
-        if (oc == null) {
-            throw new IllegalArgumentException("Object class must not be null.");
-        }
-
-        if (!ObjectClass.ACCOUNT.is(oc.getObjectClassValue())) {
-            throw new ConnectorException("Can't work with resource object different than account.");
-        }
     }
 
     public static void notNull(Object object, String message) {
@@ -113,7 +151,16 @@ public class Util {
         }
     }
 
-    public static CSVFormat createCsvFormat(CsvConfiguration configuration) {
+    public static CSVFormat createCsvFormatReader(ObjectClassHandlerConfiguration configuration) {
+        CSVFormat format = createCsvFormat(configuration);
+        if (!configuration.isHeaderExists()) {
+            return format;
+        }
+
+        return format.withFirstRecordAsHeader();
+    }
+
+    public static CSVFormat createCsvFormat(ObjectClassHandlerConfiguration configuration) {
         notNull(configuration, "CsvConfiguration must not be null");
 
         return CSVFormat.newFormat(toCharacter(configuration.getFieldDelimiter()))

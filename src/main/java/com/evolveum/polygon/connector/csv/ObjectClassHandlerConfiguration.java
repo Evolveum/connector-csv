@@ -9,6 +9,7 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.File;
 import java.nio.charset.Charset;
+import java.util.Map;
 
 /**
  * Created by lazyman on 29/01/2017.
@@ -19,28 +20,66 @@ public class ObjectClassHandlerConfiguration {
 
     private ObjectClass objectClass = ObjectClass.ACCOUNT;
 
-    private File filePath = null;
+    private File filePath;
 
-    private String encoding = "utf-8";
+    private String encoding;
 
-    private String fieldDelimiter = ";";
-    private String escape = "\\";
-    private String commentMarker = "#";
+    private String fieldDelimiter;
+    private String escape;
+    private String commentMarker;
     private boolean ignoreEmptyLines = true;
-    private String quote = "\"";
-    private String quoteMode = QuoteMode.MINIMAL.name();
-    private String recordSeparator = "\r\n";
+    private String quote;
+    private String quoteMode;
+    private String recordSeparator;
     private boolean ignoreSurroundingSpaces = false;
     private boolean trailingDelimiter = false;
     private boolean trim = false;
+    private boolean headerExists = true;
 
-    private String uniqueAttribute = null;
-    private String nameAttribute = null;
-    private String passwordAttribute = null;
+    private String uniqueAttribute;
+    private String nameAttribute;
+    private String passwordAttribute;
 
-    private String multivalueDelimiter = null;
+    private String multivalueDelimiter;
 
     private int preserveOldSyncFiles = 10;
+
+    public ObjectClassHandlerConfiguration() {
+        this(null);
+    }
+
+    public ObjectClassHandlerConfiguration(Map<String, Object> values) {
+        setFilePath(Util.getSafeValue(values, "filePath", null, File.class));
+        setEncoding(Util.getSafeValue(values, "encoding", "utf-8", String.class));
+
+        setFieldDelimiter(Util.getSafeValue(values, "fieldDelimiter", ";", String.class));
+        setEscape(Util.getSafeValue(values, "escape", "\\", String.class));
+        setCommentMarker(Util.getSafeValue(values, "commentMarker", "#", String.class));
+        setIgnoreEmptyLines(Util.getSafeValue(values, "ignoreEmptyLines", true, Boolean.class));
+        setQuote(Util.getSafeValue(values, "quote", "\"", String.class));
+        setQuoteMode(Util.getSafeValue(values, "quoteMode", QuoteMode.MINIMAL.name(), String.class));
+        setRecordSeparator(Util.getSafeValue(values, "recordSeparator", "\r\n", String.class));
+        setIgnoreSurroundingSpaces(Util.getSafeValue(values, "ignoreSurroundingSpaces", false, Boolean.class));
+        setTrailingDelimiter(Util.getSafeValue(values, "trailingDelimiter", false, Boolean.class));
+        setTrim(Util.getSafeValue(values, "trim", false, Boolean.class));
+        setHeaderExists(Util.getSafeValue(values, "headerExists", true, Boolean.class));
+
+        setUniqueAttribute(Util.getSafeValue(values, "uniqueAttribute", null, String.class));
+        setNameAttribute(Util.getSafeValue(values, "nameAttribute", null, String.class));
+        setPasswordAttribute(Util.getSafeValue(values, "passwordAttribute", null, String.class));
+
+        setMultivalueDelimiter(Util.getSafeValue(values, "multivalueDelimiter", null, String.class));
+
+        setPreserveOldSyncFiles(Util.getSafeValue(values, "preserveOldSyncFiles", 10, Integer.class));
+    }
+
+    public boolean isHeaderExists() {
+        return headerExists;
+    }
+
+    public void setHeaderExists(boolean headerExists) {
+        this.headerExists = headerExists;
+    }
 
     public ObjectClass getObjectClass() {
         return objectClass;

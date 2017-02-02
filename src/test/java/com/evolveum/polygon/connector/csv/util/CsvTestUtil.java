@@ -31,7 +31,7 @@ public class CsvTestUtil {
         Util.notNull(config, "CsvConfiguration must not be null");
         Util.notEmpty(uniqueColumn, "Unique column name must not be empty");
 
-        CSVFormat csv = Util.createCsvFormat(config).withFirstRecordAsHeader();
+        CSVFormat csv = Util.createCsvFormat(config.getConfig()).withFirstRecordAsHeader();
 
         try (Reader reader = Util.createReader(config)) {
 

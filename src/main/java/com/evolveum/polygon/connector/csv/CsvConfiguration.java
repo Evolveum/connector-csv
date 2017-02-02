@@ -3,15 +3,12 @@ package com.evolveum.polygon.connector.csv;
 import com.evolveum.polygon.connector.csv.util.Util;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.spi.AbstractConfiguration;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 import java.io.*;
 import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -150,6 +147,17 @@ public class CsvConfiguration extends AbstractConfiguration {
         return objectClassDefinition;
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_CSV_HEADER_EXISTS",
+            helpMessageKey = "UI_CSV_HEADER_EXISTS_HELP")
+    public boolean isHeaderExists() {
+        return config.isHeaderExists();
+    }
+
+    public void setHeaderExists(boolean headerExists) {
+        config.setHeaderExists(headerExists);
+    }
+
     public void setObjectClassDefinition(File objectClassDefinition) {
         this.objectClassDefinition = objectClassDefinition;
     }
@@ -240,11 +248,11 @@ public class CsvConfiguration extends AbstractConfiguration {
         LOG.info("Csv configuration validation finished");
     }
 
-    ObjectClassHandlerConfiguration getConfig() {
+    public ObjectClassHandlerConfiguration getConfig() {
         return config;
     }
 
-    List<ObjectClassHandlerConfiguration> getAllConfigs() throws IOException {
+    public List<ObjectClassHandlerConfiguration> getAllConfigs() throws IOException {
         List<ObjectClassHandlerConfiguration> configs = new ArrayList<>();
         configs.add(getConfig());
 
@@ -257,7 +265,29 @@ public class CsvConfiguration extends AbstractConfiguration {
             properties.load(r);
         }
 
-        // todo transform properties to object class handler configuration
+        Map<String, Map<String, Object>> ocMap = new HashMap<>();
+        properties.forEach((key, value) -> {
+
+            String strKey = (String) key;
+
+            String oc = strKey.split(".")[0];
+            Map<String, Object> values = ocMap.get(oc);
+            if (values == null) {
+                values = new HashMap<>();
+                ocMap.put(oc, values);
+            }
+
+            String subKey = strKey.substring(oc.length() + 1);
+            values.put(subKey, value);
+        });
+
+        ocMap.keySet().forEach(key -> {
+
+            Map<String, Object> values = ocMap.get(key);
+
+            ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration(values);
+            configs.add(config);
+        });
 
         return configs;
     }

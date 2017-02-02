@@ -13,6 +13,7 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.PoolableConnector;
 import org.identityconnectors.framework.spi.operations.*;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +31,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
 
     private CsvConfiguration configuration;
 
-    private Map<ObjectClass, ObjectClassHandler> handlers;
+    private Map<ObjectClass, ObjectClassHandler> handlers = new HashMap<>();
 
     @Override
     public void checkAlive() {
