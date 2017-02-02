@@ -1,5 +1,6 @@
 package com.evolveum.polygon.connector.csv;
 
+import com.evolveum.polygon.connector.csv.util.Column;
 import com.evolveum.polygon.connector.csv.util.Util;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -7,10 +8,14 @@ import org.apache.commons.csv.CSVRecord;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.operations.*;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.util.*;
 
@@ -31,7 +36,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
 
     private ObjectClassHandlerConfiguration configuration;
 
-    private Map<String, Integer> header;
+    private Map<String, Column> header;
 
     public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
         this.configuration = configuration;
@@ -40,13 +45,100 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
     }
 
     private void init() {
-        if (configuration.isHeaderExists()) {
+        CSVFormat csv = Util.createCsvFormat(configuration);
+        try (Reader reader = Util.createReader(configuration)) {
+            CSVParser parser = csv.parse(reader);
+            Iterator<CSVRecord> iterator = parser.iterator();
 
-        } else {
+            CSVRecord record = null;
+            while (iterator.hasNext()) {
+                record = iterator.next();
+                if (isRecordEmpty(record)) {
+                    continue;
+                }
 
+                break;
+            }
+
+            if (record == null) {
+                throw new ConnectorException("Couldn't initialize headers, nothing in csv file for object class "
+                        + configuration.getObjectClass());
+            }
+
+            header = createHeader(record);
+
+        } catch (IOException ex) {
+            throw new ConnectorIOException("Couldn't initialize connector for object class "
+                    + configuration.getObjectClass(), ex);
+        }
+    }
+
+    private String getAvailableAttributeName(Map<String, Column> header, String realName) {
+        String availableName = realName;
+        for (int i = 1; i <= header.size(); i++) {
+            if (!header.containsKey(availableName)) {
+                break;
+            }
+
+            availableName = realName + i;
         }
 
-        //todo implement, load header map
+        return availableName;
+    }
+
+    private Map<String, Column> createHeader(CSVRecord record) {
+        Map<String, Column> header = new HashMap<>();
+
+        if (configuration.isHeaderExists()) {
+            for (int i = 0; i < record.size(); i++) {
+                String name = record.get(i);
+
+                String availableName = getAvailableAttributeName(header, name);
+                header.put(availableName, new Column(name, i));
+            }
+        } else {
+            // header doesn't exist, we just create col0...colN
+            for (int i = 0; i < record.size(); i++) {
+                header.put(Util.DEFAULT_COLUMN_NAME + i, new Column(null, i));
+            }
+        }
+
+        LOG.info("Created header {0}", header);
+
+        testHeader(header);
+
+        return header;
+    }
+
+    private void testHeader(Map<String, Column> headers) {
+        boolean uniqueFound = false;
+        boolean passwordFound = false;
+
+        for (String header : headers.keySet()) {
+            if (header.equals(configuration.getUniqueAttribute())) {
+                uniqueFound = true;
+                continue;
+            }
+
+            if (header.equals(configuration.getPasswordAttribute())) {
+                passwordFound = true;
+                continue;
+            }
+
+            if (uniqueFound && passwordFound) {
+                break;
+            }
+        }
+
+        if (!uniqueFound) {
+            throw new ConfigurationException("Header in csv file doesn't contain "
+                    + "unique attribute name as defined in configuration.");
+        }
+
+        if (StringUtil.isNotEmpty(configuration.getPasswordAttribute()) && !passwordFound) {
+            throw new ConfigurationException("Header in csv file doesn't contain "
+                    + "password attribute name as defined in configuration.");
+        }
     }
 
     public ObjectClass getObjectClass() {
@@ -54,7 +146,71 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
     }
 
     public void schema(SchemaBuilder schema) {
-        //todo implement
+        ObjectClassInfoBuilder objClassBuilder = new ObjectClassInfoBuilder();
+        objClassBuilder.addAllAttributeInfo(createAttributeInfo(header));
+
+        schema.defineObjectClass(objClassBuilder.build());
+    }
+
+    private Set<AttributeInfo.Flags> createFlags(AttributeInfo.Flags... flags) {
+        Set<AttributeInfo.Flags> set = new HashSet<>();
+        set.addAll(Arrays.asList(flags));
+
+        return set;
+    }
+
+    private List<AttributeInfo> createAttributeInfo(Map<String, Column> columns) {
+        List<AttributeInfo> infos = new ArrayList<>();
+        for (String name : columns.keySet()) {
+            if (name == null || name.isEmpty()) {
+                continue;
+            }
+
+            if (name.equals(configuration.getUniqueAttribute())) {
+                // unique column
+                AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
+                builder.setFlags(createFlags(
+                        AttributeInfo.Flags.REQUIRED,
+                        AttributeInfo.Flags.NOT_RETURNED_BY_DEFAULT,
+                        AttributeInfo.Flags.NOT_READABLE));
+                builder.setType(String.class);
+                builder.setNativeName(name);
+
+                infos.add(builder.build());
+
+                continue;
+            }
+
+            if (name.equals(configuration.getNameAttribute())) {
+                continue;
+            }
+
+            if (name.equals(configuration.getPasswordAttribute())) {
+                AttributeInfoBuilder builder = new AttributeInfoBuilder(OperationalAttributes.PASSWORD_NAME);
+                builder.setFlags(createFlags(
+                        AttributeInfo.Flags.NOT_READABLE,
+                        AttributeInfo.Flags.NOT_RETURNED_BY_DEFAULT
+                ));
+                builder.setType(GuardedString.class);
+                builder.setNativeName(name);
+
+                infos.add(builder.build());
+
+                continue;
+            }
+
+            AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
+            if (name.equals(configuration.getPasswordAttribute())) {
+                builder.setType(GuardedString.class);
+            } else {
+                builder.setType(String.class);
+            }
+            builder.setNativeName(name);
+
+            infos.add(builder.build());
+        }
+
+        return infos;
     }
 
     @Override
