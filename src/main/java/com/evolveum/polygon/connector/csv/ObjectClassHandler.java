@@ -146,10 +146,15 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
     }
 
     public void schema(SchemaBuilder schema) {
-        ObjectClassInfoBuilder objClassBuilder = new ObjectClassInfoBuilder();
-        objClassBuilder.addAllAttributeInfo(createAttributeInfo(header));
+        try {
 
-        schema.defineObjectClass(objClassBuilder.build());
+            ObjectClassInfoBuilder objClassBuilder = new ObjectClassInfoBuilder();
+            objClassBuilder.addAllAttributeInfo(createAttributeInfo(header));
+
+            schema.defineObjectClass(objClassBuilder.build());
+        } catch (Exception ex) {
+            handleGenericException(ex, "Couldn't initialize connector");
+        }
     }
 
     private Set<AttributeInfo.Flags> createFlags(AttributeInfo.Flags... flags) {
@@ -391,5 +396,4 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
 
         return values;
     }
-
 }

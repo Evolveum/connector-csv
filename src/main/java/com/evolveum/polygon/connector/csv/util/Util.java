@@ -153,11 +153,9 @@ public class Util {
 
     public static CSVFormat createCsvFormatReader(ObjectClassHandlerConfiguration configuration) {
         CSVFormat format = createCsvFormat(configuration);
-        if (!configuration.isHeaderExists()) {
-            return format;
-        }
+        format = format.withSkipHeaderRecord(configuration.isHeaderExists());
 
-        return format.withFirstRecordAsHeader();
+        return format;
     }
 
     public static CSVFormat createCsvFormat(ObjectClassHandlerConfiguration configuration) {
