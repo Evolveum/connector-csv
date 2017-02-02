@@ -53,17 +53,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
             CSVRecord record = null;
             while (iterator.hasNext()) {
                 record = iterator.next();
-                if (isRecordEmpty(record)) {
-                    continue;
+                if (!isRecordEmpty(record)) {
+                    break;
                 }
-
-                break;
             }
 
             if (record == null) {
-                throw new ConnectorException("Couldn't initialize headers, nothing in csv file for object class "
+                throw new ConfigurationException("Couldn't initialize headers, nothing in csv file for object class "
                         + configuration.getObjectClass());
             }
+
+            System.out.println(record);
 
             header = createHeader(record);
 
@@ -319,15 +319,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
             return false;
         }
 
-        Collection<String> values = record.toMap().values();
-        boolean empty = true;
-        for (String value : values) {
+        for (int i = 0; i < record.size(); i++) {
+            String value = record.get(i);
             if (StringUtil.isNotBlank(value)) {
-                empty = false;
+                return false;
             }
         }
 
-        return empty;
+        return true;
     }
 
     private ConnectorObject createConnectorObject(CSVRecord record) {

@@ -10,7 +10,6 @@ import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
 import org.identityconnectors.framework.spi.ConnectorClass;
-import org.identityconnectors.framework.spi.PoolableConnector;
 import org.identityconnectors.framework.spi.operations.*;
 
 import java.util.HashMap;
@@ -25,20 +24,13 @@ import java.util.Set;
         displayNameKey = "UI_CSV_CONNECTOR_NAME",
         configurationClass = CsvConfiguration.class)
 public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<String>, AuthenticateOp,
-        ResolveUsernameOp, SyncOp, PoolableConnector, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp {
+        ResolveUsernameOp, SyncOp, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp {
 
     private static final Log LOG = Log.getLog(CsvConnector.class);
 
     private CsvConfiguration configuration;
 
     private Map<ObjectClass, ObjectClassHandler> handlers = new HashMap<>();
-
-    @Override
-    public void checkAlive() {
-        if (handlers == null) {
-            throw new ConnectorException("Not initialized");
-        }
-    }
 
     @Override
     public Configuration getConfiguration() {

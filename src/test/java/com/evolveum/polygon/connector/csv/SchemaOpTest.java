@@ -24,21 +24,10 @@ public class SchemaOpTest extends BaseTest {
     @Test
     public void repeatingColumns() throws Exception {
         CsvConfiguration config = createConfiguration();
-        config.setUniqueAttribute("Os.čís.");
+        config.setUniqueAttribute("id");
         config.setTrim(true);
         config.setPasswordAttribute(null);
         ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
-
-        connector.schema();
-    }
-
-    @Test(expectedExceptions = ConnectorIOException.class)
-    public void deleted() throws Exception {
-        ConnectorFacade connector = setupConnector("/schema-good.csv");
-
-        connector.schema();
-
-        new File(CSV_FILE_PATH).delete();
 
         connector.schema();
     }
