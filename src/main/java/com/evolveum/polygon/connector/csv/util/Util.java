@@ -28,6 +28,22 @@ public class Util {
 
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
 
+    public static void checkCanReadFile(File file) {
+        if (file == null) {
+            throw new ConfigurationException("File path is not defined");
+        }
+
+        if (!file.exists()) {
+            throw new ConfigurationException("File '" + file + "' doesn't exists. At least file with CSV header must exist");
+        }
+        if (file.isDirectory()) {
+            throw new ConfigurationException("File path '" + file + "' is a directory, must be a CSV file");
+        }
+        if (!file.canRead()) {
+            throw new ConfigurationException("File '" + file + "' can't be read");
+        }
+    }
+
     public static void handleGenericException(Exception ex, String message) {
         if (ex instanceof IllegalArgumentException) {
             throw (IllegalArgumentException) ex;
