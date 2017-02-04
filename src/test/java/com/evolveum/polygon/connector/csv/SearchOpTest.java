@@ -4,9 +4,12 @@ import com.evolveum.polygon.connector.csv.util.ListResultHandler;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
+import java.io.File;
 import java.util.List;
 
 /**
@@ -23,5 +26,40 @@ public class SearchOpTest extends BaseTest {
 
         List<ConnectorObject> objects = handler.getObjects();
         AssertJUnit.assertEquals(2, objects.size());
+    }
+
+    @Test
+    public void findOneWithRepeatingColumn() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setFilePath(new File(CSV_FILE_PATH));
+        config.setUniqueAttribute("id");
+        config.setTrim(true);
+        ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
+
+        ListResultHandler handler = new ListResultHandler();
+        EqualsFilter ef = new EqualsFilter(new Uid("1"));
+        connector.search(ObjectClass.ACCOUNT, ef, handler, null);
+
+        List<ConnectorObject> objects = handler.getObjects();
+        AssertJUnit.assertEquals(1, objects.size());
+
+        //todo asserts
+    }
+
+    @Test
+    public void findAllAccountsRepeatingColumn() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setFilePath(new File(CSV_FILE_PATH));
+        config.setUniqueAttribute("id");
+        config.setTrim(true);
+        ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
+
+        ListResultHandler handler = new ListResultHandler();
+        connector.search(ObjectClass.ACCOUNT, null, handler, null);
+
+        List<ConnectorObject> objects = handler.getObjects();
+        AssertJUnit.assertEquals(2, objects.size());
+
+        //todo asserts
     }
 }

@@ -93,6 +93,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
             for (int i = 0; i < record.size(); i++) {
                 String name = record.get(i);
 
+                if (StringUtil.isEmpty(name)) {
+                    name = Util.DEFAULT_COLUMN_NAME + 0;
+                }
+
                 String availableName = getAvailableAttributeName(header, name);
                 header.put(availableName, new Column(name, i));
             }
@@ -257,6 +261,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
                 CSVRecord record = iterator.next();
+                if (configuration.isHeaderExists() && record.getRecordNumber() == 1) {
+                    continue;
+                }
+
                 if (isRecordEmpty(record)) {
                     continue;
                 }
@@ -332,17 +340,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
     private ConnectorObject createConnectorObject(CSVRecord record) {
         ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
 
-        Map<String, String> map = record.toMap();
-        for (String name : map.keySet()) {
-            String value = map.get(name);
+        Map<Integer, String> header = new HashMap<>();
+        this.header.forEach((key, value) -> {
+
+            header.put(value.getIndex(), key);
+        });
+
+        for (int i = 0; i < record.size(); i++) {
+            String name = header.get(i);
+            String value = record.get(i);
 
             if (StringUtil.isEmpty(value)) {
-                continue;
-            }
-
-            // TODO: better solution?
-            // ignore columns without header name
-            if (StringUtil.isEmpty(name)) {
                 continue;
             }
 
