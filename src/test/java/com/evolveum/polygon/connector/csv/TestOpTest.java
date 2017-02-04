@@ -13,12 +13,16 @@ public class TestOpTest extends BaseTest {
     public void testGoodConfiguration() throws Exception {
         ConnectorFacade connector = setupConnector("/create-empty.csv");
         connector.test();
+
+        //todo asserts
     }
 
-    @Test(expectedExceptions = ConfigurationException.class)
+    @Test
     public void badHeader() throws Exception {
         ConnectorFacade connector = setupConnector("/test-bad.csv");
         connector.test();
+
+        //todo asserts
     }
 
     @Test(expectedExceptions = ConfigurationException.class)

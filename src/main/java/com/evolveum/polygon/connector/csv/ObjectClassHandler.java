@@ -1,6 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
 import com.evolveum.polygon.connector.csv.util.Column;
+import com.evolveum.polygon.connector.csv.util.StringAccessor;
 import com.evolveum.polygon.connector.csv.util.Util;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
@@ -8,9 +9,7 @@ import org.apache.commons.csv.CSVRecord;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
+import org.identityconnectors.framework.common.exceptions.*;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.operations.*;
@@ -24,7 +23,7 @@ import static com.evolveum.polygon.connector.csv.util.Util.handleGenericExceptio
 /**
  * Created by lazyman on 27/01/2017.
  */
-public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp, SearchOp<String>,
+public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<String>,
         UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp {
 
     private enum Operation {
@@ -41,10 +40,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
     public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
         this.configuration = configuration;
 
-        init();
+        header = initHeader();
     }
 
-    private void init() {
+    private Map<String, Column> initHeader() {
         CSVFormat csv = Util.createCsvFormat(configuration);
         try (Reader reader = Util.createReader(configuration)) {
             CSVParser parser = csv.parse(reader);
@@ -63,10 +62,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
                         + configuration.getObjectClass());
             }
 
-            System.out.println(record);
-
-            header = createHeader(record);
-
+            return createHeader(record);
         } catch (IOException ex) {
             throw new ConnectorIOException("Couldn't initialize connector for object class "
                     + configuration.getObjectClass(), ex);
@@ -224,7 +220,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
 
     @Override
     public Uid authenticate(ObjectClass oc, String username, GuardedString password, OperationOptions oo) {
-        return null; //todo implement
+        return resolveUsername(username, password, oo, true);
     }
 
     @Override
@@ -239,17 +235,24 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
 
     @Override
     public Uid resolveUsername(ObjectClass oc, String username, OperationOptions oo) {
-        return null; //todo implement
-    }
-
-    @Override
-    public Schema schema() {
-        return null; //todo implement
+        return resolveUsername(username, null, oo, false);
     }
 
     @Override
     public FilterTranslator<String> createFilterTranslator(ObjectClass oc, OperationOptions oo) {
         return new CsvFilterTranslator();
+    }
+
+    private boolean skipRecord(CSVRecord record) {
+        if (configuration.isHeaderExists() && record.getRecordNumber() == 1) {
+            return true;
+        }
+
+        if (isRecordEmpty(record)) {
+            return true;
+        }
+
+        return false;
     }
 
     @Override
@@ -261,11 +264,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
                 CSVRecord record = iterator.next();
-                if (configuration.isHeaderExists() && record.getRecordNumber() == 1) {
-                    continue;
-                }
-
-                if (isRecordEmpty(record)) {
+                if (skipRecord(record)) {
                     continue;
                 }
 
@@ -292,6 +291,85 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
         }
     }
 
+    private void validateAuthenticationInputs(String username, GuardedString password, boolean authenticate) {
+        if (StringUtil.isEmpty(username)) {
+            throw new InvalidCredentialException("Username must not be empty");
+        }
+
+        if (authenticate && StringUtil.isEmpty(configuration.getPasswordAttribute())) {
+            throw new ConfigurationException("Password attribute not defined in configuration");
+        }
+
+        if (authenticate && password == null) {
+            throw new InvalidPasswordException("Password is not defined");
+        }
+    }
+
+    private Uid resolveUsername(String username, GuardedString password, OperationOptions oo, boolean authenticate) {
+        validateAuthenticationInputs(username, password, authenticate);
+
+        CSVFormat csv = Util.createCsvFormatReader(configuration);
+        try (Reader reader = Util.createReader(configuration)) {
+
+            ConnectorObject object = null;
+
+            CSVParser parser = csv.parse(reader);
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                if (skipRecord(record)) {
+                    continue;
+                }
+
+                ConnectorObject obj = createConnectorObject(record);
+
+                Name name = obj.getName();
+                if (name != null && username.equals(AttributeUtil.getStringValue(name))) {
+                    object = obj;
+                    break;
+                }
+            }
+
+            if (object == null) {
+                String message = authenticate ? "Invalid username and/or password" : "Invalid username";
+                throw new InvalidCredentialException(message);
+            }
+
+            if (authenticate) {
+                authenticate(username, password, object);
+            }
+
+            Uid uid = object.getUid();
+            if (uid == null) {
+                throw new UnknownUidException("Unique attribute doesn't have value for account '" + username + "'");
+            }
+
+            return uid;
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during authentication");
+        }
+
+        return null;
+    }
+
+    private void authenticate(String username, GuardedString password, ConnectorObject foundObject) {
+        GuardedString objPassword = AttributeUtil.getPasswordValue(foundObject.getAttributes());
+        if (objPassword == null) {
+            throw new InvalidPasswordException("Password not defined for username '" + username + "'");
+        }
+
+        // we don't want to authenticate against empty password
+        StringAccessor acc = new StringAccessor();
+        objPassword.access(acc);
+        if (StringUtil.isEmpty(acc.getValue())) {
+            throw new InvalidPasswordException("Password not defined for username '" + username + "'");
+        }
+
+        if (!objPassword.equals(password)) {
+            throw new InvalidPasswordException("Invalid username and/or password");
+        }
+    }
+
     @Override
     public void sync(ObjectClass oc, SyncToken token, SyncResultsHandler handler, OperationOptions oo) {
         // todo implement
@@ -304,7 +382,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SchemaOp,
 
     @Override
     public void test() {
-        // todo implement
+        configuration.validate();
+
+        initHeader();
     }
 
     @Override
