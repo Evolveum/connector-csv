@@ -33,11 +33,19 @@ public class Util {
 
     public static final String DEFAULT_COLUMN_NAME = "col";
 
-    public static void closeQuietly(Writer writer, FileLock lock) {
+    public static void closeQuietly(Closeable closeable) {
+        if (closeable == null) {
+            return;
+        }
+
         try {
-            if (writer != null) {
-                writer.close();
-            }
+            closeable.close();
+        } catch (IOException ex) {
+        }
+    }
+
+    public static void closeQuietly(FileLock lock) {
+        try {
             if (lock != null && lock.isValid()) {
                 lock.release();
             }
@@ -45,9 +53,13 @@ public class Util {
         }
     }
 
+    public static File createTmpPath(ObjectClassHandlerConfiguration config) {
+        return new File(config.getFilePath().getPath() + "." + Util.TMP_EXTENSION);
+    }
+
     public static FileLock obtainTmpFileLock(ObjectClassHandlerConfiguration config) {
         final long MAX_WAIT = 5 * 1000; // 5 seconds
-        File tmp = new File(config.getFilePath().getPath() + "." + Util.TMP_EXTENSION);
+        File tmp = createTmpPath(config);
         Path path = tmp.toPath();
 
         long start = System.currentTimeMillis();
@@ -209,7 +221,7 @@ public class Util {
 
     public static CSVFormat createCsvFormatWriter(ObjectClassHandlerConfiguration config, Map<String, Column> header) {
         CSVFormat format = createCsvFormat(config);
-return null; //todo implement
+        return null; //todo implement
     }
 
     public static CSVFormat createCsvFormatReader(ObjectClassHandlerConfiguration configuration) {
@@ -236,7 +248,7 @@ return null; //todo implement
                 .withTrim(configuration.isTrim());
     }
 
-    public static String createRawValue(Attribute attribute, CsvConfiguration configuration) {
+    public static String createRawValue(Attribute attribute, ObjectClassHandlerConfiguration configuration) {
         if (attribute == null) {
             return null;
         }
@@ -244,7 +256,7 @@ return null; //todo implement
         return createRawValue(attribute.getValue(), configuration);
     }
 
-    public static String createRawValue(List<Object> values, CsvConfiguration configuration) {
+    public static String createRawValue(List<Object> values, ObjectClassHandlerConfiguration configuration) {
         if (values == null || values.isEmpty()) {
             return null;
         }

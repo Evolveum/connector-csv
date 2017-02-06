@@ -155,6 +155,17 @@ public class CsvConfiguration extends AbstractConfiguration {
         return config.isHeaderExists();
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_CSV_TMP_FOLDER",
+            helpMessageKey = "UI_CSV_TMP_FOLDER_HELP")
+    public File getTmpFolder() {
+        return config.getTmpFolder();
+    }
+
+    public void setTmpFolder(File tmpFolder) {
+        config.setTmpFolder(tmpFolder);
+    }
+
     public void setHeaderExists(boolean headerExists) {
         config.setHeaderExists(headerExists);
     }

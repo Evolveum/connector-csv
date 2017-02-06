@@ -44,6 +44,8 @@ public class ObjectClassHandlerConfiguration {
 
     private int preserveOldSyncFiles = 10;
 
+    private File tmpFolder;
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -75,6 +77,14 @@ public class ObjectClassHandlerConfiguration {
         setPreserveOldSyncFiles(Util.getSafeValue(values, "preserveOldSyncFiles", 10, Integer.class));
     }
 
+    public File getTmpFolder() {
+        return tmpFolder;
+    }
+
+    public void setTmpFolder(File tmpFolder) {
+        this.tmpFolder = tmpFolder;
+    }
+
     public boolean isHeaderExists() {
         return headerExists;
     }
@@ -97,6 +107,10 @@ public class ObjectClassHandlerConfiguration {
 
     public void setFilePath(File filePath) {
         this.filePath = filePath;
+
+        if (tmpFolder == null && filePath != null) {
+            tmpFolder = filePath.getParentFile();
+        }
     }
 
     public String getEncoding() {
@@ -238,6 +252,8 @@ public class ObjectClassHandlerConfiguration {
         if (!filePath.canWrite()) {
             throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
         }
+
+        // todo check whether we can write to tmpFolder
 
         Util.notEmpty(encoding, "Encoding is not defined.");
 

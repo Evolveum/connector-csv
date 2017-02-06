@@ -17,17 +17,15 @@ import org.identityconnectors.framework.spi.operations.*;
 
 import java.io.*;
 import java.nio.channels.Channels;
-import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
 
-import static com.evolveum.polygon.connector.csv.util.Util.createCsvFormat;
 import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
 
 /**
+ * // todo use tmpFolder [lazyman]
+ *
  * Created by lazyman on 27/01/2017.
  */
 public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<String>,
@@ -232,7 +230,129 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public Uid create(ObjectClass oc, Set<Attribute> set, OperationOptions oo) {
-        return null; //todo implement
+        Set<Attribute> attributes = normalize(set);
+
+        String uidValue = findUidValue(attributes);
+        Uid uid = new Uid(uidValue);
+
+        FileLock lock = Util.obtainTmpFileLock(configuration);
+        Reader reader = null;
+        Writer writer = null;
+        try {
+            reader = Util.createReader(configuration);
+            writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
+
+            CSVFormat csv = Util.createCsvFormat(configuration);
+            CSVParser parser = csv.parse(reader);
+
+            csv = Util.createCsvFormat(configuration);
+            CSVPrinter printer = csv.print(writer);
+
+            Iterator<CSVRecord> iterator = parser.iterator();
+            // we don't want to skip header in any case, but if it's there just
+            // write it to tmp file as "standard" record. We can't handle first row
+            // as header in case there are more columns with the same name.
+            if (configuration.isHeaderExists() && iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                printer.printRecord(record);
+            }
+
+            // handling real records
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                ConnectorObject obj = createConnectorObject(record);
+
+                if (uid.equals(obj.getUid())) {
+                    throw new AlreadyExistsException("Account already exists '" + uid.getUidValue() + "'.");
+                }
+
+                printer.printRecord(record);
+            }
+
+            printer.printRecord(createNewRecord(attributes));
+
+            writer.close();
+            reader.close();
+
+            moveTmpToOrig();
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during account '" + uid + "' delete");
+        } finally {
+            Util.closeQuietly(writer);
+            Util.closeQuietly(reader);
+            Util.closeQuietly(lock);
+        }
+
+        return uid;
+    }
+
+    private void moveTmpToOrig() throws IOException {
+        // moving existing file
+        String path = configuration.getFilePath().getPath();
+        File orig = new File(path);
+        File dest = new File(path + "." + System.currentTimeMillis());
+        Files.move(orig.toPath(), dest.toPath());
+
+        File tmp = Util.createTmpPath(configuration);
+
+        Files.move(tmp.toPath(), orig.toPath());
+    }
+
+    private boolean isPassword(String column) {
+        return StringUtil.isNotEmpty(configuration.getPasswordAttribute())
+                && configuration.getPasswordAttribute().equals(column);
+    }
+
+    private boolean isUid(String column) {
+        return configuration.getUniqueAttribute().equals(column);
+    }
+
+    private List<Object> createNewRecord(Set<Attribute> attributes) {
+        final Object[] record = new Object[header.size()];
+
+        Attribute nameAttr = AttributeUtil.getNameFromAttributes(attributes);
+        Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
+
+        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), attributes);
+        Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
+
+        for (String column : header.keySet()) {
+            Object value;
+            if (isPassword(column)) {
+                Attribute attr = AttributeUtil.find(OperationalAttributes.PASSWORD_NAME, attributes);
+                if (attr == null) {
+                    continue;
+                }
+
+                value = Util.createRawValue(attr, configuration);
+            } else if (isName(column)) {
+                value = name;
+            } else if (isUid(column)) {
+                value = uid;
+            } else {
+                Attribute attr = AttributeUtil.find(column, attributes);
+                if (attr == null) {
+                    continue;
+                }
+
+                value = Util.createRawValue(attr, configuration);
+            }
+
+            record[header.get(column).getIndex()] = value;
+        }
+
+        return Arrays.asList(record);
+    }
+
+    private String findUidValue(Set<Attribute> attributes) {
+        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), attributes);
+        Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
+
+        if (uid == null) {
+            throw new InvalidAttributeValueException("Unique attribute value not defined");
+        }
+
+        return uid.toString();
     }
 
     @Override
@@ -494,6 +614,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
                        OperationOptions oo) {
 
+        // todo implement
 //        Util.notNull(uid, "Uid must not be null");
 //
 //        if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
