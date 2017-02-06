@@ -136,14 +136,6 @@ public class Util {
         return new BufferedReader(in);
     }
 
-    public static BufferedWriter createWriter(File path, ObjectClassHandlerConfiguration configuration)
-            throws IOException {
-
-        FileOutputStream fos = new FileOutputStream(path);
-        OutputStreamWriter out = new OutputStreamWriter(fos, configuration.getEncoding());
-        return new BufferedWriter(out);
-    }
-
     public static void checkCanReadFile(File file) {
         if (file == null) {
             throw new ConfigurationException("File path is not defined");
@@ -295,7 +287,7 @@ public class Util {
     }
 
     public static <T extends Object> List<T> createAttributeValues(String raw, Class<T> type,
-                                                                   CsvConfiguration configuration) {
+                                                                   ObjectClassHandlerConfiguration configuration) {
         if (StringUtil.isEmpty(raw)) {
             return new ArrayList<>();
         }
@@ -394,5 +386,15 @@ public class Util {
 
     public static String printDate(long millis) {
         return DATE_FORMAT.format(new Date(millis));
+    }
+
+    public static void cleanupResources(Writer writer, Reader reader, FileLock lock,
+                                        ObjectClassHandlerConfiguration config) {
+        Util.closeQuietly(writer);
+        Util.closeQuietly(reader);
+        Util.closeQuietly(lock);
+
+        File tmp = Util.createTmpPath(config);
+        tmp.delete();
     }
 }

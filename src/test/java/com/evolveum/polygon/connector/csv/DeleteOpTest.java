@@ -29,19 +29,9 @@ public class DeleteOpTest extends BaseTest {
         connector = null;
     }
 
-    @Test(expectedExceptions = NullPointerException.class)
-    public void nullObjectClass() {
-        connector.delete(null, new Uid("vilo"), null);
-    }
-
     @Test(expectedExceptions = ConnectorException.class)
     public void badObjectClass() {
         connector.delete(ObjectClass.GROUP, new Uid("vilo"), null);
-    }
-
-    @Test(expectedExceptions = NullPointerException.class)
-    public void nullUid() {
-        connector.delete(ObjectClass.ACCOUNT, null, null);
     }
 
     @Test(expectedExceptions = UnknownUidException.class)

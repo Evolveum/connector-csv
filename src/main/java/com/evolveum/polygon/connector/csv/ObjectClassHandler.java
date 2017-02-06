@@ -24,7 +24,7 @@ import java.util.*;
 import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
 
 /**
- * // todo use tmpFolder [lazyman]
+ * todo use tmpFolder [lazyman]
  *
  * Created by lazyman on 27/01/2017.
  */
@@ -276,11 +276,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
             moveTmpToOrig();
         } catch (Exception ex) {
-            handleGenericException(ex, "Error during account '" + uid + "' delete");
+            handleGenericException(ex, "Error during account '" + uid + "' create");
         } finally {
-            Util.closeQuietly(writer);
-            Util.closeQuietly(reader);
-            Util.closeQuietly(lock);
+            Util.cleanupResources(writer, reader, lock, configuration);
         }
 
         return uid;
@@ -614,69 +612,82 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
                        OperationOptions oo) {
 
-        // todo implement
-//        Util.notNull(uid, "Uid must not be null");
-//
-//        if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
-//                && attributes.isEmpty()) {
-//            return uid;
-//        }
-//
-//        attributes = normalize(attributes);
-//
-//        FileLock lock = Util.obtainTmpFileLock(configuration);
-//        Writer writer = null;
-//        try (Reader reader = Util.createReader(configuration)) {
-//            writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
-//
-//            boolean found = false;
-//
-//            CSVFormat csv = Util.createCsvFormat(configuration);
-//            CSVParser parser = csv.parse(reader);
-//
-//            csv = createCsvFormat(configuration);
-//            CSVPrinter printer = csv.print(writer);
-//
-//            Iterator<CSVRecord> iterator = parser.iterator();
-//            while (iterator.hasNext()) {
-//                CSVRecord record = iterator.next();
-//                Map<String, String> data = record.toMap();
-//
-//                String uidValue = data.get(configuration.getUniqueAttribute());
-//                if (StringUtil.isEmpty(uidValue)) {
-//                    continue;
-//                }
-//
-//                Uid recordUid = new Uid(uidValue);
-//                if (!uid.equals(recordUid)) {
-//                    printer.printRecord(record);
-//                    continue;
-//                }
-//
-//                found = true;
-//
-//                if (!Operation.DELETE.equals(operation)) {
-//                    List<Object> updated = updateObject(operation, data, attributes);
-//
-//                    int uidIndex = header.get(configuration.getUniqueAttribute());
-//                    Object newUidValue = updated.get(uidIndex);
-//                    uid = new Uid(newUidValue.toString());
-//
-//                    printer.printRecord(updated);
-//                }
-//            }
-//
-//            configuration.getFilePath().delete();
-//            tmp.renameTo(configuration.getFilePath());
-//
-//            if (!found) {
-//                throw new UnknownUidException("Account '" + uid + "' not found");
-//            }
-//        } catch (Exception ex) {
-//            handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
-//        } finally {
-//            Util.closeQuietly(writer, lock);
-//        }
+        Util.notNull(uid, "Uid must not be null");
+
+        if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
+                && attributes.isEmpty()) {
+            return uid;
+        }
+
+        Map<Integer, String> header = new HashMap<>();
+        this.header.forEach((key, value) -> {
+
+            header.put(value.getIndex(), key);
+        });
+
+        attributes = normalize(attributes);
+
+        FileLock lock = Util.obtainTmpFileLock(configuration);
+        Reader reader = null;
+        Writer writer = null;
+        try {
+            reader = Util.createReader(configuration);
+            writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
+
+            boolean found = false;
+
+            CSVFormat csv = Util.createCsvFormat(configuration);
+            CSVParser parser = csv.parse(reader);
+
+            csv = Util.createCsvFormat(configuration);
+            CSVPrinter printer = csv.print(writer);
+
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+
+                Map<String, String> data = new HashMap<>();
+                for (int i = 0; i < record.size(); i++) {
+                    data.put(header.get(i), record.get(i));
+                }
+
+                String uidValue = data.get(configuration.getUniqueAttribute());
+                if (StringUtil.isEmpty(uidValue)) {
+                    continue;
+                }
+
+                Uid recordUid = new Uid(uidValue);
+                if (!uid.equals(recordUid)) {
+                    printer.printRecord(record);
+                    continue;
+                }
+
+                found = true;
+
+                if (!Operation.DELETE.equals(operation)) {
+                    List<Object> updated = updateObject(operation, data, attributes);
+
+                    int uidIndex = this.header.get(configuration.getUniqueAttribute()).getIndex();
+                    Object newUidValue = updated.get(uidIndex);
+                    uid = new Uid(newUidValue.toString());
+
+                    printer.printRecord(updated);
+                }
+            }
+
+            writer.close();
+            reader.close();
+
+            if (!found) {
+                throw new UnknownUidException("Account '" + uid + "' not found");
+            }
+
+            moveTmpToOrig();
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
+        } finally {
+            Util.cleanupResources(writer, reader, lock, configuration);
+        }
 
         return uid;
     }
@@ -737,67 +748,67 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         return configuration.getNameAttribute().equals(column);
     }
 
-//    private List<Object> updateObject(Operation operation, Map<String, String> data, Set<Attribute> attributes) {
-//        Object[] result = new Object[header.size()];
-//
-//        // prefill actual data
-//        for (String column : header.keySet()) {
-//            result[header.get(column)] = data.get(column);
-//        }
-//
-//        // update data based on attributes parameter
-//        switch (operation) {
-//            case UPDATE:
-//                for (Attribute attribute : attributes) {
-//                    Integer index;
-//
-//                    String name = attribute.getName();
-//                    if (name.equals(Uid.NAME)) {
-//                        index = header.get(configuration.getUniqueAttribute());
-//                    } else if (name.equals(Name.NAME)) {
-//                        index = header.get(configuration.getNameAttribute());
-//                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-//                        index = header.get(configuration.getPasswordAttribute());
-//                    } else {
-//                        index = header.get(name);
-//                    }
-//
-//                    String value = Util.createRawValue(attribute, configuration);
-//                    result[index] = value;
-//                }
-//                break;
-//            case ADD_ATTR_VALUE:
-//            case REMOVE_ATTR_VALUE:
-//                for (Attribute attribute : attributes) {
-//                    Class type = String.class;
-//                    Integer index;
-//
-//                    String name = attribute.getName();
-//                    if (name.equals(Uid.NAME)) {
-//                        index = header.get(configuration.getUniqueAttribute());
-//                    } else if (name.equals(Name.NAME)) {
-//                        index = header.get(configuration.getNameAttribute());
-//                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-//                        index = header.get(configuration.getPasswordAttribute());
-//                        type = GuardedString.class;
-//                    } else {
-//                        index = header.get(name);
-//                    }
-//
-//                    List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
-//                    List<Object> updated = Operation.ADD_ATTR_VALUE.equals(operation) ?
-//                            Util.addValues(current, attribute.getValue()) :
-//                            Util.removeValues(current, attribute.getValue());
-//
-//                    if (isUid(name) && updated.size() != 1) {
-//                        throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
-//                    }
-//
-//                    String value = Util.createRawValue(updated, configuration);
-//                    result[index] = value;
-//                }
-//        }
-//
-//        return Arrays.asList(result);
-//    }
+    private List<Object> updateObject(Operation operation, Map<String, String> data, Set<Attribute> attributes) {
+        Object[] result = new Object[header.size()];
+
+        // prefill actual data
+        for (String column : header.keySet()) {
+            result[header.get(column).getIndex()] = data.get(column);
+        }
+
+        // update data based on attributes parameter
+        switch (operation) {
+            case UPDATE:
+                for (Attribute attribute : attributes) {
+                    Integer index;
+
+                    String name = attribute.getName();
+                    if (name.equals(Uid.NAME)) {
+                        index = header.get(configuration.getUniqueAttribute()).getIndex();
+                    } else if (name.equals(Name.NAME)) {
+                        index = header.get(configuration.getNameAttribute()).getIndex();
+                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+                        index = header.get(configuration.getPasswordAttribute()).getIndex();
+                    } else {
+                        index = header.get(name).getIndex();
+                    }
+
+                    String value = Util.createRawValue(attribute, configuration);
+                    result[index] = value;
+                }
+                break;
+            case ADD_ATTR_VALUE:
+            case REMOVE_ATTR_VALUE:
+                for (Attribute attribute : attributes) {
+                    Class type = String.class;
+                    Integer index;
+
+                    String name = attribute.getName();
+                    if (name.equals(Uid.NAME)) {
+                        index = header.get(configuration.getUniqueAttribute()).getIndex();
+                    } else if (name.equals(Name.NAME)) {
+                        index = header.get(configuration.getNameAttribute()).getIndex();
+                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+                        index = header.get(configuration.getPasswordAttribute()).getIndex();
+                        type = GuardedString.class;
+                    } else {
+                        index = header.get(name).getIndex();
+                    }
+
+                    List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
+                    List<Object> updated = Operation.ADD_ATTR_VALUE.equals(operation) ?
+                            Util.addValues(current, attribute.getValue()) :
+                            Util.removeValues(current, attribute.getValue());
+
+                    if (isUid(name) && updated.size() != 1) {
+                        throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
+                    }
+
+                    String value = Util.createRawValue(updated, configuration);
+                    result[index] = value;
+                }
+        }
+
+        return Arrays.asList(result);
+    }
 }
