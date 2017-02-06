@@ -12,16 +12,15 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -30,9 +29,66 @@ public class Util {
 
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
 
-    public static final String TMP_EXTENSION = ".tmp";
+    public static final String TMP_EXTENSION = "tmp";
 
     public static final String DEFAULT_COLUMN_NAME = "col";
+
+    public static void closeQuietly(Writer writer, FileLock lock) {
+        try {
+            if (writer != null) {
+                writer.close();
+            }
+            if (lock != null && lock.isValid()) {
+                lock.release();
+            }
+        } catch (IOException ex) {
+        }
+    }
+
+    public static FileLock obtainTmpFileLock(ObjectClassHandlerConfiguration config) {
+        final long MAX_WAIT = 5 * 1000; // 5 seconds
+        File tmp = new File(config.getFilePath().getPath() + "." + Util.TMP_EXTENSION);
+        Path path = tmp.toPath();
+
+        long start = System.currentTimeMillis();
+        FileChannel channel;
+        while (true) {
+            try {
+                channel = FileChannel.open(path,
+                        new HashSet(Arrays.asList(StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)));
+
+                break;
+            } catch (IOException ex) {
+                if (System.currentTimeMillis() > (start + MAX_WAIT)) {
+                    throw new ConnectorIOException("Timeout, couldn't create tmp file '" + tmp.getPath()
+                            + "', reason: " + ex.getMessage(), ex);
+                }
+
+                try {
+                    Thread.sleep((long) (10 + (Math.random() * 50)));
+                } catch (InterruptedException ie) {
+                    throw new ConnectorException(ie);
+                }
+            }
+        }
+
+        FileLock lock;
+        try {
+            lock = channel.lock();
+        } catch (IOException ex) {
+            try {
+                channel.close();
+            } catch (IOException io) {
+            }
+
+            tmp.delete();
+
+            throw new ConnectorIOException("Couldn't obtain lock for temp file '" + tmp.getPath()
+                    + "', reason: " + ex.getMessage(), ex);
+        }
+
+        return lock;
+    }
 
     public static <T> T getSafeValue(Map<String, Object> map, String key, T defValue, Class<T> type) {
         if (map == null) {
@@ -149,6 +205,11 @@ public class Util {
         if (StringUtil.isEmpty(str)) {
             throw new ConfigurationException(message);
         }
+    }
+
+    public static CSVFormat createCsvFormatWriter(ObjectClassHandlerConfiguration config, Map<String, Column> header) {
+        CSVFormat format = createCsvFormat(config);
+return null; //todo implement
     }
 
     public static CSVFormat createCsvFormatReader(ObjectClassHandlerConfiguration configuration) {

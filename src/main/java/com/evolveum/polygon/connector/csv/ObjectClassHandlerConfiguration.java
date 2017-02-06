@@ -18,7 +18,7 @@ public class ObjectClassHandlerConfiguration {
 
     private static final Log LOG = Log.getLog(ObjectClassHandlerConfiguration.class);
 
-    private ObjectClass objectClass = ObjectClass.ACCOUNT;
+    private ObjectClass objectClass;
 
     private File filePath;
 
@@ -45,10 +45,12 @@ public class ObjectClassHandlerConfiguration {
     private int preserveOldSyncFiles = 10;
 
     public ObjectClassHandlerConfiguration() {
-        this(null);
+        this(ObjectClass.ACCOUNT, null);
     }
 
-    public ObjectClassHandlerConfiguration(Map<String, Object> values) {
+    public ObjectClassHandlerConfiguration(ObjectClass oc, Map<String, Object> values) {
+        this.objectClass = oc;
+
         setFilePath(Util.getSafeValue(values, "filePath", null, File.class));
         setEncoding(Util.getSafeValue(values, "encoding", "utf-8", String.class));
 

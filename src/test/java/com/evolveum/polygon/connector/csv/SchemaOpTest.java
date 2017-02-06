@@ -1,5 +1,6 @@
 package com.evolveum.polygon.connector.csv;
 
+import org.apache.commons.io.FileUtils;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -20,6 +21,28 @@ import static org.testng.AssertJUnit.*;
  * Created by Viliam Repan (lazyman).
  */
 public class SchemaOpTest extends BaseTest {
+
+    @Test
+    public void multipleClasses() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        File groupsProperties = new File("./target/groups.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups.csv"), groupsCsv);
+
+
+        ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
+
+        Schema schema = connector.schema();
+        assertEquals(2, schema.getObjectClassInfo().size());
+    }
 
     @Test
     public void repeatingColumns() throws Exception {

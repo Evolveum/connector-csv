@@ -5,6 +5,7 @@ import com.evolveum.polygon.connector.csv.util.StringAccessor;
 import com.evolveum.polygon.connector.csv.util.Util;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
@@ -14,10 +15,16 @@ import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.operations.*;
 
-import java.io.IOException;
-import java.io.Reader;
+import java.io.*;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 
+import static com.evolveum.polygon.connector.csv.util.Util.createCsvFormat;
 import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
 
 /**
@@ -230,7 +237,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public void delete(ObjectClass oc, Uid uid, OperationOptions oo) {
-
+        update(Operation.DELETE, oc, uid, null, oo);
     }
 
     @Override
@@ -389,17 +396,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public Uid addAttributeValues(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
-        return null; //todo implement
+        return update(Operation.ADD_ATTR_VALUE, oc, uid, set, oo);
     }
 
     @Override
     public Uid removeAttributeValues(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
-        return null; //todo implement
+        return update(Operation.REMOVE_ATTR_VALUE, oc, uid, set, oo);
     }
 
     @Override
     public Uid update(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
-        return null; //todo implement
+        return update(Operation.UPDATE, oc, uid, set, oo);
     }
 
     private boolean isRecordEmpty(CSVRecord record) {
@@ -483,4 +490,193 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
         return values;
     }
+
+    private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
+                       OperationOptions oo) {
+
+//        Util.notNull(uid, "Uid must not be null");
+//
+//        if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
+//                && attributes.isEmpty()) {
+//            return uid;
+//        }
+//
+//        attributes = normalize(attributes);
+//
+//        FileLock lock = Util.obtainTmpFileLock(configuration);
+//        Writer writer = null;
+//        try (Reader reader = Util.createReader(configuration)) {
+//            writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
+//
+//            boolean found = false;
+//
+//            CSVFormat csv = Util.createCsvFormat(configuration);
+//            CSVParser parser = csv.parse(reader);
+//
+//            csv = createCsvFormat(configuration);
+//            CSVPrinter printer = csv.print(writer);
+//
+//            Iterator<CSVRecord> iterator = parser.iterator();
+//            while (iterator.hasNext()) {
+//                CSVRecord record = iterator.next();
+//                Map<String, String> data = record.toMap();
+//
+//                String uidValue = data.get(configuration.getUniqueAttribute());
+//                if (StringUtil.isEmpty(uidValue)) {
+//                    continue;
+//                }
+//
+//                Uid recordUid = new Uid(uidValue);
+//                if (!uid.equals(recordUid)) {
+//                    printer.printRecord(record);
+//                    continue;
+//                }
+//
+//                found = true;
+//
+//                if (!Operation.DELETE.equals(operation)) {
+//                    List<Object> updated = updateObject(operation, data, attributes);
+//
+//                    int uidIndex = header.get(configuration.getUniqueAttribute());
+//                    Object newUidValue = updated.get(uidIndex);
+//                    uid = new Uid(newUidValue.toString());
+//
+//                    printer.printRecord(updated);
+//                }
+//            }
+//
+//            configuration.getFilePath().delete();
+//            tmp.renameTo(configuration.getFilePath());
+//
+//            if (!found) {
+//                throw new UnknownUidException("Account '" + uid + "' not found");
+//            }
+//        } catch (Exception ex) {
+//            handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
+//        } finally {
+//            Util.closeQuietly(writer, lock);
+//        }
+
+        return uid;
+    }
+
+    private Set<Attribute> normalize(Set<Attribute> attributes) {
+        if (attributes == null) {
+            return null;
+        }
+
+        Set<Attribute> result = new HashSet<>();
+        result.addAll(attributes);
+
+        Attribute nameAttr = AttributeUtil.getNameFromAttributes(result);
+        Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
+
+        Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), result);
+        Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
+
+        if (isUniqueAndNameAttributeEqual()) {
+            if (name == null && uid != null) {
+                if (nameAttr == null) {
+                    nameAttr = AttributeBuilder.build(Name.NAME, uid);
+                    result.add(nameAttr);
+                }
+            } else if (uid == null && name != null) {
+                if (uniqueAttr == null) {
+                    uniqueAttr = AttributeBuilder.build(configuration.getUniqueAttribute(), name);
+                    result.add(uniqueAttr);
+                }
+            } else if (uid != null && name != null) {
+                if (!name.equals(uid)) {
+                    throw new InvalidAttributeValueException("Unique attribute value doesn't match name attribute value");
+                }
+            }
+        }
+
+        Set<String> columns = header.keySet();
+        for (Attribute attribute : result) {
+            String attrName = attribute.getName();
+            if (Uid.NAME.equals(attrName) || Name.NAME.equals(attrName)
+                    || OperationalAttributes.PASSWORD_NAME.equals(attrName)) {
+                continue;
+            }
+
+            if (!columns.contains(attrName)) {
+                throw new ConnectorException("Unknown attribute " + attrName);
+            }
+
+            if (!isUniqueAndNameAttributeEqual() && isName(attrName)) {
+                throw new ConnectorException("Column used as " + Name.NAME + " attribute");
+            }
+        }
+
+        return result;
+    }
+
+    private boolean isName(String column) {
+        return configuration.getNameAttribute().equals(column);
+    }
+
+//    private List<Object> updateObject(Operation operation, Map<String, String> data, Set<Attribute> attributes) {
+//        Object[] result = new Object[header.size()];
+//
+//        // prefill actual data
+//        for (String column : header.keySet()) {
+//            result[header.get(column)] = data.get(column);
+//        }
+//
+//        // update data based on attributes parameter
+//        switch (operation) {
+//            case UPDATE:
+//                for (Attribute attribute : attributes) {
+//                    Integer index;
+//
+//                    String name = attribute.getName();
+//                    if (name.equals(Uid.NAME)) {
+//                        index = header.get(configuration.getUniqueAttribute());
+//                    } else if (name.equals(Name.NAME)) {
+//                        index = header.get(configuration.getNameAttribute());
+//                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+//                        index = header.get(configuration.getPasswordAttribute());
+//                    } else {
+//                        index = header.get(name);
+//                    }
+//
+//                    String value = Util.createRawValue(attribute, configuration);
+//                    result[index] = value;
+//                }
+//                break;
+//            case ADD_ATTR_VALUE:
+//            case REMOVE_ATTR_VALUE:
+//                for (Attribute attribute : attributes) {
+//                    Class type = String.class;
+//                    Integer index;
+//
+//                    String name = attribute.getName();
+//                    if (name.equals(Uid.NAME)) {
+//                        index = header.get(configuration.getUniqueAttribute());
+//                    } else if (name.equals(Name.NAME)) {
+//                        index = header.get(configuration.getNameAttribute());
+//                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+//                        index = header.get(configuration.getPasswordAttribute());
+//                        type = GuardedString.class;
+//                    } else {
+//                        index = header.get(name);
+//                    }
+//
+//                    List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
+//                    List<Object> updated = Operation.ADD_ATTR_VALUE.equals(operation) ?
+//                            Util.addValues(current, attribute.getValue()) :
+//                            Util.removeValues(current, attribute.getValue());
+//
+//                    if (isUid(name) && updated.size() != 1) {
+//                        throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
+//                    }
+//
+//                    String value = Util.createRawValue(updated, configuration);
+//                    result[index] = value;
+//                }
+//        }
+//
+//        return Arrays.asList(result);
+//    }
 }

@@ -3,6 +3,7 @@ package com.evolveum.polygon.connector.csv;
 import com.evolveum.polygon.connector.csv.util.Util;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.spi.AbstractConfiguration;
 import org.identityconnectors.framework.spi.ConfigurationProperty;
 
@@ -270,7 +271,7 @@ public class CsvConfiguration extends AbstractConfiguration {
 
             String strKey = (String) key;
 
-            String oc = strKey.split(".")[0];
+            String oc = strKey.split("\\.")[0];
             Map<String, Object> values = ocMap.get(oc);
             if (values == null) {
                 values = new HashMap<>();
@@ -285,7 +286,7 @@ public class CsvConfiguration extends AbstractConfiguration {
 
             Map<String, Object> values = ocMap.get(key);
 
-            ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration(values);
+            ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration(new ObjectClass(key), values);
             configs.add(config);
         });
 
