@@ -18,13 +18,13 @@ import org.identityconnectors.framework.spi.operations.*;
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.FileLock;
-import java.nio.file.Files;
+import java.nio.file.*;
 import java.util.*;
 
 import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
 
 /**
- * todo use tmpFolder [lazyman]
+ * todo check new FileSystem().newWatchService() to create exclusive tmp file https://docs.oracle.com/javase/tutorial/essential/io/notification.html
  *
  * Created by lazyman on 27/01/2017.
  */
@@ -288,12 +288,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         // moving existing file
         String path = configuration.getFilePath().getPath();
         File orig = new File(path);
-        File dest = new File(path + "." + System.currentTimeMillis());
-        Files.move(orig.toPath(), dest.toPath());
 
         File tmp = Util.createTmpPath(configuration);
 
-        Files.move(tmp.toPath(), orig.toPath());
+        Files.move(tmp.toPath(), orig.toPath(), StandardCopyOption.REPLACE_EXISTING);
     }
 
     private boolean isPassword(String column) {

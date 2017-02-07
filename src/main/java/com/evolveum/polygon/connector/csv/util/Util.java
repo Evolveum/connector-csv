@@ -54,7 +54,8 @@ public class Util {
     }
 
     public static File createTmpPath(ObjectClassHandlerConfiguration config) {
-        return new File(config.getFilePath().getPath() + "." + Util.TMP_EXTENSION);
+        String fileName = config.getFilePath().getName() + "." + Util.TMP_EXTENSION;
+        return new File(config.getTmpFolder(), fileName);
     }
 
     public static FileLock obtainTmpFileLock(ObjectClassHandlerConfiguration config) {
@@ -211,11 +212,6 @@ public class Util {
         }
     }
 
-    public static CSVFormat createCsvFormatWriter(ObjectClassHandlerConfiguration config, Map<String, Column> header) {
-        CSVFormat format = createCsvFormat(config);
-        return null; //todo implement
-    }
-
     public static CSVFormat createCsvFormatReader(ObjectClassHandlerConfiguration configuration) {
         CSVFormat format = createCsvFormat(configuration);
         format = format.withSkipHeaderRecord(configuration.isHeaderExists());
@@ -365,23 +361,6 @@ public class Util {
         }
 
         return result;
-    }
-
-    public static void copyAndReplace(File from, File to) throws IOException {
-        if (to.exists()) {
-            to.delete();
-        }
-
-        to.createNewFile();
-
-        try (FileInputStream fis = new FileInputStream(from);
-             FileOutputStream fos = new FileOutputStream(to)) {
-
-            FileChannel inChannel = fis.getChannel();
-            FileChannel outChannel = fos.getChannel();
-
-            inChannel.transferTo(0, inChannel.size(), outChannel);
-        }
     }
 
     public static String printDate(long millis) {
