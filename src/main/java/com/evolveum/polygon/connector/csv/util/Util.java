@@ -376,4 +376,22 @@ public class Util {
         File tmp = Util.createTmpPath(config);
         tmp.delete();
     }
+
+    public static String[] listTokenFiles(ObjectClassHandlerConfiguration config) {
+        File csv = config.getFilePath();
+
+        File tmpFolder = config.getTmpFolder();
+
+        String csvFileName = csv.getName();
+        return tmpFolder.list(new SyncTokenFileFilter(csvFileName));
+    }
+
+    public static File createSyncFileName(long timestamp, ObjectClassHandlerConfiguration config) {
+        File csv = config.getFilePath();
+        String fileName = csv.getName();
+
+        File tmpFolder = config.getTmpFolder();
+
+        return new File(tmpFolder, fileName + ".sync." + timestamp);
+    }
 }
