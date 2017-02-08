@@ -23,13 +23,12 @@ import static org.testng.AssertJUnit.assertEquals;
  */
 public class SyncOpTest extends BaseTest {
 
-    // todo enable
-    @Test(expectedExceptions = ConnectorException.class, enabled = false)
+    @Test(expectedExceptions = ConnectorException.class)
     public void badHeaders() throws Exception {
         ConnectorFacade connector = setupConnector("/sync-bad.csv", createConfiguration());
 
-        File oldSyncFile = new File("./target/data.csv.1300734815289");
-        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/sync-bad.csv.1300734815289"), oldSyncFile);
+        File oldSyncFile = new File("./target/data.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "sync-bad.csv.1300734815289"), oldSyncFile);
 
         try {
             SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
@@ -49,13 +48,12 @@ public class SyncOpTest extends BaseTest {
         Assert.fail("This test should fail on headers check.");
     }
 
-    // todo enable
-    @Test(enabled = false)
+    @Test
     public void syncTest() throws Exception {
         ConnectorFacade connector = setupConnector("/sync.csv", createConfiguration());
 
-        File oldSyncFile = new File("./target/data.csv.1300734815289");
-        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/sync.csv.1300734815289"), oldSyncFile);
+        File oldSyncFile = new File("./target/data.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "sync.csv.1300734815289"), oldSyncFile);
 
         try {
             SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);

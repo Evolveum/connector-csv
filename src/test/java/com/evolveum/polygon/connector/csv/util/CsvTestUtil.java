@@ -58,7 +58,7 @@ public class CsvTestUtil {
 
             @Override
             public boolean accept(File dir, String name) {
-                if (name.matches("data\\.csv\\.\\d{13}")) {
+                if (name.matches("data\\.csv\\.sync\\.\\d{13}")) {
                     return true;
                 }
 

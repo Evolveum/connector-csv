@@ -247,13 +247,8 @@ public class ObjectClassHandlerConfiguration {
     public void validate() {
         LOG.ok("Validating configuration for {0}", objectClass);
 
-        Util.checkCanReadFile(filePath);
-
-        if (!filePath.canWrite()) {
-            throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
-        }
-
-        // todo check whether we can write to tmpFolder
+        validateCsvFile();
+        validateTmpFolder();
 
         Util.notEmpty(encoding, "Encoding is not defined.");
 
@@ -287,6 +282,18 @@ public class ObjectClassHandlerConfiguration {
 
         Util.notEmpty(recordSeparator, "Record separator is not defined");
 
+        validateAttributeNames();
+    }
+
+    private void validateCsvFile() {
+        Util.checkCanReadFile(filePath);
+
+        if (!filePath.canWrite()) {
+            throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
+        }
+    }
+
+    private void validateAttributeNames() {
         if (StringUtil.isEmpty(uniqueAttribute)) {
             throw new ConfigurationException("Unique attribute is not defined.");
         }
@@ -298,6 +305,21 @@ public class ObjectClassHandlerConfiguration {
 
         if (StringUtil.isEmpty(passwordAttribute)) {
             LOG.warn("Password attribute is not defined.");
+        }
+    }
+
+    private void validateTmpFolder() {
+        if (tmpFolder == null) {
+            throw new ConfigurationException("Tmp folder path is not defined");
+        }
+        if (!tmpFolder.exists()) {
+            throw new ConfigurationException("Tmp folder '" + tmpFolder + "' doesn't exists");
+        }
+        if (!tmpFolder.isDirectory()) {
+            throw new ConfigurationException("Tmp folder '" + tmpFolder + "' is not a directory");
+        }
+        if (!tmpFolder.canRead() || !tmpFolder.canWrite()) {
+            throw new ConfigurationException("Can't read/write to tmp folder '" + tmpFolder + "'");
         }
     }
 }

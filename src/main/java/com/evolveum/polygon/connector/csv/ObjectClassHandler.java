@@ -495,23 +495,199 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public void sync(ObjectClass oc, SyncToken token, SyncResultsHandler handler, OperationOptions oo) {
-        // todo implement
-    }
+        long tokenLongValue = getTokenValue(token);
+        LOG.info("Token {0}", tokenLongValue);
 
-    @Override
-    public SyncToken getLatestSyncToken(ObjectClass oc) {
-        String csvFileName = configuration.getFilePath().getName();
-        String[] oldCsvFiles = Util.listTokenFiles(configuration);
-
-        String token = null;
-        if (oldCsvFiles.length != 0) {
-            Arrays.sort(oldCsvFiles);
-            String latestCsvFile = oldCsvFiles[oldCsvFiles.length - 1];
-            token = latestCsvFile.replaceFirst(csvFileName + "\\.sync\\.", "");
-
-            return new SyncToken(token);
+        if (tokenLongValue == -1) {
+            //token doesn't exist, we only create new sync file - we're synchronizing from now on
+            createNewSyncFile();
+            LOG.info("Token value was not defined {0}, only creating new sync file, synchronizing from now on.", token);
+            return;
         }
 
+        File csv = configuration.getFilePath();
+        boolean hasFileChanged = false;
+        if (csv.lastModified() > tokenLongValue) {
+            hasFileChanged = true;
+            LOG.info("Csv file has changed on {0} which is after time {1}, based on token value {2}",
+                    Util.printDate(csv.lastModified()), Util.printDate(tokenLongValue), tokenLongValue);
+        }
+
+        if (!hasFileChanged) {
+            LOG.info("File has not changed after {0} (token value {1}), diff will be skipped.",
+                    Util.printDate(tokenLongValue), tokenLongValue);
+            return;
+        }
+
+        doSync(tokenLongValue, handler);
+    }
+
+    // todo locking!
+    // todo review
+    private void doSync(long token, SyncResultsHandler handler) {
+        String newToken = createNewSyncFile();
+        SyncToken newSyncToken = new SyncToken(newToken);
+
+        File newCsv = Util.createSyncFileName(Long.parseLong(newToken), configuration);
+
+        Map<String, CSVRecord> oldData = loadOldSyncFile(token);
+        Set<String> oldUsedOids = new HashSet<>();
+
+        CSVFormat csv = Util.createCsvFormatReader(configuration);
+        try (Reader reader = Util.createReader(newCsv, configuration)) {
+
+            CSVParser parser = csv.parse(reader);
+            Iterator<CSVRecord> iterator = parser.iterator();
+
+            boolean shouldContinue = true;
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                if (isRecordEmpty(record)) {
+                    continue;
+                }
+
+                String uid = record.get(configuration.getUniqueAttribute());
+                if (StringUtil.isEmpty(uid)) {
+                    throw new ConnectorException("Unique attribute not defined for record number "
+                            + record.getRecordNumber() + " in " + newCsv.getName());
+                }
+
+                shouldContinue = doSyncCreateOrUpdate(record, uid, oldData, oldUsedOids, newSyncToken, handler);
+                if (!shouldContinue) {
+                    break;
+                }
+            }
+
+            if (shouldContinue) {
+                doSyncDeleted(oldData, oldUsedOids, newSyncToken, handler);
+            }
+
+            cleanupOldSyncFiles();
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during synchronization");
+        }
+    }
+
+    //todo review
+    private Map<String, CSVRecord> loadOldSyncFile(long token) {
+        File oldCsv = Util.createSyncFileName(token, configuration);
+
+        Map<String, CSVRecord> oldData = new HashMap<>();
+
+        CSVFormat csv = Util.createCsvFormatReader(configuration);
+        try (Reader reader = Util.createReader(oldCsv, configuration)) {
+
+            CSVParser parser = csv.parse(reader);
+            Iterator<CSVRecord> iterator = parser.iterator();
+            while (iterator.hasNext()) {
+                CSVRecord record = iterator.next();
+                String uid = record.toMap().get(configuration.getUniqueAttribute());
+                if (StringUtil.isEmpty(uid)) {
+                    throw new ConnectorException("Unique attribute not defined for record number "
+                            + record.getRecordNumber() + " in " + oldCsv.getName());
+                }
+
+                if (oldData.containsKey(uid)) {
+                    throw new ConnectorException("Unique attribute value '" + uid + "' is not unique in "
+                            + oldCsv.getName());
+                }
+
+                oldData.put(uid, record);
+            }
+        } catch (Exception ex) {
+            handleGenericException(ex, "Error during query execution");
+        }
+
+        return oldData;
+    }
+
+    private void cleanupOldSyncFiles() {
+        String[] tokenFiles = Util.listTokenFiles(configuration);
+        Arrays.sort(tokenFiles);
+
+        int preserve = configuration.getPreserveOldSyncFiles();
+        if (preserve <= 1) {
+            LOG.info("Not removing old token files. Preserve last tokens: {0}.", preserve);
+            return;
+        }
+
+        File parentFolder = configuration.getFilePath().getParentFile();
+        for (int i = 0; i + preserve < tokenFiles.length; i++) {
+            File tokenSyncFile = new File(parentFolder, tokenFiles[i]);
+            if (!tokenSyncFile.exists()) {
+                continue;
+            }
+
+            LOG.info("Deleting file {0}.", tokenSyncFile.getName());
+            tokenSyncFile.delete();
+        }
+    }
+
+    private boolean doSyncCreateOrUpdate(CSVRecord newRecord, String newRecordUid, Map<String, CSVRecord> oldData,
+                                         Set<String> oldUsedOids, SyncToken newSyncToken, SyncResultsHandler handler) {
+        SyncDelta delta;
+
+        CSVRecord oldRecord = oldData.get(newRecordUid);
+        if (oldRecord == null) {
+            // newRecord is new account
+            delta = buildSyncDelta(SyncDeltaType.CREATE, newSyncToken, newRecord);
+        } else {
+            oldUsedOids.add(newRecordUid);
+
+            // this will be an update if records aren't equal
+            if (oldRecord.toMap().equals(newRecord.toMap())) {
+                return true;
+            }
+
+            delta = buildSyncDelta(SyncDeltaType.UPDATE, newSyncToken, newRecord);
+        }
+
+        return handler.handle(delta);
+    }
+
+    private void doSyncDeleted(Map<String, CSVRecord> oldData, Set<String> oldUsedOids, SyncToken newSyncToken,
+                               SyncResultsHandler handler) {
+
+        for (String oldUid : oldData.keySet()) {
+            if (oldUsedOids.contains(oldUid)) {
+                continue;
+            }
+
+            // deleted record
+            CSVRecord deleted = oldData.get(oldUid);
+            SyncDelta delta = buildSyncDelta(SyncDeltaType.DELETE, newSyncToken, deleted);
+            if (!handler.handle(delta)) {
+                break;
+            }
+        }
+    }
+
+    private SyncDelta buildSyncDelta(SyncDeltaType type, SyncToken token, CSVRecord record) {
+        SyncDeltaBuilder builder = new SyncDeltaBuilder();
+        builder.setDeltaType(type);
+        builder.setObjectClass(ObjectClass.ACCOUNT);
+        builder.setToken(token);
+
+        ConnectorObject object = createConnectorObject(record);
+        builder.setObject(object);
+
+        return builder.build();
+    }
+
+    private long getTokenValue(SyncToken token) {
+        if (token == null || token.getValue() == null) {
+            return -1;
+        }
+        String object = token.getValue().toString();
+        if (!object.matches("[0-9]{13}")) {
+            return -1;
+        }
+
+        return Long.parseLong(object);
+    }
+
+    private String createNewSyncFile() {
+        String token = null;
         try {
             LOG.info("Old csv files were not found, creating token, synchronizing from \"now\".");
             File csv = configuration.getFilePath();
@@ -524,6 +700,25 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         } catch (IOException ex) {
             handleGenericException(ex, "Error during get latest sync token operation");
         }
+
+        return token;
+    }
+
+    @Override
+    public SyncToken getLatestSyncToken(ObjectClass oc) {
+        String csvFileName = configuration.getFilePath().getName();
+        String[] oldCsvFiles = Util.listTokenFiles(configuration);
+
+        String token;
+        if (oldCsvFiles.length != 0) {
+            Arrays.sort(oldCsvFiles);
+            String latestCsvFile = oldCsvFiles[oldCsvFiles.length - 1];
+            token = latestCsvFile.replaceFirst(csvFileName + "\\.sync\\.", "");
+
+            return new SyncToken(token);
+        }
+
+        token = createNewSyncFile();
 
         return new SyncToken(token);
     }
