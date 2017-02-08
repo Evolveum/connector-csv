@@ -50,7 +50,9 @@ public class SyncOpTest extends BaseTest {
 
     @Test
     public void syncTest() throws Exception {
-        ConnectorFacade connector = setupConnector("/sync.csv", createConfiguration());
+        CsvConfiguration config = createConfiguration();
+        config.setTrim(true);
+        ConnectorFacade connector = setupConnector("/sync.csv", config);
 
         File oldSyncFile = new File("./target/data.csv.sync.1300734815289");
         FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "sync.csv.1300734815289"), oldSyncFile);

@@ -25,7 +25,7 @@ import static com.evolveum.polygon.connector.csv.util.Util.handleGenericExceptio
 
 /**
  * todo check new FileSystem().newWatchService() to create exclusive tmp file https://docs.oracle.com/javase/tutorial/essential/io/notification.html
- *
+ * <p>
  * Created by lazyman on 27/01/2017.
  */
 public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<String>,
@@ -45,12 +45,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
         this.configuration = configuration;
 
-        header = initHeader();
+        header = initHeader(configuration.getFilePath());
     }
 
-    private Map<String, Column> initHeader() {
+    private Map<String, Column> initHeader(File csvFile) {
         CSVFormat csv = Util.createCsvFormat(configuration);
-        try (Reader reader = Util.createReader(configuration)) {
+        try (Reader reader = Util.createReader(csvFile, configuration)) {
             CSVParser parser = csv.parse(reader);
             Iterator<CSVRecord> iterator = parser.iterator();
 
@@ -530,6 +530,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
         File newCsv = Util.createSyncFileName(Long.parseLong(newToken), configuration);
 
+        Integer uidIndex = header.get(configuration.getUniqueAttribute()).getIndex();
+
         Map<String, CSVRecord> oldData = loadOldSyncFile(token);
         Set<String> oldUsedOids = new HashSet<>();
 
@@ -542,11 +544,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             boolean shouldContinue = true;
             while (iterator.hasNext()) {
                 CSVRecord record = iterator.next();
-                if (isRecordEmpty(record)) {
+                if (skipRecord(record)) {
                     continue;
                 }
 
-                String uid = record.get(configuration.getUniqueAttribute());
+                String uid = record.get(uidIndex);
                 if (StringUtil.isEmpty(uid)) {
                     throw new ConnectorException("Unique attribute not defined for record number "
                             + record.getRecordNumber() + " in " + newCsv.getName());
@@ -568,20 +570,29 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         }
     }
 
-    //todo review
     private Map<String, CSVRecord> loadOldSyncFile(long token) {
         File oldCsv = Util.createSyncFileName(token, configuration);
+
+        Map<String, Column> header = initHeader(oldCsv);
+        if (!this.header.equals(header)) {
+            throw new ConnectorException("Headers of sync file '" + oldCsv + "' and current csv don't match");
+        }
+
+        Integer uidIndex = header.get(configuration.getUniqueAttribute()).getIndex();
 
         Map<String, CSVRecord> oldData = new HashMap<>();
 
         CSVFormat csv = Util.createCsvFormatReader(configuration);
         try (Reader reader = Util.createReader(oldCsv, configuration)) {
-
             CSVParser parser = csv.parse(reader);
             Iterator<CSVRecord> iterator = parser.iterator();
             while (iterator.hasNext()) {
                 CSVRecord record = iterator.next();
-                String uid = record.toMap().get(configuration.getUniqueAttribute());
+                if (skipRecord(record)) {
+                    continue;
+                }
+
+                String uid = record.get(uidIndex);
                 if (StringUtil.isEmpty(uid)) {
                     throw new ConnectorException("Unique attribute not defined for record number "
                             + record.getRecordNumber() + " in " + oldCsv.getName());
@@ -611,7 +622,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             return;
         }
 
-        File parentFolder = configuration.getFilePath().getParentFile();
+        File parentFolder = configuration.getTmpFolder();
         for (int i = 0; i + preserve < tokenFiles.length; i++) {
             File tokenSyncFile = new File(parentFolder, tokenFiles[i]);
             if (!tokenSyncFile.exists()) {
@@ -727,7 +738,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     public void test() {
         configuration.validate();
 
-        initHeader();
+        initHeader(configuration.getFilePath());
     }
 
     @Override
@@ -760,14 +771,20 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         return true;
     }
 
+    private Map<Integer, String> reverseHeaderMap() {
+        Map<Integer, String> reversed = new HashMap<>();
+        this.header.forEach((key, value) -> {
+
+            reversed.put(value.getIndex(), key);
+        });
+
+        return reversed;
+    }
+
     private ConnectorObject createConnectorObject(CSVRecord record) {
         ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
 
-        Map<Integer, String> header = new HashMap<>();
-        this.header.forEach((key, value) -> {
-
-            header.put(value.getIndex(), key);
-        });
+        Map<Integer, String> header = reverseHeaderMap();
 
         for (int i = 0; i < record.size(); i++) {
             String name = header.get(i);
@@ -837,11 +854,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             return uid;
         }
 
-        Map<Integer, String> header = new HashMap<>();
-        this.header.forEach((key, value) -> {
-
-            header.put(value.getIndex(), key);
-        });
+        Map<Integer, String> header = reverseHeaderMap();
 
         attributes = normalize(attributes);
 
