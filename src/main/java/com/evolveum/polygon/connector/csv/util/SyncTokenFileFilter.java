@@ -6,11 +6,11 @@ import java.io.FilenameFilter;
 /**
  * @author Viliam Repan (lazyman)
  */
-public class TokenFileNameFilter implements FilenameFilter {
+public class SyncTokenFileFilter implements FilenameFilter {
 
     private String csvFileName;
 
-    public TokenFileNameFilter(String csvFileName) {
+    public SyncTokenFileFilter(String csvFileName) {
         this.csvFileName = csvFileName;
     }
 
@@ -21,7 +21,7 @@ public class TokenFileNameFilter implements FilenameFilter {
             return false;
         }
 
-        if (fileName.matches(csvFileName.replaceAll("\\.", "\\\\.") + "\\.[0-9]{13}$")) {
+        if (fileName.matches(csvFileName.replaceAll("\\.", "\\\\.") + "\\.sync\\.[0-9]{13}$")) {
             return true;
         }
 
