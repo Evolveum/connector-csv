@@ -7,6 +7,7 @@ import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.Assert;
+import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
 import java.io.File;
@@ -33,13 +34,9 @@ public class SyncOpTest extends BaseTest {
         try {
             SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
             assertEquals("1300734815289", oldToken.getValue());
-            connector.sync(ObjectClass.ACCOUNT, oldToken, new SyncResultsHandler() {
-
-                @Override
-                public boolean handle(SyncDelta sd) {
+            connector.sync(ObjectClass.ACCOUNT, oldToken, delta -> {
                     Assert.fail("This test should fail on headers check.");
                     return false;
-                }
             }, null);
         } finally {
             CsvTestUtil.deleteAllSyncFiles();
@@ -62,14 +59,12 @@ public class SyncOpTest extends BaseTest {
             assertEquals("1300734815289", oldToken.getValue());
 
             final List<SyncDelta> deltas = new ArrayList<>();
-            connector.sync(ObjectClass.ACCOUNT, oldToken, new SyncResultsHandler() {
-
-                @Override
-                public boolean handle(SyncDelta sd) {
-                    deltas.add(sd);
+            connector.sync(ObjectClass.ACCOUNT, oldToken, delta ->  {
+                    deltas.add(delta);
                     return true;
-                }
             }, null);
+
+            AssertJUnit.assertEquals(3, deltas.size());
 
             SyncToken token = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
 
@@ -90,19 +85,29 @@ public class SyncOpTest extends BaseTest {
 
         SyncDeltaBuilder builder = new SyncDeltaBuilder();
         builder.setDeltaType(SyncDeltaType.DELETE);
+        builder.setObjectClass(ObjectClass.ACCOUNT);
         builder.setToken(token);
         builder.setUid(new Uid("vilo"));
-        builder.setObject(null);
+
+        ConnectorObjectBuilder cBuilder = new ConnectorObjectBuilder();
+        cBuilder.setName("vilo");
+        cBuilder.setUid("vilo");
+        cBuilder.setObjectClass(ObjectClass.ACCOUNT);
+        cBuilder.addAttribute(ATTR_FIRST_NAME, "viliam");
+        cBuilder.addAttribute(ATTR_LAST_NAME, "repan");
+        cBuilder.addAttribute(OperationalAttributes.PASSWORD_NAME, new GuardedString("Z29vZA==".toCharArray()));
+        builder.setObject(cBuilder.build());
+
         map.put("vilo", builder.build());
 
         // =====================
 
         builder = new SyncDeltaBuilder();
-        builder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
+        builder.setDeltaType(SyncDeltaType.UPDATE);
         builder.setToken(token);
         builder.setUid(new Uid("miso"));
 
-        ConnectorObjectBuilder cBuilder = new ConnectorObjectBuilder();
+        cBuilder = new ConnectorObjectBuilder();
         cBuilder.setName("miso");
         cBuilder.setUid("miso");
         cBuilder.setObjectClass(ObjectClass.ACCOUNT);
@@ -116,7 +121,7 @@ public class SyncOpTest extends BaseTest {
         // =====================
 
         builder = new SyncDeltaBuilder();
-        builder.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);
+        builder.setDeltaType(SyncDeltaType.CREATE);
         builder.setToken(token);
         builder.setUid(new Uid("apple"));
 

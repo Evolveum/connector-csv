@@ -646,7 +646,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             oldUsedOids.add(newRecordUid);
 
             // this will be an update if records aren't equal
-            if (oldRecord.toMap().equals(newRecord.toMap())) {
+            List old = Util.copyOf(oldRecord.iterator());
+            List _new = Util.copyOf(newRecord.iterator());
+            if (old.equals(_new)) {
+                // record are equal, no update
                 return true;
             }
 

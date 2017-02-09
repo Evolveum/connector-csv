@@ -185,14 +185,6 @@ public class Util {
         return new BufferedReader(in);
     }
 
-    public static BufferedWriter createWriter(File path, CsvConfiguration configuration)
-            throws IOException {
-
-        FileOutputStream fos = new FileOutputStream(path);
-        OutputStreamWriter out = new OutputStreamWriter(fos, configuration.getEncoding());
-        return new BufferedWriter(out);
-    }
-
     public static Character toCharacter(String value) {
         if (value == null) {
             return null;
@@ -393,5 +385,22 @@ public class Util {
         File tmpFolder = config.getTmpFolder();
 
         return new File(tmpFolder, fileName + ".sync." + timestamp);
+    }
+
+    public static <E> List<E> copyOf(Iterator<? extends E> elements) {
+        if (elements == null) {
+            return null;
+        }
+
+        if (!elements.hasNext()) {
+            return Collections.emptyList();
+        }
+
+        List<E> list = new ArrayList<>();
+        while (elements.hasNext()) {
+            list.add(elements.next());
+        }
+
+        return Collections.unmodifiableList(list);
     }
 }
