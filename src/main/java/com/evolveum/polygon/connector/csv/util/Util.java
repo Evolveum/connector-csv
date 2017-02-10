@@ -31,6 +31,8 @@ public class Util {
 
     public static final String TMP_EXTENSION = "tmp";
 
+    public static final String SYNC_LOCK_EXTENSION = "sync.lock";
+
     public static final String DEFAULT_COLUMN_NAME = "col";
 
     public static void closeQuietly(Closeable closeable) {
@@ -53,15 +55,25 @@ public class Util {
         }
     }
 
+    public static File createSyncLockFile(ObjectClassHandlerConfiguration config) {
+        String fileName = config.getFilePath().getName() + "." + SYNC_LOCK_EXTENSION;
+        return new File(config.getTmpFolder(), fileName);
+    }
+
     public static File createTmpPath(ObjectClassHandlerConfiguration config) {
-        String fileName = config.getFilePath().getName() + "." + Util.TMP_EXTENSION;
+        String fileName = config.getFilePath().getName() + "." + TMP_EXTENSION;
         return new File(config.getTmpFolder(), fileName);
     }
 
     public static FileLock obtainTmpFileLock(ObjectClassHandlerConfiguration config) {
-        final long MAX_WAIT = 5 * 1000; // 5 seconds
         File tmp = createTmpPath(config);
-        Path path = tmp.toPath();
+
+        return obtainTmpFileLock(config, tmp);
+    }
+
+    public static FileLock obtainTmpFileLock(ObjectClassHandlerConfiguration config, File file) {
+        final long MAX_WAIT = 5 * 1000; // 5 seconds
+        Path path = file.toPath();
 
         long start = System.currentTimeMillis();
         FileChannel channel;
@@ -73,7 +85,7 @@ public class Util {
                 break;
             } catch (IOException ex) {
                 if (System.currentTimeMillis() > (start + MAX_WAIT)) {
-                    throw new ConnectorIOException("Timeout, couldn't create tmp file '" + tmp.getPath()
+                    throw new ConnectorIOException("Timeout, couldn't create tmp file '" + file.getPath()
                             + "', reason: " + ex.getMessage(), ex);
                 }
 
@@ -94,9 +106,9 @@ public class Util {
             } catch (IOException io) {
             }
 
-            tmp.delete();
+            file.delete();
 
-            throw new ConnectorIOException("Couldn't obtain lock for temp file '" + tmp.getPath()
+            throw new ConnectorIOException("Couldn't obtain lock for temp file '" + file.getPath()
                     + "', reason: " + ex.getMessage(), ex);
         }
 

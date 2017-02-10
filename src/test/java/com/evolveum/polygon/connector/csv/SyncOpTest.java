@@ -1,6 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
 import com.evolveum.polygon.connector.csv.util.CsvTestUtil;
+import com.evolveum.polygon.connector.csv.util.Util;
 import org.apache.commons.io.FileUtils;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
@@ -23,6 +24,30 @@ import static org.testng.AssertJUnit.assertEquals;
  * Created by Viliam Repan (lazyman).
  */
 public class SyncOpTest extends BaseTest {
+
+    @Test(expectedExceptions = ConnectorException.class)
+    public void syncLock() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setTrim(true);
+        ConnectorFacade connector = setupConnector("/sync.csv", config);
+
+        File oldSyncFile = new File("./target/data.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "sync.csv.1300734815289"), oldSyncFile);
+
+        File lock = new File("./target/data.csv." + Util.SYNC_LOCK_EXTENSION);
+        lock.createNewFile();
+
+        try {
+            SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+            assertEquals("1300734815289", oldToken.getValue());
+
+            final List<SyncDelta> deltas = new ArrayList<>();
+            connector.sync(ObjectClass.ACCOUNT, oldToken, delta -> true, null);
+        } finally {
+            CsvTestUtil.deleteAllSyncFiles();
+            lock.delete();
+        }
+    }
 
     @Test(expectedExceptions = ConnectorException.class)
     public void badHeaders() throws Exception {

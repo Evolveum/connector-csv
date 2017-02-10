@@ -495,35 +495,41 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public void sync(ObjectClass oc, SyncToken token, SyncResultsHandler handler, OperationOptions oo) {
-        long tokenLongValue = getTokenValue(token);
-        LOG.info("Token {0}", tokenLongValue);
+        File syncLockFile = Util.createSyncLockFile(configuration);
+        FileLock lock = Util.obtainTmpFileLock(configuration, syncLockFile);
 
-        if (tokenLongValue == -1) {
-            //token doesn't exist, we only create new sync file - we're synchronizing from now on
-            createNewSyncFile();
-            LOG.info("Token value was not defined {0}, only creating new sync file, synchronizing from now on.", token);
-            return;
+        try {
+            long tokenLongValue = getTokenValue(token);
+            LOG.info("Token {0}", tokenLongValue);
+
+            if (tokenLongValue == -1) {
+                //token doesn't exist, we only create new sync file - we're synchronizing from now on
+                createNewSyncFile();
+                LOG.info("Token value was not defined {0}, only creating new sync file, synchronizing from now on.", token);
+                return;
+            }
+
+            File csv = configuration.getFilePath();
+            boolean hasFileChanged = false;
+            if (csv.lastModified() > tokenLongValue) {
+                hasFileChanged = true;
+                LOG.info("Csv file has changed on {0} which is after time {1}, based on token value {2}",
+                        Util.printDate(csv.lastModified()), Util.printDate(tokenLongValue), tokenLongValue);
+            }
+
+            if (!hasFileChanged) {
+                LOG.info("File has not changed after {0} (token value {1}), diff will be skipped.",
+                        Util.printDate(tokenLongValue), tokenLongValue);
+                return;
+            }
+
+            doSync(tokenLongValue, handler);
+        } finally {
+            Util.closeQuietly(lock);
+            syncLockFile.delete();
         }
-
-        File csv = configuration.getFilePath();
-        boolean hasFileChanged = false;
-        if (csv.lastModified() > tokenLongValue) {
-            hasFileChanged = true;
-            LOG.info("Csv file has changed on {0} which is after time {1}, based on token value {2}",
-                    Util.printDate(csv.lastModified()), Util.printDate(tokenLongValue), tokenLongValue);
-        }
-
-        if (!hasFileChanged) {
-            LOG.info("File has not changed after {0} (token value {1}), diff will be skipped.",
-                    Util.printDate(tokenLongValue), tokenLongValue);
-            return;
-        }
-
-        doSync(tokenLongValue, handler);
     }
 
-    // todo locking!
-    // todo review
     private void doSync(long token, SyncResultsHandler handler) {
         String newToken = createNewSyncFile();
         SyncToken newSyncToken = new SyncToken(newToken);
