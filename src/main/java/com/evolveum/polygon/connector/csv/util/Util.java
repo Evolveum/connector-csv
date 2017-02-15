@@ -6,6 +6,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
 import org.identityconnectors.common.Base64;
 import org.identityconnectors.common.StringUtil;
+import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedByteArray;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -34,6 +35,8 @@ public class Util {
     public static final String SYNC_LOCK_EXTENSION = "sync.lock";
 
     public static final String DEFAULT_COLUMN_NAME = "col";
+
+    private static final Log LOG = Log.getLog(Util.class);
 
     public static void closeQuietly(Closeable closeable) {
         if (closeable == null) {
@@ -68,10 +71,14 @@ public class Util {
     public static FileLock obtainTmpFileLock(ObjectClassHandlerConfiguration config) {
         File tmp = createTmpPath(config);
 
-        return obtainTmpFileLock(config, tmp);
+        return obtainTmpFileLock(tmp);
     }
 
-    public static FileLock obtainTmpFileLock(ObjectClassHandlerConfiguration config, File file) {
+    public static FileLock obtainTmpFileLock(File file) {
+        LOG.ok("Obtaining file lock for {0}", file.getPath());
+
+        int attempts = 0;
+
         final long MAX_WAIT = 5 * 1000; // 5 seconds
         Path path = file.toPath();
 
@@ -79,6 +86,8 @@ public class Util {
         FileChannel channel;
         while (true) {
             try {
+                attempts++;
+
                 channel = FileChannel.open(path,
                         new HashSet(Arrays.asList(StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW)));
 
@@ -111,6 +120,8 @@ public class Util {
             throw new ConnectorIOException("Couldn't obtain lock for temp file '" + file.getPath()
                     + "', reason: " + ex.getMessage(), ex);
         }
+
+        LOG.ok("Lock for file {0} obtained (attempts: {1})", file.getPath(), attempts);
 
         return lock;
     }

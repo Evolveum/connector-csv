@@ -39,6 +39,8 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
 
     @Override
     public void init(Configuration configuration) {
+        LOG.info("Initializing connector");
+
         if (!(configuration instanceof CsvConfiguration)) {
             throw new ConfigurationException("Configuration is not instance of " + CsvConfiguration.class.getName());
         }
@@ -53,6 +55,8 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
         } catch (Exception ex) {
             Util.handleGenericException(ex, "Couldn't initialize connector");
         }
+
+        LOG.info("Connector initialization finished");
     }
 
     @Override

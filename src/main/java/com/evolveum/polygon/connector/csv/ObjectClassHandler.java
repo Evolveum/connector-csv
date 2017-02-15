@@ -496,7 +496,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     @Override
     public void sync(ObjectClass oc, SyncToken token, SyncResultsHandler handler, OperationOptions oo) {
         File syncLockFile = Util.createSyncLockFile(configuration);
-        FileLock lock = Util.obtainTmpFileLock(configuration, syncLockFile);
+        FileLock lock = Util.obtainTmpFileLock(syncLockFile);
 
         try {
             long tokenLongValue = getTokenValue(token);
