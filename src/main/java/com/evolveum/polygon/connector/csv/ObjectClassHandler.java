@@ -108,7 +108,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             }
         }
 
-        LOG.info("Created header {0}", header);
+        LOG.ok("Created header {0}", header);
 
         testHeader(header);
 
@@ -662,6 +662,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             delta = buildSyncDelta(SyncDeltaType.UPDATE, newSyncToken, newRecord);
         }
 
+        LOG.ok("Created delta {0}", delta);
+
         return handler.handle(delta);
     }
 
@@ -676,6 +678,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             // deleted record
             CSVRecord deleted = oldData.get(oldUid);
             SyncDelta delta = buildSyncDelta(SyncDeltaType.DELETE, newSyncToken, deleted);
+
+            LOG.ok("Created delta {0}", delta);
+
             if (!handler.handle(delta)) {
                 break;
             }

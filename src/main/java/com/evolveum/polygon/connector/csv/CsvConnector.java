@@ -39,7 +39,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
 
     @Override
     public void init(Configuration configuration) {
-        LOG.info("Initializing connector");
+        LOG.info(">>> Initializing connector");
 
         if (!(configuration instanceof CsvConfiguration)) {
             throw new ConfigurationException("Configuration is not instance of " + CsvConfiguration.class.getName());
@@ -56,7 +56,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
             Util.handleGenericException(ex, "Couldn't initialize connector");
         }
 
-        LOG.info("Connector initialization finished");
+        LOG.info(">>> Connector initialization finished");
     }
 
     @Override
@@ -76,29 +76,29 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
 
     @Override
     public Uid authenticate(ObjectClass oc, String username, GuardedString password, OperationOptions oo) {
-        LOG.info("authenticate started {0} {1} {2} {3}", oc, username, password != null ? "password" : "null", oo);
+        LOG.info(">>> authenticate started {0} {1} {2} {3}", oc, username, password != null ? "password" : "null", oo);
 
         Uid uid = getHandler(oc).authenticate(oc, username, password, oo);
 
-        LOG.info("authenticate finished");
+        LOG.info(">>> authenticate finished");
 
         return uid;
     }
 
     @Override
     public Uid resolveUsername(ObjectClass oc, String username, OperationOptions oo) {
-        LOG.info("resolveUsername started {0} {1} {2}", oc, username, oo);
+        LOG.info(">>> resolveUsername started {0} {1} {2}", oc, username, oo);
 
         Uid uid = getHandler(oc).resolveUsername(oc, username, oo);
 
-        LOG.info("authenticate finished");
+        LOG.info(">>> authenticate finished");
 
         return uid;
     }
 
     @Override
     public Schema schema() {
-        LOG.info("schema started");
+        LOG.info(">>> schema started");
 
         SchemaBuilder builder = new SchemaBuilder(CsvConnector.class);
         handlers.values().forEach(handler -> {
@@ -111,54 +111,54 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
         });
 
         Schema schema = builder.build();
-        LOG.info("schema finished");
+        LOG.info(">>> schema finished");
 
         return schema;
     }
 
     @Override
     public FilterTranslator<String> createFilterTranslator(ObjectClass oc, OperationOptions oo) {
-        LOG.info("createFilterTranslator {0} {1}", oc, oo);
+        LOG.info(">>> createFilterTranslator {0} {1}", oc, oo);
 
         FilterTranslator<String> translator = getHandler(oc).createFilterTranslator(oc, oo);
 
-        LOG.info("createFilterTranslator finished");
+        LOG.info(">>> createFilterTranslator finished");
 
         return translator;
     }
 
     @Override
     public void executeQuery(ObjectClass oc, String uid, ResultsHandler handler, OperationOptions oo) {
-        LOG.info("executeQuery {0} {1} {2} {3}", oc, uid, handler, oo);
+        LOG.info(">>> executeQuery {0} {1} {2} {3}", oc, uid, handler, oo);
 
         getHandler(oc).executeQuery(oc, uid, handler, oo);
 
-        LOG.info("executeQuery finished");
+        LOG.info(">>> executeQuery finished");
     }
 
     @Override
     public void sync(ObjectClass oc, SyncToken token, SyncResultsHandler handler, OperationOptions oo) {
-        LOG.info("sync {0} {1} {2} {3}", oc, token, handler, oo);
+        LOG.info(">>> sync {0} {1} {2} {3}", oc, token, handler, oo);
 
         getHandler(oc).sync(oc, token, handler, oo);
 
-        LOG.info("sync finished");
+        LOG.info(">>> sync finished");
     }
 
     @Override
     public SyncToken getLatestSyncToken(ObjectClass oc) {
-        LOG.info("getLatestSyncToken {0}", oc);
+        LOG.info(">>> getLatestSyncToken {0}", oc);
 
         SyncToken token = getHandler(oc).getLatestSyncToken(oc);
 
-        LOG.info("getLatestSyncToken finished");
+        LOG.info(">>> getLatestSyncToken finished");
 
         return token;
     }
 
     @Override
     public void test() {
-        LOG.info("test started");
+        LOG.info(">>> test started");
 
         handlers.values().forEach(handler -> {
 
@@ -170,58 +170,58 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
 
         });
 
-        LOG.info("test finished");
+        LOG.info(">>> test finished");
     }
 
     @Override
     public Uid create(ObjectClass oc, Set<Attribute> set, OperationOptions oo) {
-        LOG.info("create {0} {1}", oc, oo);
+        LOG.info(">>> create {0} {1}", oc, oo);
 
         Uid u = getHandler(oc).create(oc, set, oo);
 
-        LOG.info("create finished");
+        LOG.info(">>> create finished");
 
         return u;
     }
 
     @Override
     public void delete(ObjectClass oc, Uid uid, OperationOptions oo) {
-        LOG.info("delete {0} {1} {2}", oc, uid, oo);
+        LOG.info(">>> delete {0} {1} {2}", oc, uid, oo);
 
         getHandler(oc).delete(oc, uid, oo);
 
-        LOG.info("delete finished");
+        LOG.info(">>> delete finished");
     }
 
     @Override
     public Uid addAttributeValues(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
-        LOG.info("addAttributeValues {0} {1} {2} {3}", oc, uid, set, oo);
+        LOG.info(">>> addAttributeValues {0} {1} {2} {3}", oc, uid, set, oo);
 
         Uid u = getHandler(oc).addAttributeValues(oc, uid, set, oo);
 
-        LOG.info("addAttributeValues finished");
+        LOG.info(">>> addAttributeValues finished");
 
         return u;
     }
 
     @Override
     public Uid removeAttributeValues(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
-        LOG.info("removeAttributeValues {0} {1} {2} {3}", oc, uid, set, oo);
+        LOG.info(">>> removeAttributeValues {0} {1} {2} {3}", oc, uid, set, oo);
 
         Uid u = getHandler(oc).removeAttributeValues(oc, uid, set, oo);
 
-        LOG.info("removeAttributeValues finished");
+        LOG.info(">>> removeAttributeValues finished");
 
         return u;
     }
 
     @Override
     public Uid update(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
-        LOG.info("update {0} {1} {2}", oc, set, oo);
+        LOG.info(">>> update {0} {1} {2}", oc, set, oo);
 
         Uid u = getHandler(oc).update(oc, uid, set, oo);
 
-        LOG.info("update finished");
+        LOG.info(">>> update finished");
 
         return u;
     }
