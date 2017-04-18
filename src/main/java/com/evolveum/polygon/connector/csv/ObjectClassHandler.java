@@ -188,6 +188,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                     builder = new AttributeInfoBuilder(name);
                     builder.setType(String.class);
                     builder.setNativeName(name);
+                    builder.setRequired(true);
 
                     infos.add(builder.build());
 
@@ -199,6 +200,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                 AttributeInfoBuilder builder = new AttributeInfoBuilder(Name.NAME);
                 builder.setType(String.class);
                 builder.setNativeName(name);
+
+                if (isUniqueAndNameAttributeEqual()) {
+                    builder.setRequired(true);
+                }
 
                 infos.add(builder.build());
 
