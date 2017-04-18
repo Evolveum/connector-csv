@@ -40,6 +40,7 @@ public abstract class BaseTest {
         CsvConfiguration config = new CsvConfiguration();
 
         config.setFilePath(new File(BaseTest.CSV_FILE_PATH));
+        config.setTmpFolder(null);
         config.setUniqueAttribute(ATTR_UID);
         config.setPasswordAttribute(ATTR_PASSWORD);
 
@@ -49,7 +50,7 @@ public abstract class BaseTest {
     protected CsvConfiguration createConfigurationDifferent() {
         CsvConfiguration config = new CsvConfiguration();
         config.setFilePath(new File(BaseTest.CSV_FILE_PATH));
-
+        config.setTmpFolder(null);
         config.setUniqueAttribute(ATTR_UID);
         config.setPasswordAttribute(ATTR_PASSWORD);
         config.setNameAttribute(ATTR_LAST_NAME);
@@ -68,6 +69,7 @@ public abstract class BaseTest {
         FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + csvTemplate), new File(CSV_FILE_PATH));
 
         config.setFilePath(new File(CSV_FILE_PATH));
+        config.setTmpFolder(null);
 
         config.validate();
 

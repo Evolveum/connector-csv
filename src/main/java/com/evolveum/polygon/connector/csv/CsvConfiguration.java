@@ -248,19 +248,23 @@ public class CsvConfiguration extends AbstractConfiguration {
 
         if (objectClassDefinition != null) {
             Util.checkCanReadFile(objectClassDefinition);
+        }
 
-            try {
-                List<ObjectClassHandlerConfiguration> configs = getAllConfigs();
-                configs.forEach(config -> config.validate());
-            } catch (IOException ex) {
-                throw new ConfigurationException("Couldn't load configuration, reason: " + ex.getMessage(), ex);
-            }
+        try {
+            List<ObjectClassHandlerConfiguration> configs = getAllConfigs();
+            configs.forEach(config -> config.validate());
+        } catch (IOException ex) {
+            throw new ConfigurationException("Couldn't load configuration, reason: " + ex.getMessage(), ex);
         }
 
         LOG.info("Csv configuration validation finished");
     }
 
     public ObjectClassHandlerConfiguration getConfig() {
+        if (config != null) {
+            config.recompute();
+        }
+
         return config;
     }
 
@@ -298,6 +302,8 @@ public class CsvConfiguration extends AbstractConfiguration {
             Map<String, Object> values = ocMap.get(key);
 
             ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration(new ObjectClass(key), values);
+            config.recompute();
+
             configs.add(config);
         });
 

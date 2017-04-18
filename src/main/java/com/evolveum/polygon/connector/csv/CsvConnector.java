@@ -45,9 +45,10 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
             throw new ConfigurationException("Configuration is not instance of " + CsvConfiguration.class.getName());
         }
 
-        configuration.validate();
+        CsvConfiguration csvConfig = (CsvConfiguration) configuration;
+        csvConfig.validate();
 
-        this.configuration = (CsvConfiguration) configuration;
+        this.configuration = csvConfig;
 
         try {
             List<ObjectClassHandlerConfiguration> configs = this.configuration.getAllConfigs();

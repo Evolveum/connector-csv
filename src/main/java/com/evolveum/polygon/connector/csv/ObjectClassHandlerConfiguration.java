@@ -77,6 +77,16 @@ public class ObjectClassHandlerConfiguration {
         setPreserveOldSyncFiles(Util.getSafeValue(values, "preserveOldSyncFiles", 10, Integer.class));
     }
 
+    public void recompute() {
+        if (tmpFolder == null && filePath != null) {
+            this.tmpFolder = filePath.getParentFile();
+        }
+
+        if (StringUtil.isEmpty(nameAttribute)) {
+            nameAttribute = uniqueAttribute;
+        }
+    }
+
     public File getTmpFolder() {
         return tmpFolder;
     }
@@ -107,10 +117,6 @@ public class ObjectClassHandlerConfiguration {
 
     public void setFilePath(File filePath) {
         this.filePath = filePath;
-
-        if (tmpFolder == null && filePath != null) {
-            tmpFolder = filePath.getParentFile();
-        }
     }
 
     public String getEncoding() {
@@ -207,9 +213,6 @@ public class ObjectClassHandlerConfiguration {
 
     public void setUniqueAttribute(String uniqueAttribute) {
         this.uniqueAttribute = uniqueAttribute;
-        if (StringUtil.isEmpty(nameAttribute)) {
-            nameAttribute = uniqueAttribute;
-        }
     }
 
     public String getNameAttribute() {
@@ -217,7 +220,7 @@ public class ObjectClassHandlerConfiguration {
     }
 
     public void setNameAttribute(String nameAttribute) {
-        this.nameAttribute = StringUtil.isEmpty(nameAttribute) ? this.uniqueAttribute : nameAttribute;
+        this.nameAttribute = nameAttribute;
     }
 
     public String getPasswordAttribute() {
