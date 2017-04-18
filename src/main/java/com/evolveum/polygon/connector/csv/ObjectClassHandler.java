@@ -178,11 +178,25 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
             if (name.equals(configuration.getUniqueAttribute())) {
                 // unique column
-                AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
-                builder.setFlags(createFlags(
-                        AttributeInfo.Flags.REQUIRED,
-                        AttributeInfo.Flags.NOT_RETURNED_BY_DEFAULT,
-                        AttributeInfo.Flags.NOT_READABLE));
+                AttributeInfoBuilder builder = new AttributeInfoBuilder(Uid.NAME);
+                builder.setType(String.class);
+                builder.setNativeName(name);
+
+                infos.add(builder.build());
+
+                if (!isUniqueAndNameAttributeEqual()) {
+                    builder = new AttributeInfoBuilder(name);
+                    builder.setType(String.class);
+                    builder.setNativeName(name);
+
+                    infos.add(builder.build());
+
+                    continue;
+                }
+            }
+
+            if (name.equals(configuration.getNameAttribute())) {
+                AttributeInfoBuilder builder = new AttributeInfoBuilder(Name.NAME);
                 builder.setType(String.class);
                 builder.setNativeName(name);
 
@@ -191,16 +205,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                 continue;
             }
 
-            if (name.equals(configuration.getNameAttribute())) {
-                continue;
-            }
-
             if (name.equals(configuration.getPasswordAttribute())) {
                 AttributeInfoBuilder builder = new AttributeInfoBuilder(OperationalAttributes.PASSWORD_NAME);
-                builder.setFlags(createFlags(
-                        AttributeInfo.Flags.NOT_READABLE,
-                        AttributeInfo.Flags.NOT_RETURNED_BY_DEFAULT
-                ));
                 builder.setType(GuardedString.class);
                 builder.setNativeName(name);
 

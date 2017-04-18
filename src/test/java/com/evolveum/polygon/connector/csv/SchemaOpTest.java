@@ -4,11 +4,7 @@ import org.apache.commons.io.FileUtils;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
-import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
-import org.identityconnectors.framework.common.objects.AttributeInfo;
-import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.Schema;
+import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.Test;
 
 import java.io.File;
@@ -97,11 +93,11 @@ public class SchemaOpTest extends BaseTest {
         assertNotNull(attrInfos);
         assertEquals(5, attrInfos.size());
 
-        testAttribute("uid", attrInfos, false, false);
-        testAttribute("firstName", attrInfos, false, false);
-        testAttribute("lastName", attrInfos, false, false);
-        testAttribute("__NAME__", attrInfos, true, false);
-        testAttribute("__PASSWORD__", attrInfos, false, true);
+        testAttribute(Uid.NAME, attrInfos, "uid");
+        testAttribute("firstName", attrInfos, "firstName");
+        testAttribute("lastName", attrInfos, "lastName");
+        testAttribute(Name.NAME, attrInfos, "uid");
+        testAttribute(OperationalAttributes.PASSWORD_NAME, attrInfos, "password", true);
     }
 
     @Test
@@ -125,15 +121,20 @@ public class SchemaOpTest extends BaseTest {
         assertFalse(info.isContainer());
         Set<AttributeInfo> attrInfos = info.getAttributeInfo();
         assertNotNull(attrInfos);
-        assertEquals(4, attrInfos.size());
+        assertEquals(5, attrInfos.size());
 
-        testAttribute("firstName", attrInfos, false, false);
-        testAttribute("uid", attrInfos, true, false);
-        testAttribute("__NAME__", attrInfos, true, false);
-        testAttribute("__PASSWORD__", attrInfos, false, true);
+        testAttribute("firstName", attrInfos, "firstName");
+        testAttribute("uid", attrInfos, "uid");
+        testAttribute(Uid.NAME, attrInfos, "uid");
+        testAttribute(Name.NAME, attrInfos, "lastName");
+        testAttribute(OperationalAttributes.PASSWORD_NAME, attrInfos, "password", true);
     }
 
-    private void testAttribute(String name, Set<AttributeInfo> attrInfos, boolean unique, boolean password) {
+    private void testAttribute(String name, Set<AttributeInfo> attrInfos, String nativeName) {
+        testAttribute(name, attrInfos, nativeName, false);
+    }
+
+    private void testAttribute(String name, Set<AttributeInfo> attrInfos, String nativeName, boolean password) {
         Iterator<AttributeInfo> iterator = attrInfos.iterator();
 
         boolean found = false;
@@ -152,9 +153,7 @@ public class SchemaOpTest extends BaseTest {
                 assertEquals(String.class, info.getType());
             }
 
-            if (unique) {
-                assertTrue(info.isRequired());
-            }
+            assertEquals(nativeName, info.getNativeName());
         }
 
         assertTrue(found);
