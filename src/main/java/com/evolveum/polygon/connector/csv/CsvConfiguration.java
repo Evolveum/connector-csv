@@ -158,7 +158,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     @ConfigurationProperty(
             displayMessageKey = "UI_CSV_READ_ONLY",
             helpMessageKey = "UI_CSV_READ_ONLY_HELP")
-    public boolean getReadOnly() {
+    public boolean isReadOnly() {
         return config.isReadOnly();
     }
 
