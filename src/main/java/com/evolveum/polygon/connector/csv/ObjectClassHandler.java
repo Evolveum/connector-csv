@@ -241,6 +241,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public Uid create(ObjectClass oc, Set<Attribute> set, OperationOptions oo) {
+        if (configuration.isReadOnly()) {
+            throw new ConnectorException("Can't add attribute values. Readonly set to true.");
+        }
+
         Set<Attribute> attributes = normalize(set);
 
         String uidValue = findUidValue(attributes);
@@ -364,6 +368,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public void delete(ObjectClass oc, Uid uid, OperationOptions oo) {
+        if (configuration.isReadOnly()) {
+            throw new ConnectorException("Can't add attribute values. Readonly set to true.");
+        }
+
         update(Operation.DELETE, oc, uid, null, oo);
     }
 
@@ -768,16 +776,28 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     @Override
     public Uid addAttributeValues(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
+        if (configuration.isReadOnly()) {
+            throw new ConnectorException("Can't add attribute values. Readonly set to true.");
+        }
+
         return update(Operation.ADD_ATTR_VALUE, oc, uid, set, oo);
     }
 
     @Override
     public Uid removeAttributeValues(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
+        if (configuration.isReadOnly()) {
+            throw new ConnectorException("Can't add attribute values. Readonly set to true.");
+        }
+
         return update(Operation.REMOVE_ATTR_VALUE, oc, uid, set, oo);
     }
 
     @Override
     public Uid update(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
+        if (configuration.isReadOnly()) {
+            throw new ConnectorException("Can't add attribute values. Readonly set to true.");
+        }
+
         return update(Operation.UPDATE, oc, uid, set, oo);
     }
 

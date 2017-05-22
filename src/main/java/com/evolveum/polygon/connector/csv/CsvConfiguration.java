@@ -156,10 +156,21 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            displayMessageKey = "UI_CSV_READ_ONLY",
+            helpMessageKey = "UI_CSV_READ_ONLY_HELP")
+    public boolean getReadOnly() {
+        return config.isReadOnly();
+    }
+
+    @ConfigurationProperty(
             displayMessageKey = "UI_CSV_TMP_FOLDER",
             helpMessageKey = "UI_CSV_TMP_FOLDER_HELP")
     public File getTmpFolder() {
         return config.getTmpFolder();
+    }
+
+    public void setReadOnly(boolean readOnly) {
+        config.setReadOnly(readOnly);
     }
 
     public void setTmpFolder(File tmpFolder) {

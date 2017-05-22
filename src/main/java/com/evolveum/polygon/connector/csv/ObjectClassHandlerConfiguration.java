@@ -46,6 +46,8 @@ public class ObjectClassHandlerConfiguration {
 
     private File tmpFolder;
 
+    private boolean readOnly = false;
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -75,6 +77,8 @@ public class ObjectClassHandlerConfiguration {
         setMultivalueDelimiter(Util.getSafeValue(values, "multivalueDelimiter", null, String.class));
 
         setPreserveOldSyncFiles(Util.getSafeValue(values, "preserveOldSyncFiles", 10, Integer.class));
+
+        setReadOnly(Util.getSafeValue(values, "readOnly", false, Boolean.class));
     }
 
     public void recompute() {
@@ -85,6 +89,14 @@ public class ObjectClassHandlerConfiguration {
         if (StringUtil.isEmpty(nameAttribute)) {
             nameAttribute = uniqueAttribute;
         }
+    }
+
+    public boolean isReadOnly() {
+        return readOnly;
+    }
+
+    public void setReadOnly(boolean readOnly) {
+        this.readOnly = readOnly;
     }
 
     public File getTmpFolder() {
@@ -291,7 +303,7 @@ public class ObjectClassHandlerConfiguration {
     private void validateCsvFile() {
         Util.checkCanReadFile(filePath);
 
-        if (!filePath.canWrite()) {
+        if (!readOnly && !filePath.canWrite()) {
             throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
         }
     }
@@ -321,8 +333,11 @@ public class ObjectClassHandlerConfiguration {
         if (!tmpFolder.isDirectory()) {
             throw new ConfigurationException("Tmp folder '" + tmpFolder + "' is not a directory");
         }
-        if (!tmpFolder.canRead() || !tmpFolder.canWrite()) {
-            throw new ConfigurationException("Can't read/write to tmp folder '" + tmpFolder + "'");
+        if (!tmpFolder.canRead()) {
+            throw new ConfigurationException("Can't read from tmp folder '" + tmpFolder + "'");
+        }
+        if (!tmpFolder.canWrite()) {
+            throw new ConfigurationException("Can't write to tmp folder '" + tmpFolder + "'");
         }
     }
 }

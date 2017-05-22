@@ -3,6 +3,7 @@ package com.evolveum.polygon.connector.csv;
 import com.evolveum.polygon.connector.csv.util.CsvTestUtil;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.*;
@@ -26,6 +27,27 @@ public class CreateOpTest extends BaseTest {
     private static final String NEW_FIRST_NAME = "viliam";
     private static final String NEW_LAST_NAME = "repan";
     private static final String NEW_PASSWORD = "asdf123";
+
+    @Test(expectedExceptions = ConnectorException.class)
+    public void readOnlyMode() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+
+        config.setFilePath(new File(BaseTest.CSV_FILE_PATH));
+        config.setTmpFolder(null);
+        config.setUniqueAttribute(ATTR_UID);
+        config.setPasswordAttribute(ATTR_PASSWORD);
+        config.setReadOnly(true);
+
+        ConnectorFacade connector = setupConnector("/create.csv", config);
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        connector.create(ObjectClass.ACCOUNT, attributes, null);
+
+    }
 
     @Test
     public void createAccountAllAttributesNameEqualsUid() throws Exception {
