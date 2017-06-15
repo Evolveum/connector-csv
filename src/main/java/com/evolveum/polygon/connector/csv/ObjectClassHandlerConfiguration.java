@@ -314,12 +314,12 @@ public class ObjectClassHandlerConfiguration {
         }
 
         if (StringUtil.isEmpty(nameAttribute)) {
-            LOG.warn("Name attribute not defined, value from unique attribute will be used (" + uniqueAttribute + ").");
+            LOG.ok("Name attribute not defined, value from unique attribute will be used (" + uniqueAttribute + ").");
             nameAttribute = uniqueAttribute;
         }
 
         if (StringUtil.isEmpty(passwordAttribute)) {
-            LOG.warn("Password attribute is not defined.");
+            LOG.ok("Password attribute is not defined.");
         }
     }
 
