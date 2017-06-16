@@ -169,6 +169,13 @@ public class CsvConfiguration extends AbstractConfiguration {
         return config.getTmpFolder();
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_IGNORE_IDENTIFIER_CASE",
+            helpMessageKey = "UI_IGNORE_IDENTIFIER_CASE_HELP")
+    public boolean isIgnoreIdentifierCase() {
+        return config.isIgnoreIdentifierCase();
+    }
+
     public void setReadOnly(boolean readOnly) {
         config.setReadOnly(readOnly);
     }
@@ -251,6 +258,10 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     public void setTrim(boolean trim) {
         config.setTrim(trim);
+    }
+    
+    public void setIgnoreIdentifierCase(boolean ignoreIdentifierCase) {
+        config.setIgnoreIdentifierCase(ignoreIdentifierCase);
     }
 
     @Override

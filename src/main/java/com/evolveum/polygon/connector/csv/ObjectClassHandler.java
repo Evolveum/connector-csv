@@ -420,7 +420,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                     }
                 }
 
-                if (!uid.equals(obj.getUid().getUidValue())) {
+                if ( ! uidMatches(uid, obj.getUid().getUidValue(), configuration.isIgnoreIdentifierCase()) ) {
                     continue;
                 }
 
@@ -433,7 +433,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         }
     }
 
-    private void validateAuthenticationInputs(String username, GuardedString password, boolean authenticate) {
+    private boolean uidMatches(String uid1, String uid2, boolean ignoreCase) {
+    	return uid1.equals(uid2) || ignoreCase && uid1.equalsIgnoreCase(uid2);
+	}
+
+	private void validateAuthenticationInputs(String username, GuardedString password, boolean authenticate) {
         if (StringUtil.isEmpty(username)) {
             throw new InvalidCredentialException("Username must not be empty");
         }
@@ -927,13 +931,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                     data.put(header.get(i), record.get(i));
                 }
 
-                String uidValue = data.get(configuration.getUniqueAttribute());
-                if (StringUtil.isEmpty(uidValue)) {
+                String recordUidValue = data.get(configuration.getUniqueAttribute());
+                if (StringUtil.isEmpty(recordUidValue)) {
                     continue;
                 }
 
-                Uid recordUid = new Uid(uidValue);
-                if (!uid.equals(recordUid)) {
+                if (! uidMatches(uid.getUidValue(), recordUidValue, configuration.isIgnoreIdentifierCase())) {
                     printer.printRecord(record);
                     continue;
                 }
