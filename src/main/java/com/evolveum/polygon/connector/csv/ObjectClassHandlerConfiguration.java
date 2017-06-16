@@ -48,6 +48,8 @@ public class ObjectClassHandlerConfiguration {
 
     private boolean readOnly = false;
 
+	private boolean ignoreIdentifierCase = false;
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -79,6 +81,8 @@ public class ObjectClassHandlerConfiguration {
         setPreserveOldSyncFiles(Util.getSafeValue(values, "preserveOldSyncFiles", 10, Integer.class));
 
         setReadOnly(Util.getSafeValue(values, "readOnly", false, Boolean.class));
+        
+        setIgnoreIdentifierCase(Util.getSafeValue(values, "ignoreIdentifierCase", false, Boolean.class));
     }
 
     public void recompute() {
@@ -258,6 +262,14 @@ public class ObjectClassHandlerConfiguration {
     public void setPreserveOldSyncFiles(int preserveOldSyncFiles) {
         this.preserveOldSyncFiles = preserveOldSyncFiles;
     }
+    
+	public boolean isIgnoreIdentifierCase() {
+		return ignoreIdentifierCase;
+	}
+
+	public void setIgnoreIdentifierCase(boolean ignoreIdentifierCase) {
+		this.ignoreIdentifierCase = ignoreIdentifierCase;
+	}
 
     public void validate() {
         LOG.ok("Validating configuration for {0}", objectClass);
@@ -340,4 +352,5 @@ public class ObjectClassHandlerConfiguration {
             throw new ConfigurationException("Can't write to tmp folder '" + tmpFolder + "'");
         }
     }
+
 }
