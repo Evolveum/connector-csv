@@ -27,6 +27,7 @@ import java.util.*;
  * Created by Viliam Repan (lazyman).
  */
 public class Util {
+    private static final Log LOG = Log.getLog(Util.class);
 
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
 
@@ -35,8 +36,6 @@ public class Util {
     public static final String SYNC_LOCK_EXTENSION = "sync.lock";
 
     public static final String DEFAULT_COLUMN_NAME = "col";
-
-    private static final Log LOG = Log.getLog(Util.class);
 
     public static void closeQuietly(Closeable closeable) {
         if (closeable == null) {
@@ -52,9 +51,10 @@ public class Util {
     public static void closeQuietly(FileLock lock) {
         try {
             if (lock != null && lock.isValid()) {
-                lock.release();
+                lock.channel().close(); // channel must be close to avoid fd leak (too many open files)
             }
         } catch (IOException ex) {
+            LOG.warn("Unlock failed for {0}!", lock);
         }
     }
 
@@ -113,6 +113,7 @@ public class Util {
             try {
                 channel.close();
             } catch (IOException io) {
+                LOG.warn("Close failed for {0}!", channel);
             }
 
             file.delete();
