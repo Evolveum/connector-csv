@@ -13,12 +13,14 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.*;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
+import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 import org.identityconnectors.framework.spi.operations.*;
 
 import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.FileLock;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 
 import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
@@ -420,7 +422,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                     }
                 }
 
-                if ( ! uidMatches(uid, obj.getUid().getUidValue(), configuration.isIgnoreIdentifierCase()) ) {
+                if (!uidMatches(uid, obj.getUid().getUidValue(), configuration.isIgnoreIdentifierCase())) {
                     continue;
                 }
 
@@ -434,10 +436,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     }
 
     private boolean uidMatches(String uid1, String uid2, boolean ignoreCase) {
-    	return uid1.equals(uid2) || ignoreCase && uid1.equalsIgnoreCase(uid2);
-	}
+        return uid1.equals(uid2) || ignoreCase && uid1.equalsIgnoreCase(uid2);
+    }
 
-	private void validateAuthenticationInputs(String username, GuardedString password, boolean authenticate) {
+    private void validateAuthenticationInputs(String username, GuardedString password, boolean authenticate) {
         if (StringUtil.isEmpty(username)) {
             throw new InvalidCredentialException("Username must not be empty");
         }
@@ -516,6 +518,15 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         }
     }
 
+    private void handleJustNewToken(SyncToken token, SyncResultsHandler handler) {
+        if (!(handler instanceof SyncTokenResultsHandler)) {
+            return;
+        }
+
+        SyncTokenResultsHandler tokenHandler = (SyncTokenResultsHandler) handler;
+        tokenHandler.handleResult(token);
+    }
+
     @Override
     public void sync(ObjectClass oc, SyncToken token, SyncResultsHandler handler, OperationOptions oo) {
         File syncLockFile = Util.createSyncLockFile(configuration);
@@ -527,22 +538,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
             if (tokenLongValue == -1) {
                 //token doesn't exist, we only create new sync file - we're synchronizing from now on
-                createNewSyncFile();
+                String newToken = createNewSyncFile();
+                handleJustNewToken(new SyncToken(newToken), handler);
                 LOG.info("Token value was not defined {0}, only creating new sync file, synchronizing from now on.", token);
-                return;
-            }
-
-            File csv = configuration.getFilePath();
-            boolean hasFileChanged = false;
-            if (csv.lastModified() > tokenLongValue) {
-                hasFileChanged = true;
-                LOG.info("Csv file has changed on {0} which is after time {1}, based on token value {2}",
-                        Util.printDate(csv.lastModified()), Util.printDate(tokenLongValue), tokenLongValue);
-            }
-
-            if (!hasFileChanged) {
-                LOG.info("File has not changed after {0} (token value {1}), diff will be skipped.",
-                        Util.printDate(tokenLongValue), tokenLongValue);
                 return;
             }
 
@@ -561,7 +559,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
         Integer uidIndex = header.get(configuration.getUniqueAttribute()).getIndex();
 
-        Map<String, CSVRecord> oldData = loadOldSyncFile(token);
+        File oldCsv = Util.createSyncFileName(token, configuration);
+
+        LOG.ok("Comparing files {0} with {1}", oldCsv.getName(), newCsv.getName());
+
+        Map<String, CSVRecord> oldData = loadOldSyncFile(oldCsv);
+
         Set<String> oldUsedOids = new HashSet<>();
 
         CSVFormat csv = Util.createCsvFormatReader(configuration);
@@ -599,9 +602,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         }
     }
 
-    private Map<String, CSVRecord> loadOldSyncFile(long token) {
-        File oldCsv = Util.createSyncFileName(token, configuration);
-
+    private Map<String, CSVRecord> loadOldSyncFile(File oldCsv) {
         Map<String, Column> header = initHeader(oldCsv);
         if (!this.header.equals(header)) {
             throw new ConnectorException("Headers of sync file '" + oldCsv + "' and current csv don't match");
@@ -737,11 +738,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     private String createNewSyncFile() {
         String token = null;
         try {
-            LOG.info("Old csv files were not found, creating token, synchronizing from \"now\".");
-            File csv = configuration.getFilePath();
-            long timestamp = csv.lastModified();
+            long timestamp = System.currentTimeMillis();
 
             File last = Util.createSyncFileName(timestamp, configuration);
+
+            LOG.info("Creating new sync file {0} file {1}", timestamp, last.getName());
             Files.copy(configuration.getFilePath().toPath(), last.toPath());
 
             token = Long.toString(timestamp);
@@ -766,6 +767,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             return new SyncToken(token);
         }
 
+        LOG.info("Old csv files were not found, creating token, synchronizing from \"now\".");
         token = createNewSyncFile();
 
         return new SyncToken(token);
@@ -936,7 +938,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                     continue;
                 }
 
-                if (! uidMatches(uid.getUidValue(), recordUidValue, configuration.isIgnoreIdentifierCase())) {
+                if (!uidMatches(uid.getUidValue(), recordUidValue, configuration.isIgnoreIdentifierCase())) {
                     printer.printRecord(record);
                     continue;
                 }

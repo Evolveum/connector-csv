@@ -27,6 +27,7 @@ import java.util.*;
  * Created by Viliam Repan (lazyman).
  */
 public class Util {
+
     private static final Log LOG = Log.getLog(Util.class);
 
     public static final DateFormat DATE_FORMAT = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss Z");
@@ -116,7 +117,9 @@ public class Util {
                 LOG.warn("Close failed for {0}!", channel);
             }
 
-            file.delete();
+            if (!file.delete()) {
+                throw new ConnectorIOException("Couldn't delete lock file '" + file.getPath() + "'");
+            }
 
             throw new ConnectorIOException("Couldn't obtain lock for temp file '" + file.getPath()
                     + "', reason: " + ex.getMessage(), ex);
