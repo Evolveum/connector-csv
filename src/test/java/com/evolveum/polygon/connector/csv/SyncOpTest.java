@@ -247,4 +247,59 @@ public class SyncOpTest extends BaseTest {
 
         LOG.info("Using second={0}, time: {1}", useSecond, csv.lastModified());
     }
+
+    @Test
+    public void syncTokenTest() throws Exception {
+        CsvTestUtil.deleteAllSyncFiles();
+
+        CsvConfiguration config = createConfiguration();
+        config.setTrim(true);
+        ConnectorFacade connector = setupConnector("/sync-loop-1.csv", config);
+
+        SyncToken token = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+        switchCsvFile(true);
+
+        int count = 0;
+        SyncToken token2 = null;
+        while (count < 15) {
+            count++;
+
+            token2 = doSync(connector, token);
+            switchCsvFile(false);
+
+            File toDelete = Util.createSyncFileName(Long.parseLong((String) token2.getValue()), config.getConfig());
+            if (!toDelete.delete()) {
+                throw new RuntimeException("Couldn't delete " + toDelete.getName());
+            }
+
+            doSync(connector, token2);
+        }
+    }
+
+    private SyncToken doSync(ConnectorFacade connector, SyncToken token) throws Exception {
+        final List<SyncDelta> deltas = new ArrayList<>();
+
+        SyncToken newToken = connector.sync(ObjectClass.ACCOUNT, token, new SyncTokenResultsHandler() {
+
+            @Override
+            public void handleResult(SyncToken syncToken) {
+            }
+
+            @Override
+            public boolean handle(SyncDelta delta) {
+                deltas.add(delta);
+                return true;
+            }
+        }, null);
+
+        Thread.sleep(200);
+
+        if (newToken == null && !deltas.isEmpty()) {
+            newToken = deltas.get(0).getToken();
+        }
+
+        LOG.info("New token is {0}", newToken);
+
+        return newToken;
+    }
 }

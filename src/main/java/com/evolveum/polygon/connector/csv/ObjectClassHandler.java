@@ -23,6 +23,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
+import static com.evolveum.polygon.connector.csv.util.Util.createSyncFileName;
 import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
 
 /**
@@ -551,6 +552,24 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         }
     }
 
+    private File findOldCsv(long token, String newToken, SyncResultsHandler handler) {
+        File oldCsv = Util.createSyncFileName(token, configuration);
+        if (!oldCsv.exists()) {
+            // we'll try to find first sync file which is newer than token (there's a possibility
+            // that we loose some changes this way - same as for example ldap)
+            oldCsv = Util.findOldestSyncFile(token, configuration);
+            if (oldCsv == null || oldCsv.equals(createSyncFileName(Long.parseLong(newToken), configuration))) {
+                // we didn't found any newer file, we should stop and handle this situation as if this
+                // is first time we're doing sync operation (like getLatestSyncToken())
+                handleJustNewToken(new SyncToken(newToken), handler);
+                LOG.info("File for token wasn't found, sync will stop, new token {0} will be returned.", token);
+                return null;
+            }
+        }
+
+        return oldCsv;
+    }
+
     private void doSync(long token, SyncResultsHandler handler) {
         String newToken = createNewSyncFile();
         SyncToken newSyncToken = new SyncToken(newToken);
@@ -559,19 +578,24 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
         Integer uidIndex = header.get(configuration.getUniqueAttribute()).getIndex();
 
-        File oldCsv = Util.createSyncFileName(token, configuration);
+        File oldCsv = findOldCsv(token, newToken, handler);
+        if (oldCsv == null) {
+            return;
+        }
 
         LOG.ok("Comparing files {0} with {1}", oldCsv.getName(), newCsv.getName());
 
-        Map<String, CSVRecord> oldData = loadOldSyncFile(oldCsv);
-
-        Set<String> oldUsedOids = new HashSet<>();
-
-        CSVFormat csv = Util.createCsvFormatReader(configuration);
         try (Reader reader = Util.createReader(newCsv, configuration)) {
+            Map<String, CSVRecord> oldData = loadOldSyncFile(oldCsv);
+
+            Set<String> oldUsedOids = new HashSet<>();
+
+            CSVFormat csv = Util.createCsvFormatReader(configuration);
 
             CSVParser parser = csv.parse(reader);
             Iterator<CSVRecord> iterator = parser.iterator();
+
+            int changesCount = 0;
 
             boolean shouldContinue = true;
             while (iterator.hasNext()) {
@@ -586,19 +610,29 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                             + record.getRecordNumber() + " in " + newCsv.getName());
                 }
 
-                shouldContinue = doSyncCreateOrUpdate(record, uid, oldData, oldUsedOids, newSyncToken, handler);
+                SyncDelta delta = doSyncCreateOrUpdate(record, uid, oldData, oldUsedOids, newSyncToken, handler);
+                if (delta == null) {
+                    continue;
+                }
+
+                changesCount++;
+                shouldContinue = handler.handle(delta);
                 if (!shouldContinue) {
                     break;
                 }
             }
 
             if (shouldContinue) {
-                doSyncDeleted(oldData, oldUsedOids, newSyncToken, handler);
+                changesCount += doSyncDeleted(oldData, oldUsedOids, newSyncToken, handler);
             }
 
-            cleanupOldSyncFiles();
+            if (changesCount == 0) {
+                handleJustNewToken(new SyncToken(newToken), handler);
+            }
         } catch (Exception ex) {
             handleGenericException(ex, "Error during synchronization");
+        } finally {
+            cleanupOldSyncFiles();
         }
     }
 
@@ -664,7 +698,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         }
     }
 
-    private boolean doSyncCreateOrUpdate(CSVRecord newRecord, String newRecordUid, Map<String, CSVRecord> oldData,
+    private SyncDelta doSyncCreateOrUpdate(CSVRecord newRecord, String newRecordUid, Map<String, CSVRecord> oldData,
                                          Set<String> oldUsedOids, SyncToken newSyncToken, SyncResultsHandler handler) {
         SyncDelta delta;
 
@@ -680,7 +714,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             List _new = Util.copyOf(newRecord.iterator());
             if (old.equals(_new)) {
                 // record are equal, no update
-                return true;
+                return null;
             }
 
             delta = buildSyncDelta(SyncDeltaType.UPDATE, newSyncToken, newRecord);
@@ -688,11 +722,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
         LOG.ok("Created delta {0}", delta);
 
-        return handler.handle(delta);
+        return delta;
     }
 
-    private void doSyncDeleted(Map<String, CSVRecord> oldData, Set<String> oldUsedOids, SyncToken newSyncToken,
+    private int doSyncDeleted(Map<String, CSVRecord> oldData, Set<String> oldUsedOids, SyncToken newSyncToken,
                                SyncResultsHandler handler) {
+
+        int changesCount = 0;
 
         for (String oldUid : oldData.keySet()) {
             if (oldUsedOids.contains(oldUid)) {
@@ -704,11 +740,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             SyncDelta delta = buildSyncDelta(SyncDeltaType.DELETE, newSyncToken, deleted);
 
             LOG.ok("Created delta {0}", delta);
+            changesCount++;
 
             if (!handler.handle(delta)) {
                 break;
             }
         }
+
+        return changesCount;
     }
 
     private SyncDelta buildSyncDelta(SyncDeltaType type, SyncToken token, CSVRecord record) {

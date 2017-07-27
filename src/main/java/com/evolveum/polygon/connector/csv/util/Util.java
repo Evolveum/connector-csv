@@ -414,6 +414,26 @@ public class Util {
         return new File(tmpFolder, fileName + ".sync." + timestamp);
     }
 
+    public static File findOldestSyncFile(long token, ObjectClassHandlerConfiguration config) {
+        String[] tokenFiles = Util.listTokenFiles(config);
+        Arrays.sort(tokenFiles);
+
+        for (String name : tokenFiles) {
+            String[] array = name.split("\\.");
+            String fileToken = array[array.length - 1];
+
+            long fileTokenLong = Long.parseLong(fileToken);
+            if (fileTokenLong <= token) {
+                continue;
+            }
+
+            File tmpFolder = config.getTmpFolder();
+            return new File(tmpFolder, name);
+        }
+
+        return null;
+    }
+
     public static <E> List<E> copyOf(Iterator<? extends E> elements) {
         if (elements == null) {
             return null;
