@@ -580,10 +580,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
         File oldCsv = findOldCsv(token, newToken, handler);
         if (oldCsv == null) {
+            LOG.error("Couldn't find old csv file to create diff, finishing synchronization.");
             return;
         }
 
-        LOG.ok("Comparing files {0} with {1}", oldCsv.getName(), newCsv.getName());
+        LOG.ok("Comparing files. Old {0} (exists: {1}, size: {2}) with new {3} (exists: {4}, size: {5})",
+                oldCsv.getName(), oldCsv.exists(), oldCsv.length(), newCsv.getName(), newCsv.exists(), newCsv.length());
 
         try (Reader reader = Util.createReader(newCsv, configuration)) {
             Map<String, CSVRecord> oldData = loadOldSyncFile(oldCsv);
@@ -699,7 +701,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     }
 
     private SyncDelta doSyncCreateOrUpdate(CSVRecord newRecord, String newRecordUid, Map<String, CSVRecord> oldData,
-                                         Set<String> oldUsedOids, SyncToken newSyncToken, SyncResultsHandler handler) {
+                                           Set<String> oldUsedOids, SyncToken newSyncToken, SyncResultsHandler handler) {
         SyncDelta delta;
 
         CSVRecord oldRecord = oldData.get(newRecordUid);
@@ -726,7 +728,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     }
 
     private int doSyncDeleted(Map<String, CSVRecord> oldData, Set<String> oldUsedOids, SyncToken newSyncToken,
-                               SyncResultsHandler handler) {
+                              SyncResultsHandler handler) {
 
         int changesCount = 0;
 
@@ -783,6 +785,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
             LOG.info("Creating new sync file {0} file {1}", timestamp, last.getName());
             Files.copy(configuration.getFilePath().toPath(), last.toPath());
+            LOG.ok("New sync file created, name {0}, size {1}", last.getName(), last.length());
 
             token = Long.toString(timestamp);
         } catch (IOException ex) {
@@ -802,6 +805,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             Arrays.sort(oldCsvFiles);
             String latestCsvFile = oldCsvFiles[oldCsvFiles.length - 1];
             token = latestCsvFile.replaceFirst(csvFileName + "\\.sync\\.", "");
+            LOG.ok("Last file found, token is {0}", token);
 
             return new SyncToken(token);
         }
