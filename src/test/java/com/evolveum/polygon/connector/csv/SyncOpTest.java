@@ -16,10 +16,7 @@ import org.testng.annotations.Test;
 import javax.xml.ws.Holder;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertEquals;

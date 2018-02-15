@@ -157,6 +157,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         try {
 
             ObjectClassInfoBuilder objClassBuilder = new ObjectClassInfoBuilder();
+            objClassBuilder.setType(getObjectClass().getObjectClassValue());
+            objClassBuilder.setAuxiliary(configuration.isAuxiliary());
+            objClassBuilder.setContainer(configuration.isContainer());
             objClassBuilder.addAllAttributeInfo(createAttributeInfo(header));
 
             schema.defineObjectClass(objClassBuilder.build());
@@ -173,6 +176,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     }
 
     private List<AttributeInfo> createAttributeInfo(Map<String, Column> columns) {
+        List<String> multivalueAttributes = new ArrayList<>();
+        if (StringUtil.isNotEmpty(configuration.getMultivalueAttributes())) {
+            String[] array = configuration.getMultivalueAttributes().split(configuration.getMultivalueDelimiter());
+            multivalueAttributes = Arrays.asList(array);
+        }
+
         List<AttributeInfo> infos = new ArrayList<>();
         for (String name : columns.keySet()) {
             if (name == null || name.isEmpty()) {
@@ -230,6 +239,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                 builder.setType(String.class);
             }
             builder.setNativeName(name);
+            if (multivalueAttributes.contains(name)) {
+                builder.setMultiValued(true);
+            }
 
             infos.add(builder.build());
         }
@@ -777,19 +789,21 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     }
 
     private String createNewSyncFile() {
+        long timestamp = System.currentTimeMillis();
+
         String token = null;
         try {
-            long timestamp = System.currentTimeMillis();
+            File real = configuration.getFilePath();
 
             File last = Util.createSyncFileName(timestamp, configuration);
 
             LOG.info("Creating new sync file {0} file {1}", timestamp, last.getName());
-            Files.copy(configuration.getFilePath().toPath(), last.toPath());
+            Files.copy(real.toPath(), last.toPath(), StandardCopyOption.REPLACE_EXISTING);
             LOG.ok("New sync file created, name {0}, size {1}", last.getName(), last.length());
 
             token = Long.toString(timestamp);
         } catch (IOException ex) {
-            handleGenericException(ex, "Error during get latest sync token operation");
+            handleGenericException(ex, "Error occurred while creating new sync file " + timestamp);
         }
 
         return token;

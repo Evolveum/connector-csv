@@ -176,6 +176,39 @@ public class CsvConfiguration extends AbstractConfiguration {
         return config.isIgnoreIdentifierCase();
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_MULTIVALUE_ATTRIBUTES",
+            helpMessageKey = "UI_MULTIVALUE_ATTRIBUTES_HELP")
+    public String getMultivalueAttributes() {
+        return config.getMultivalueAttributes();
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_CONTAINER",
+            helpMessageKey = "UI_CONTAINER_HELP")
+    public boolean isContainer() {
+        return config.isContainer();
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_AUXILIARY",
+            helpMessageKey = "UI_AUXILIARY_HELP")
+    public boolean isAuxiliary() {
+        return config.isAuxiliary();
+    }
+
+    public void setContainer(boolean container) {
+        config.setContainer(container);
+    }
+
+    public void setAuxiliary(boolean auxiliary) {
+        config.setAuxiliary(auxiliary);
+    }
+
+    public void setMultivalueAttributes(String multivalueAttributes) {
+        config.setMultivalueAttributes(multivalueAttributes);
+    }
+
     public void setReadOnly(boolean readOnly) {
         config.setReadOnly(readOnly);
     }
