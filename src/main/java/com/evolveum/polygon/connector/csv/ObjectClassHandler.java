@@ -58,9 +58,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             Iterator<CSVRecord> iterator = parser.iterator();
 
             CSVRecord record = null;
-            while (iterator.hasNext()) {
+            for (int i = 1; i <= configuration.getHeaderRow() && iterator.hasNext(); i++) {
                 record = iterator.next();
-                if (!isRecordEmpty(record)) {
+                if (i == configuration.getHeaderRow() && !isRecordEmpty(record)) {
                     break;
                 }
             }
@@ -282,7 +282,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             // we don't want to skip header in any case, but if it's there just
             // write it to tmp file as "standard" record. We can't handle first row
             // as header in case there are more columns with the same name.
-            if (configuration.isHeaderExists() && iterator.hasNext()) {
+            for (int i = 1; i <= configuration.getHeaderRow() && iterator.hasNext(); i++) {
                 CSVRecord record = iterator.next();
                 printer.printRecord(record);
             }
@@ -401,7 +401,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
     }
 
     private boolean skipRecord(CSVRecord record) {
-        if (configuration.isHeaderExists() && record.getRecordNumber() == 1) {
+        if (configuration.isHeaderExists() && record.getRecordNumber() <= configuration.getHeaderRow()) {
             return true;
         }
 

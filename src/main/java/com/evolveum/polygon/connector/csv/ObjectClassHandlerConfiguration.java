@@ -35,6 +35,7 @@ public class ObjectClassHandlerConfiguration {
     private boolean trailingDelimiter = false;
     private boolean trim = false;
     private boolean headerExists = true;
+    private int headerRow = 1;
 
     private String uniqueAttribute;
     private String nameAttribute;
@@ -76,6 +77,7 @@ public class ObjectClassHandlerConfiguration {
         setTrailingDelimiter(Util.getSafeValue(values, "trailingDelimiter", false, Boolean.class));
         setTrim(Util.getSafeValue(values, "trim", false, Boolean.class));
         setHeaderExists(Util.getSafeValue(values, "headerExists", true, Boolean.class));
+        setHeaderRow(Util.getSafeValue(values, "headerRow", 1, Integer.class));
 
         setUniqueAttribute(Util.getSafeValue(values, "uniqueAttribute", null));
         setNameAttribute(Util.getSafeValue(values, "nameAttribute", null));
@@ -150,6 +152,14 @@ public class ObjectClassHandlerConfiguration {
 
     public void setHeaderExists(boolean headerExists) {
         this.headerExists = headerExists;
+    }
+
+    public int getHeaderRow() {
+        return headerRow;
+    }
+
+    public void setHeaderRow(int headerRow) {
+        this.headerRow = headerRow;
     }
 
     public ObjectClass getObjectClass() {

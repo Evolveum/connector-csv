@@ -156,6 +156,13 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            displayMessageKey = "UI_CSV_HEADER_ROW",
+            helpMessageKey = "UI_CSV_HEADER_ROW_HELP")
+    public int getHeaderRow() {
+        return config.getHeaderRow();
+    }
+
+    @ConfigurationProperty(
             displayMessageKey = "UI_CSV_READ_ONLY",
             helpMessageKey = "UI_CSV_READ_ONLY_HELP")
     public boolean isReadOnly() {
@@ -219,6 +226,10 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     public void setHeaderExists(boolean headerExists) {
         config.setHeaderExists(headerExists);
+    }
+
+    public void setHeaderRow(int headerRow) {
+        config.setHeaderRow(headerRow);
     }
 
     public void setObjectClassDefinition(File objectClassDefinition) {
