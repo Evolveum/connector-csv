@@ -262,6 +262,10 @@ public class ObjectClassHandlerConfiguration {
 
     public void setUniqueAttribute(String uniqueAttribute) {
         this.uniqueAttribute = uniqueAttribute;
+
+        if (this.nameAttribute == null) {
+            this.nameAttribute = uniqueAttribute;
+        }
     }
 
     public String getNameAttribute() {

@@ -38,7 +38,7 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     @ConfigurationProperty(
             displayMessageKey = "UI_CSV_NAME_ATTRIBUTE",
-            helpMessageKey = "UI_CSV_NAME_ATTRIBUTE_HELP", required = true)
+            helpMessageKey = "UI_CSV_NAME_ATTRIBUTE_HELP")
     public String getNameAttribute() {
         return config.getNameAttribute();
     }
