@@ -1,0 +1,6 @@
+"login","fname","lname","enumber","dep","dis","password","groups","phone"
+"admin","Admin","Admin","","","false","secret","",""
+"_tjru68","Test","Test","","","false","secret","",""
+"_x000090","Mel","Austenberg Test","","","false","secret","",""
+"jparadajka","Jim T","PARADAJKA","","","true","abc123","All Employees;Essential Documents","123555-1010"
+"_kirk","Jim T","Paradajka","","","true","abc123","","","123555-1010"
