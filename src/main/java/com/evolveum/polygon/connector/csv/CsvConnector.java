@@ -4,7 +4,9 @@ import com.evolveum.polygon.connector.csv.util.Util;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
+import org.identityconnectors.framework.common.exceptions.ConnectionBrokenException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
@@ -12,9 +14,11 @@ import org.identityconnectors.framework.spi.Connector;
 import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.operations.*;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 /**
@@ -24,7 +28,7 @@ import java.util.Set;
         displayNameKey = "UI_CSV_CONNECTOR_NAME",
         configurationClass = CsvConfiguration.class)
 public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<String>, AuthenticateOp,
-        ResolveUsernameOp, SyncOp, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp {
+        ResolveUsernameOp, SyncOp, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp, ScriptOnResourceOp, ScriptOnConnectorOp {
 
     private static final Log LOG = Log.getLog(CsvConnector.class);
 
@@ -226,4 +230,44 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
 
         return u;
     }
+
+	@Override
+	public Object runScriptOnConnector(ScriptContext request, OperationOptions oo) {
+        return runScriptOnResource(request, oo);
+	}
+
+	@Override
+	public Object runScriptOnResource(ScriptContext request, OperationOptions oo) {
+		String command = request.getScriptText();
+		String[] commandArray = command.split("\\s+");
+		ProcessBuilder pb = new ProcessBuilder(commandArray);
+		Map<String, String> env = pb.environment();
+		//iterate map of arguments
+		for (Entry<String,Object> argEntry: request.getScriptArguments().entrySet()) {
+			String varName = argEntry.getKey();
+			Object varValue = argEntry.getValue();
+			if (varValue == null) {
+				env.remove(varName);
+			} else {
+				env.put(varName, varValue.toString());
+			}
+		}
+		//execute command
+		Process process;
+		try {
+			LOG.ok("Executing ''{0}''", command);
+			process = pb.start();
+			int exitCode = process.waitFor();
+			LOG.ok("Execution of ''{0}'' finished, exit code {1}", command, exitCode);
+			return exitCode;
+		}
+		catch (IOException e) {
+			LOG.error("Execution of ''{0}'' failed (exec): {1} ({2})", command, e.getMessage(), e.getClass());
+			throw new ConnectorIOException(e.getMessage(), e);
+		}
+		catch (InterruptedException e) {
+			LOG.error("Execution of ''{0}'' failed (waitFor): {1} ({2})", command, e.getMessage(), e.getClass());
+			throw new ConnectionBrokenException(e.getMessage(), e);
+		}
+	}
 }

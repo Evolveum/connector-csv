@@ -130,6 +130,10 @@ public class Util {
         return lock;
     }
 
+    public static <T> T getSafeValue(Map<String, Object> map, String key, T defValue) {
+        return (T) getSafeValue(map, key, defValue, (Class) String.class);
+    }
+
     public static <T> T getSafeValue(Map<String, Object> map, String key, T defValue, Class<T> type) {
         if (map == null) {
             return defValue;

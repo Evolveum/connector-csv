@@ -38,7 +38,7 @@ public class CsvConfiguration extends AbstractConfiguration {
 
     @ConfigurationProperty(
             displayMessageKey = "UI_CSV_NAME_ATTRIBUTE",
-            helpMessageKey = "UI_CSV_NAME_ATTRIBUTE_HELP", required = true)
+            helpMessageKey = "UI_CSV_NAME_ATTRIBUTE_HELP")
     public String getNameAttribute() {
         return config.getNameAttribute();
     }
@@ -174,6 +174,39 @@ public class CsvConfiguration extends AbstractConfiguration {
             helpMessageKey = "UI_IGNORE_IDENTIFIER_CASE_HELP")
     public boolean isIgnoreIdentifierCase() {
         return config.isIgnoreIdentifierCase();
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_MULTIVALUE_ATTRIBUTES",
+            helpMessageKey = "UI_MULTIVALUE_ATTRIBUTES_HELP")
+    public String getMultivalueAttributes() {
+        return config.getMultivalueAttributes();
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_CONTAINER",
+            helpMessageKey = "UI_CONTAINER_HELP")
+    public boolean isContainer() {
+        return config.isContainer();
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_AUXILIARY",
+            helpMessageKey = "UI_AUXILIARY_HELP")
+    public boolean isAuxiliary() {
+        return config.isAuxiliary();
+    }
+
+    public void setContainer(boolean container) {
+        config.setContainer(container);
+    }
+
+    public void setAuxiliary(boolean auxiliary) {
+        config.setAuxiliary(auxiliary);
+    }
+
+    public void setMultivalueAttributes(String multivalueAttributes) {
+        config.setMultivalueAttributes(multivalueAttributes);
     }
 
     public void setReadOnly(boolean readOnly) {

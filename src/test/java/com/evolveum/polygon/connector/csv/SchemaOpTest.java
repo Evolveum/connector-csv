@@ -38,6 +38,9 @@ public class SchemaOpTest extends BaseTest {
 
         Schema schema = connector.schema();
         assertEquals(2, schema.getObjectClassInfo().size());
+
+        ObjectClassInfo info = schema.findObjectClassInfo("group");
+        assertNotNull(info);
     }
 
     @Test

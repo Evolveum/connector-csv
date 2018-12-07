@@ -42,13 +42,18 @@ public class ObjectClassHandlerConfiguration {
 
     private String multivalueDelimiter;
 
+    private String multivalueAttributes;
+
     private int preserveOldSyncFiles = 10;
 
     private File tmpFolder;
 
     private boolean readOnly = false;
 
-	private boolean ignoreIdentifierCase = false;
+    private boolean ignoreIdentifierCase = false;
+
+    private boolean container = false;
+    private boolean auxiliary = false;
 
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
@@ -58,31 +63,35 @@ public class ObjectClassHandlerConfiguration {
         this.objectClass = oc;
 
         setFilePath(Util.getSafeValue(values, "filePath", null, File.class));
-        setEncoding(Util.getSafeValue(values, "encoding", "utf-8", String.class));
+        setEncoding(Util.getSafeValue(values, "encoding", "utf-8"));
 
-        setFieldDelimiter(Util.getSafeValue(values, "fieldDelimiter", ";", String.class));
-        setEscape(Util.getSafeValue(values, "escape", "\\", String.class));
-        setCommentMarker(Util.getSafeValue(values, "commentMarker", "#", String.class));
+        setFieldDelimiter(Util.getSafeValue(values, "fieldDelimiter", ";"));
+        setEscape(Util.getSafeValue(values, "escape", "\\"));
+        setCommentMarker(Util.getSafeValue(values, "commentMarker", "#"));
         setIgnoreEmptyLines(Util.getSafeValue(values, "ignoreEmptyLines", true, Boolean.class));
-        setQuote(Util.getSafeValue(values, "quote", "\"", String.class));
-        setQuoteMode(Util.getSafeValue(values, "quoteMode", QuoteMode.MINIMAL.name(), String.class));
-        setRecordSeparator(Util.getSafeValue(values, "recordSeparator", "\r\n", String.class));
+        setQuote(Util.getSafeValue(values, "quote", "\""));
+        setQuoteMode(Util.getSafeValue(values, "quoteMode", QuoteMode.MINIMAL.name()));
+        setRecordSeparator(Util.getSafeValue(values, "recordSeparator", "\r\n"));
         setIgnoreSurroundingSpaces(Util.getSafeValue(values, "ignoreSurroundingSpaces", false, Boolean.class));
         setTrailingDelimiter(Util.getSafeValue(values, "trailingDelimiter", false, Boolean.class));
         setTrim(Util.getSafeValue(values, "trim", false, Boolean.class));
         setHeaderExists(Util.getSafeValue(values, "headerExists", true, Boolean.class));
 
-        setUniqueAttribute(Util.getSafeValue(values, "uniqueAttribute", null, String.class));
-        setNameAttribute(Util.getSafeValue(values, "nameAttribute", null, String.class));
-        setPasswordAttribute(Util.getSafeValue(values, "passwordAttribute", null, String.class));
+        setUniqueAttribute(Util.getSafeValue(values, "uniqueAttribute", null));
+        setNameAttribute(Util.getSafeValue(values, "nameAttribute", null));
+        setPasswordAttribute(Util.getSafeValue(values, "passwordAttribute", null));
+        setMultivalueAttributes(Util.getSafeValue(values, "multivalueAttributes", null));
 
-        setMultivalueDelimiter(Util.getSafeValue(values, "multivalueDelimiter", null, String.class));
+        setMultivalueDelimiter(Util.getSafeValue(values, "multivalueDelimiter", null));
 
         setPreserveOldSyncFiles(Util.getSafeValue(values, "preserveOldSyncFiles", 10, Integer.class));
 
         setReadOnly(Util.getSafeValue(values, "readOnly", false, Boolean.class));
-        
+
         setIgnoreIdentifierCase(Util.getSafeValue(values, "ignoreIdentifierCase", false, Boolean.class));
+
+        setContainer(Util.getSafeValue(values, "container", false, Boolean.class));
+        setAuxiliary(Util.getSafeValue(values, "auxiliary", false, Boolean.class));
     }
 
     public void recompute() {
@@ -93,6 +102,30 @@ public class ObjectClassHandlerConfiguration {
         if (StringUtil.isEmpty(nameAttribute)) {
             nameAttribute = uniqueAttribute;
         }
+    }
+
+    public boolean isContainer() {
+        return container;
+    }
+
+    public void setContainer(boolean container) {
+        this.container = container;
+    }
+
+    public boolean isAuxiliary() {
+        return auxiliary;
+    }
+
+    public void setAuxiliary(boolean auxiliary) {
+        this.auxiliary = auxiliary;
+    }
+
+    public String getMultivalueAttributes() {
+        return multivalueAttributes;
+    }
+
+    public void setMultivalueAttributes(String multivalueAttributes) {
+        this.multivalueAttributes = multivalueAttributes;
     }
 
     public boolean isReadOnly() {
@@ -229,6 +262,10 @@ public class ObjectClassHandlerConfiguration {
 
     public void setUniqueAttribute(String uniqueAttribute) {
         this.uniqueAttribute = uniqueAttribute;
+
+        if (this.nameAttribute == null) {
+            this.nameAttribute = uniqueAttribute;
+        }
     }
 
     public String getNameAttribute() {
@@ -262,14 +299,14 @@ public class ObjectClassHandlerConfiguration {
     public void setPreserveOldSyncFiles(int preserveOldSyncFiles) {
         this.preserveOldSyncFiles = preserveOldSyncFiles;
     }
-    
-	public boolean isIgnoreIdentifierCase() {
-		return ignoreIdentifierCase;
-	}
 
-	public void setIgnoreIdentifierCase(boolean ignoreIdentifierCase) {
-		this.ignoreIdentifierCase = ignoreIdentifierCase;
-	}
+    public boolean isIgnoreIdentifierCase() {
+        return ignoreIdentifierCase;
+    }
+
+    public void setIgnoreIdentifierCase(boolean ignoreIdentifierCase) {
+        this.ignoreIdentifierCase = ignoreIdentifierCase;
+    }
 
     public void validate() {
         LOG.ok("Validating configuration for {0}", objectClass);

@@ -2,6 +2,7 @@ package com.evolveum.polygon.connector.csv;
 
 import com.evolveum.polygon.connector.csv.util.ListResultHandler;
 import org.identityconnectors.framework.api.ConnectorFacade;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -61,5 +62,19 @@ public class SearchOpTest extends BaseTest {
         AssertJUnit.assertEquals(2, objects.size());
 
         //todo asserts
+    }
+
+    @Test(expectedExceptions = ConnectorException.class)
+    public void searchWrongNumberColumnCountInRow() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setFilePath(new File(CSV_FILE_PATH));
+        config.setQuoteMode("ALL");
+        config.setFieldDelimiter(",");
+        config.setMultivalueDelimiter(";");
+        config.setUniqueAttribute("login");
+        config.setPasswordAttribute("password");
+
+        ConnectorFacade connector = setupConnector("/search-wrong-column-count-row.csv", config);
+        connector.search(ObjectClass.ACCOUNT, null, new ListResultHandler(), null);
     }
 }
