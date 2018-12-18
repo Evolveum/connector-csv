@@ -30,6 +30,8 @@ import java.util.Set;
 public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<String>, AuthenticateOp,
         ResolveUsernameOp, SyncOp, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp, ScriptOnResourceOp, ScriptOnConnectorOp {
 
+	public static final Integer SYNCH_FILE_LOCK = 0;
+	
     private static final Log LOG = Log.getLog(CsvConnector.class);
 
     private CsvConfiguration configuration;

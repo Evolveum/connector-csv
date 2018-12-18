@@ -350,11 +350,13 @@ public class ObjectClassHandlerConfiguration {
     }
 
     private void validateCsvFile() {
-        Util.checkCanReadFile(filePath);
+    	Util.checkCanReadFile(filePath);
 
-        if (!readOnly && !filePath.canWrite()) {
-            throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
-        }
+    	synchronized (CsvConnector.SYNCH_FILE_LOCK) {
+    		if (!readOnly && !filePath.canWrite()) {
+    			throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
+    		}
+    	}
     }
 
     private void validateAttributeNames() {

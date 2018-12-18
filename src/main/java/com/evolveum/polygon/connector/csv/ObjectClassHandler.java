@@ -52,28 +52,30 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private Map<String, Column> initHeader(File csvFile) {
-		CSVFormat csv = Util.createCsvFormat(configuration);
-		try (Reader reader = Util.createReader(csvFile, configuration)) {
-			CSVParser parser = csv.parse(reader);
-			Iterator<CSVRecord> iterator = parser.iterator();
+		synchronized (CsvConnector.SYNCH_FILE_LOCK) {
+			CSVFormat csv = Util.createCsvFormat(configuration);
+			try (Reader reader = Util.createReader(csvFile, configuration)) {
+				CSVParser parser = csv.parse(reader);
+				Iterator<CSVRecord> iterator = parser.iterator();
 
-			CSVRecord record = null;
-			while (iterator.hasNext()) {
-				record = iterator.next();
-				if (!isRecordEmpty(record)) {
-					break;
+				CSVRecord record = null;
+				while (iterator.hasNext()) {
+					record = iterator.next();
+					if (!isRecordEmpty(record)) {
+						break;
+					}
 				}
-			}
 
-			if (record == null) {
-				throw new ConfigurationException("Couldn't initialize headers, nothing in csv file for object class "
-						+ configuration.getObjectClass());
-			}
+				if (record == null) {
+					throw new ConfigurationException("Couldn't initialize headers, nothing in csv file for object class "
+							+ configuration.getObjectClass());
+				}
 
-			return createHeader(record);
-		} catch (IOException ex) {
-			throw new ConnectorIOException("Couldn't initialize connector for object class "
-					+ configuration.getObjectClass(), ex);
+				return createHeader(record);
+			} catch (IOException ex) {
+				throw new ConnectorIOException("Couldn't initialize connector for object class "
+						+ configuration.getObjectClass(), ex);
+			}
 		}
 	}
 
@@ -269,48 +271,50 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		Reader reader = null;
 		Writer writer = null;
 		try {
-			reader = Util.createReader(configuration);
-			writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
+			synchronized (CsvConnector.SYNCH_FILE_LOCK) {
+				reader = Util.createReader(configuration);
+				writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
 
-			CSVFormat csv = Util.createCsvFormat(configuration);
-			CSVParser parser = csv.parse(reader);
+				CSVFormat csv = Util.createCsvFormat(configuration);
+				CSVParser parser = csv.parse(reader);
 
-			csv = Util.createCsvFormat(configuration);
-			CSVPrinter printer = csv.print(writer);
+				csv = Util.createCsvFormat(configuration);
+				CSVPrinter printer = csv.print(writer);
 
-			Iterator<CSVRecord> iterator = parser.iterator();
-			// we don't want to skip header in any case, but if it's there just
-			// write it to tmp file as "standard" record. We can't handle first row
-			// as header in case there are more columns with the same name.
-			if (configuration.isHeaderExists() && iterator.hasNext()) {
-				CSVRecord record = iterator.next();
-				printer.printRecord(record);
-			}
-
-			// handling real records
-			while (iterator.hasNext()) {
-				CSVRecord record = iterator.next();
-				ConnectorObject obj = createConnectorObject(record);
-
-				if (uid.equals(obj.getUid())) {
-					throw new AlreadyExistsException("Account already exists '" + uid.getUidValue() + "'.");
+				Iterator<CSVRecord> iterator = parser.iterator();
+				// we don't want to skip header in any case, but if it's there just
+				// write it to tmp file as "standard" record. We can't handle first row
+				// as header in case there are more columns with the same name.
+				if (configuration.isHeaderExists() && iterator.hasNext()) {
+					CSVRecord record = iterator.next();
+					printer.printRecord(record);
 				}
 
-				printer.printRecord(record);
+				// handling real records
+				while (iterator.hasNext()) {
+					CSVRecord record = iterator.next();
+					ConnectorObject obj = createConnectorObject(record);
+
+					if (uid.equals(obj.getUid())) {
+						throw new AlreadyExistsException("Account already exists '" + uid.getUidValue() + "'.");
+					}
+
+					printer.printRecord(record);
+				}
+
+				printer.printRecord(createNewRecord(attributes));
+
+				writer.close();
+				reader.close();
+
+				moveTmpToOrig();
 			}
-
-			printer.printRecord(createNewRecord(attributes));
-
-			writer.close();
-			reader.close();
-
-			moveTmpToOrig();
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' create");
 		} finally {
 			Util.cleanupResources(writer, reader, lock, configuration);
 		}
-
+		
 		return uid;
 	}
 
@@ -976,63 +980,64 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		Reader reader = null;
 		Writer writer = null;
 		try {
-			reader = Util.createReader(configuration);
-			writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
+			synchronized (CsvConnector.SYNCH_FILE_LOCK) {
+				reader = Util.createReader(configuration);
+				writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
 
-			boolean found = false;
+				boolean found = false;
 
-			CSVFormat csv = Util.createCsvFormat(configuration);
-			CSVParser parser = csv.parse(reader);
+				CSVFormat csv = Util.createCsvFormat(configuration);
+				CSVParser parser = csv.parse(reader);
 
-			csv = Util.createCsvFormat(configuration);
-			CSVPrinter printer = csv.print(writer);
+				csv = Util.createCsvFormat(configuration);
+				CSVPrinter printer = csv.print(writer);
 
-			Iterator<CSVRecord> iterator = parser.iterator();
-			while (iterator.hasNext()) {
-				CSVRecord record = iterator.next();
+				Iterator<CSVRecord> iterator = parser.iterator();
+				while (iterator.hasNext()) {
+					CSVRecord record = iterator.next();
 
-				Map<String, String> data = new HashMap<>();
-				for (int i = 0; i < record.size(); i++) {
-					data.put(header.get(i), record.get(i));
+					Map<String, String> data = new HashMap<>();
+					for (int i = 0; i < record.size(); i++) {
+						data.put(header.get(i), record.get(i));
+					}
+
+					String recordUidValue = data.get(configuration.getUniqueAttribute());
+					if (StringUtil.isEmpty(recordUidValue)) {
+						continue;
+					}
+				
+					if (!uidMatches(uid.getUidValue(), recordUidValue, configuration.isIgnoreIdentifierCase())) {
+						printer.printRecord(record);
+						continue;
+					}
+
+					found = true;
+
+					if (!Operation.DELETE.equals(operation)) {
+						List<Object> updated = updateObject(operation, data, attributes);
+
+						int uidIndex = this.header.get(configuration.getUniqueAttribute()).getIndex();
+						Object newUidValue = updated.get(uidIndex);
+						uid = new Uid(newUidValue.toString());
+					
+						printer.printRecord(updated);
+					}
 				}
 
-				String recordUidValue = data.get(configuration.getUniqueAttribute());
-				if (StringUtil.isEmpty(recordUidValue)) {
-					continue;
+				writer.close();
+				reader.close();
+
+				if (!found) {
+					throw new UnknownUidException("Account '" + uid + "' not found");
 				}
 
-				if (!uidMatches(uid.getUidValue(), recordUidValue, configuration.isIgnoreIdentifierCase())) {
-					printer.printRecord(record);
-					continue;
-				}
-
-				found = true;
-
-				if (!Operation.DELETE.equals(operation)) {
-					List<Object> updated = updateObject(operation, data, attributes);
-
-					int uidIndex = this.header.get(configuration.getUniqueAttribute()).getIndex();
-					Object newUidValue = updated.get(uidIndex);
-					uid = new Uid(newUidValue.toString());
-
-					printer.printRecord(updated);
-				}
+				moveTmpToOrig();
 			}
-
-			writer.close();
-			reader.close();
-
-			if (!found) {
-				throw new UnknownUidException("Account '" + uid + "' not found");
-			}
-
-			moveTmpToOrig();
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
 		} finally {
 			Util.cleanupResources(writer, reader, lock, configuration);
 		}
-
 		return uid;
 	}
 

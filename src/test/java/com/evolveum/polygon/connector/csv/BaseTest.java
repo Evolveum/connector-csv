@@ -63,7 +63,21 @@ public abstract class BaseTest {
     }
 
     protected ConnectorFacade setupConnector(String csvTemplate, CsvConfiguration config) throws IOException {
-        File file = new File(CSV_FILE_PATH);
+        
+    	copyDataFile(csvTemplate, config);
+
+        return createNewInstance(config);
+    }
+    
+    protected ConnectorFacade createNewInstance(CsvConfiguration config) {
+    	ConnectorFacadeFactory factory = ConnectorFacadeFactory.getInstance();
+
+        APIConfiguration impl = TestHelpers.createTestConfiguration(CsvConnector.class, config);
+        return factory.newInstance(impl);
+    }
+    
+    protected void copyDataFile(String csvTemplate, CsvConfiguration config) throws IOException {
+    	File file = new File(CSV_FILE_PATH);
         file.delete();
 
         FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + csvTemplate), new File(CSV_FILE_PATH));
@@ -72,11 +86,6 @@ public abstract class BaseTest {
         config.setTmpFolder(null);
 
         config.validate();
-
-        ConnectorFacadeFactory factory = ConnectorFacadeFactory.getInstance();
-
-        APIConfiguration impl = TestHelpers.createTestConfiguration(CsvConnector.class, config);
-        return factory.newInstance(impl);
     }
 
     protected void assertConnectorObject(Set<Attribute> expected, ConnectorObject object) {

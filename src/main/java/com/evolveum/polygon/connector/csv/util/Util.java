@@ -1,6 +1,7 @@
 package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.CsvConfiguration;
+import com.evolveum.polygon.connector.csv.CsvConnector;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
@@ -65,7 +66,7 @@ public class Util {
     }
 
     public static File createTmpPath(ObjectClassHandlerConfiguration config) {
-        String fileName = config.getFilePath().getName() + "." + TMP_EXTENSION;
+        String fileName = config.getFilePath().getName() + config.hashCode() + "." + TMP_EXTENSION;
         return new File(config.getTmpFolder(), fileName);
     }
 
@@ -172,15 +173,17 @@ public class Util {
         if (file == null) {
             throw new ConfigurationException("File path is not defined");
         }
-
-        if (!file.exists()) {
-            throw new ConfigurationException("File '" + file + "' doesn't exists. At least file with CSV header must exist");
-        }
-        if (file.isDirectory()) {
-            throw new ConfigurationException("File path '" + file + "' is a directory, must be a CSV file");
-        }
-        if (!file.canRead()) {
-            throw new ConfigurationException("File '" + file + "' can't be read");
+        
+        synchronized (CsvConnector.SYNCH_FILE_LOCK) {
+        	if (!file.exists()) {
+        		throw new ConfigurationException("File '" + file + "' doesn't exists. At least file with CSV header must exist");
+        	}
+        	if (file.isDirectory()) {
+        		throw new ConfigurationException("File path '" + file + "' is a directory, must be a CSV file");
+        	}
+        	if (!file.canRead()) {
+        		throw new ConfigurationException("File '" + file + "' can't be read");
+        	}
         }
     }
 
