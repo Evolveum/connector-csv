@@ -815,20 +815,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	@Override
 	public SyncToken getLatestSyncToken(ObjectClass oc) {
-		String csvFileName = configuration.getFilePath().getName();
-		String[] oldCsvFiles = Util.listTokenFiles(configuration);
-
 		String token;
-		if (oldCsvFiles.length != 0) {
-			Arrays.sort(oldCsvFiles);
-			String latestCsvFile = oldCsvFiles[oldCsvFiles.length - 1];
-			token = latestCsvFile.replaceFirst(csvFileName + "\\.sync\\.", "");
-			LOG.ok("Last file found, token is {0}", token);
-
-			return new SyncToken(token);
-		}
-
-		LOG.info("Old csv files were not found, creating token, synchronizing from \"now\".");
+		LOG.info("Creating token, synchronizing from \"now\".");
 		token = createNewSyncFile();
 
 		return new SyncToken(token);
