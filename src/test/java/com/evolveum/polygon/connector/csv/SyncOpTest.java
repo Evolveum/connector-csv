@@ -40,11 +40,11 @@ public class SyncOpTest extends BaseTest {
         lock.createNewFile();
 
         try {
-            SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
-            assertEquals("1300734815289", oldToken.getValue());
+//            SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+//            assertEquals("1300734815289", oldToken.getValue());
 
             final List<SyncDelta> deltas = new ArrayList<>();
-            connector.sync(ObjectClass.ACCOUNT, oldToken, delta -> true, null);
+            connector.sync(ObjectClass.ACCOUNT, new SyncToken("1300734815289"), delta -> true, null);
         } finally {
             CsvTestUtil.deleteAllSyncFiles();
             lock.delete();
@@ -59,9 +59,9 @@ public class SyncOpTest extends BaseTest {
         FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "sync-bad.csv.1300734815289"), oldSyncFile);
 
         try {
-            SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
-            assertEquals("1300734815289", oldToken.getValue());
-            connector.sync(ObjectClass.ACCOUNT, oldToken, delta -> {
+//            SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+//            assertEquals("1300734815289", oldToken.getValue());
+            connector.sync(ObjectClass.ACCOUNT, new SyncToken("1300734815289"), delta -> {
                 Assert.fail("This test should fail on headers check.");
                 return false;
             }, null);
@@ -82,18 +82,18 @@ public class SyncOpTest extends BaseTest {
         FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "sync.csv.1300734815289"), oldSyncFile);
 
         try {
-            SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
-            assertEquals("1300734815289", oldToken.getValue());
+//            SyncToken oldToken = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+//            assertEquals("1300734815289", oldToken.getValue());
 
             final List<SyncDelta> deltas = new ArrayList<>();
-            connector.sync(ObjectClass.ACCOUNT, oldToken, delta -> {
+            connector.sync(ObjectClass.ACCOUNT, new SyncToken("1300734815289"), delta -> {
                 deltas.add(delta);
                 return true;
             }, null);
 
             AssertJUnit.assertEquals(3, deltas.size());
 
-            SyncToken token = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+            SyncToken token = deltas.get(0).getToken();
 
             Map<String, SyncDelta> deltaMap = createSyncDeltaTestMap(token);
             for (SyncDelta delta : deltas) {
@@ -102,6 +102,24 @@ public class SyncOpTest extends BaseTest {
                 assertEquals(syncDelta, delta);
             }
             assertTrue(deltaMap.isEmpty(), "deltas didn't match");
+        } finally {
+            CsvTestUtil.deleteAllSyncFiles();
+        }
+    }
+
+    @Test
+    public void syncActualTokenTest() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setTrim(true);
+        ConnectorFacade connector = setupConnector("/sync.csv", config);
+
+        try {
+            long timestampBefore = System.currentTimeMillis();
+            SyncToken token = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+            long timestampToken = Long.valueOf((String) token.getValue());
+            long timestampAfter = System.currentTimeMillis();
+
+            assertTrue(timestampToken>timestampBefore && timestampToken<timestampAfter, "wrong token, expected token between "+timestampBefore+" and "+timestampAfter);
         } finally {
             CsvTestUtil.deleteAllSyncFiles();
         }
