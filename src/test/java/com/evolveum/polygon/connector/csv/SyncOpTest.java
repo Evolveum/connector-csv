@@ -13,7 +13,6 @@ import org.testng.Assert;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
-import javax.xml.ws.Holder;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
@@ -193,14 +192,14 @@ public class SyncOpTest extends BaseTest {
 
                 oldTokenValue = Long.parseLong((String) token.getValue());
 
-                final Holder<SyncToken> tokenHolder = new Holder();
+                final SyncToken[] tokenHolder = new SyncToken[1];
 
                 final List<SyncDelta> deltas = new ArrayList<>();
                 connector.sync(ObjectClass.ACCOUNT, token, new SyncTokenResultsHandler() {
 
                     @Override
                     public void handleResult(SyncToken syncToken) {
-                        tokenHolder.value = syncToken;
+                        tokenHolder[0] = syncToken;
                     }
 
                     @Override
@@ -214,7 +213,7 @@ public class SyncOpTest extends BaseTest {
 
                 AssertJUnit.assertEquals(4, deltas.size());
 
-                SyncToken newToken = tokenHolder.value;
+                SyncToken newToken = tokenHolder[0];
                 if (newToken == null && !deltas.isEmpty()) {
                     newToken = deltas.get(0).getToken();
                 } else {
