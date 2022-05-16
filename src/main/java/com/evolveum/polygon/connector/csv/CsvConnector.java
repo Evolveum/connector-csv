@@ -28,7 +28,8 @@ import java.util.Set;
         displayNameKey = "UI_CSV_CONNECTOR_NAME",
         configurationClass = CsvConfiguration.class)
 public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<String>, AuthenticateOp,
-        ResolveUsernameOp, SyncOp, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp, ScriptOnResourceOp, ScriptOnConnectorOp {
+        ResolveUsernameOp, SyncOp, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp, ScriptOnResourceOp,
+        ScriptOnConnectorOp, DiscoverConfigurationOp {
 
 	public static final Integer SYNCH_FILE_LOCK = 0;
 	
@@ -272,4 +273,31 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
 			throw new ConnectionBrokenException(e.getMessage(), e);
 		}
 	}
+
+    @Override
+    public void testPartialConfiguration() {
+        LOG.info(">>> test partial configuration started");
+        handlers.values().forEach(handler -> {
+            LOG.info("test partial configuration started for {0}", handler.getObjectClass());
+
+            handler.testPartialConfiguration();
+
+            LOG.info("test partial configuration finished for {0}", handler.getObjectClass());
+        });
+        LOG.info(">>> test partial configuration finished");
+    }
+
+    @Override
+    public Map<String, SuggestedValues> discoverConfiguration() {
+        LOG.info(">>> discover configuration started");
+
+        Map<String, SuggestedValues> suggestions = new HashMap<>();
+        handlers.values().forEach(handler -> {
+            suggestions.putAll(handler.discoverConfiguration());
+        });
+
+        LOG.info(">>> discover configuration finished");
+
+        return suggestions;
+    }
 }

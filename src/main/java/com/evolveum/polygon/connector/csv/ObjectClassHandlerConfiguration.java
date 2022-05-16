@@ -349,7 +349,7 @@ public class ObjectClassHandlerConfiguration {
         validateAttributeNames();
     }
 
-    private void validateCsvFile() {
+    public void validateCsvFile() {
     	Util.checkCanReadFile(filePath);
 
     	synchronized (CsvConnector.SYNCH_FILE_LOCK) {

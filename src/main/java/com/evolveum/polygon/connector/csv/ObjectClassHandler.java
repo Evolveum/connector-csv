@@ -1,6 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
 import com.evolveum.polygon.connector.csv.util.Column;
+import com.evolveum.polygon.connector.csv.util.ConfigurationDetector;
 import com.evolveum.polygon.connector.csv.util.StringAccessor;
 import com.evolveum.polygon.connector.csv.util.Util;
 import org.apache.commons.csv.CSVFormat;
@@ -32,7 +33,7 @@ import static com.evolveum.polygon.connector.csv.util.Util.handleGenericExceptio
  * Created by lazyman on 27/01/2017.
  */
 public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<String>,
-		UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp {
+		UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, DiscoverConfigurationOp {
 
 	private enum Operation {
 
@@ -47,8 +48,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
 		this.configuration = configuration;
+	}
 
-		header = initHeader(configuration.getFilePath());
+	public Map<String, Column> getHeader() {
+		if (header == null) {
+			initHeader(configuration.getFilePath());
+		}
+		return header;
 	}
 
 	private Map<String, Column> initHeader(File csvFile) {
@@ -162,7 +168,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			objClassBuilder.setType(getObjectClass().getObjectClassValue());
 			objClassBuilder.setAuxiliary(configuration.isAuxiliary());
 			objClassBuilder.setContainer(configuration.isContainer());
-			objClassBuilder.addAllAttributeInfo(createAttributeInfo(header));
+			objClassBuilder.addAllAttributeInfo(createAttributeInfo(getHeader()));
 
 			schema.defineObjectClass(objClassBuilder.build());
 		} catch (Exception ex) {
@@ -338,7 +344,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private List<Object> createNewRecord(Set<Attribute> attributes) {
-		final Object[] record = new Object[header.size()];
+		final Object[] record = new Object[getHeader().size()];
 
 		Attribute nameAttr = AttributeUtil.getNameFromAttributes(attributes);
 		Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
@@ -346,7 +352,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		Attribute uniqueAttr = AttributeUtil.find(configuration.getUniqueAttribute(), attributes);
 		Object uid = uniqueAttr != null ? AttributeUtil.getSingleValue(uniqueAttr) : null;
 
-		for (String column : header.keySet()) {
+		for (String column : getHeader().keySet()) {
 			Object value;
 			if (isPassword(column)) {
 				Attribute attr = AttributeUtil.find(OperationalAttributes.PASSWORD_NAME, attributes);
@@ -368,7 +374,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				value = Util.createRawValue(attr, configuration);
 			}
 
-			record[header.get(column).getIndex()] = value;
+			record[getHeader().get(column).getIndex()] = value;
 		}
 
 		return Arrays.asList(record);
@@ -592,7 +598,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		File newCsv = Util.createSyncFileName(Long.parseLong(newToken), configuration);
 
-		Integer uidIndex = header.get(configuration.getUniqueAttribute()).getIndex();
+		Integer uidIndex = getHeader().get(configuration.getUniqueAttribute()).getIndex();
 
 		File oldCsv = findOldCsv(token, newToken, handler);
 		if (oldCsv == null) {
@@ -656,7 +662,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private Map<String, CSVRecord> loadOldSyncFile(File oldCsv) {
 		Map<String, Column> header = initHeader(oldCsv);
-		if (!this.header.equals(header)) {
+		if (!this.getHeader().equals(header)) {
 			throw new ConnectorException("Headers of sync file '" + oldCsv + "' and current csv don't match");
 		}
 
@@ -830,6 +836,22 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	@Override
+	public void testPartialConfiguration() {
+		configuration.validateCsvFile();
+	}
+
+	@Override
+	public Map<String, SuggestedValues> discoverConfiguration() {
+		Map<String, SuggestedValues> suggestions = new HashMap<>();
+		ConfigurationDetector detector = new ConfigurationDetector(configuration);
+
+		suggestions.putAll(detector.detectDelimiters());
+		suggestions.putAll(detector.detectAttributes());
+
+		return suggestions;
+	}
+
+	@Override
 	public Uid addAttributeValues(ObjectClass oc, Uid uid, Set<Attribute> set, OperationOptions oo) {
 		if (configuration.isReadOnly()) {
 			throw new ConnectorException("Can't add attribute values. Readonly set to true.");
@@ -873,7 +895,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private Map<Integer, String> reverseHeaderMap() {
 		Map<Integer, String> reversed = new HashMap<>();
-		this.header.forEach((key, value) -> {
+		this.getHeader().forEach((key, value) -> {
 
 			reversed.put(value.getIndex(), key);
 		});
@@ -1004,7 +1026,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					if (!Operation.DELETE.equals(operation)) {
 						List<Object> updated = updateObject(operation, data, attributes);
 
-						int uidIndex = this.header.get(configuration.getUniqueAttribute()).getIndex();
+						int uidIndex = this.getHeader().get(configuration.getUniqueAttribute()).getIndex();
 						Object newUidValue = updated.get(uidIndex);
 						uid = new Uid(newUidValue.toString());
 					
@@ -1061,7 +1083,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 		}
 
-		Set<String> columns = header.keySet();
+		Set<String> columns = getHeader().keySet();
 		for (Attribute attribute : result) {
 			String attrName = attribute.getName();
 			if (Uid.NAME.equals(attrName) || Name.NAME.equals(attrName)
@@ -1086,11 +1108,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private List<Object> updateObject(Operation operation, Map<String, String> data, Set<Attribute> attributes) {
-		Object[] result = new Object[header.size()];
+		Object[] result = new Object[getHeader().size()];
 
 		// prefill actual data
-		for (String column : header.keySet()) {
-			result[header.get(column).getIndex()] = data.get(column);
+		for (String column : getHeader().keySet()) {
+			result[getHeader().get(column).getIndex()] = data.get(column);
 		}
 
 		// update data based on attributes parameter
@@ -1101,13 +1123,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					String name = attribute.getName();
 					if (name.equals(Uid.NAME)) {
-						index = header.get(configuration.getUniqueAttribute()).getIndex();
+						index = getHeader().get(configuration.getUniqueAttribute()).getIndex();
 					} else if (name.equals(Name.NAME)) {
-						index = header.get(configuration.getNameAttribute()).getIndex();
+						index = getHeader().get(configuration.getNameAttribute()).getIndex();
 					} else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-						index = header.get(configuration.getPasswordAttribute()).getIndex();
+						index = getHeader().get(configuration.getPasswordAttribute()).getIndex();
 					} else {
-						index = header.get(name).getIndex();
+						index = getHeader().get(name).getIndex();
 					}
 
 					String value = Util.createRawValue(attribute, configuration);
@@ -1122,14 +1144,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					String name = attribute.getName();
 					if (name.equals(Uid.NAME)) {
-						index = header.get(configuration.getUniqueAttribute()).getIndex();
+						index = getHeader().get(configuration.getUniqueAttribute()).getIndex();
 					} else if (name.equals(Name.NAME)) {
-						index = header.get(configuration.getNameAttribute()).getIndex();
+						index = getHeader().get(configuration.getNameAttribute()).getIndex();
 					} else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-						index = header.get(configuration.getPasswordAttribute()).getIndex();
+						index = getHeader().get(configuration.getPasswordAttribute()).getIndex();
 						type = GuardedString.class;
 					} else {
-						index = header.get(name).getIndex();
+						index = getHeader().get(name).getIndex();
 					}
 
 					List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
