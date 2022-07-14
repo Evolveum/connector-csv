@@ -93,7 +93,7 @@ public class ConfigurationDetector {
                         SuggestedValuesBuilder.buildOpen(commentSuggestions.toArray()));
             }
             if (!delimiters.isEmpty()) {
-                suggestions.put("recordSeparator",
+                suggestions.put("fieldDelimiter",
                         SuggestedValuesBuilder.buildOpen(delimiters.toArray()));
             }
 
@@ -336,17 +336,24 @@ public class ConfigurationDetector {
                 reader.close();
             }
 
-            String passwordAttr = getAttribute(firstLine, "password");
+            List<String> passwordAttr = getAttribute(firstLine, "password");
 
-            if (StringUtil.isNotEmpty(passwordAttr)) {
+            if (!passwordAttr.isEmpty()) {
                 suggestions.put("passwordAttribute",
-                        SuggestedValuesBuilder.buildOpen(passwordAttr));
+                        SuggestedValuesBuilder.buildOpen(passwordAttr.toArray()));
             }
 
-            String nameAttr = getAttribute(firstLine, "name");
-            if (StringUtil.isNotEmpty(nameAttr)) {
+            List<String> nameAttr = getAttribute(firstLine, "name");
+            if (!nameAttr.isEmpty()) {
                 suggestions.put("nameAttribute",
-                        SuggestedValuesBuilder.buildOpen(nameAttr));
+                        SuggestedValuesBuilder.buildOpen(nameAttr.toArray()));
+            }
+
+            List<String> idAttr = getAttribute(firstLine, "id");
+            idAttr.addAll(nameAttr);
+            if (!idAttr.isEmpty()) {
+                suggestions.put("UniqueAttribute",
+                        SuggestedValuesBuilder.buildOpen(idAttr));
             }
 
         } catch (IOException e) {
@@ -356,9 +363,9 @@ public class ConfigurationDetector {
         return suggestions;
     }
 
-    private String getAttribute(String firstLine, String attributeName) {
-        String attribute = null;
-        if (firstLine.toLowerCase().contains(attributeName)) {
+    private List<String> getAttribute(String firstLine, String attributeName) {
+        List<String> attributes = new ArrayList<>();
+        while (firstLine.toLowerCase().contains(attributeName)) {
             int startIndex = firstLine.toLowerCase().indexOf(attributeName);
             int endIndex = startIndex + attributeName.length();
             int i;
@@ -377,9 +384,10 @@ public class ConfigurationDetector {
                 }
             }
             endIndex = i;
-            return firstLine.substring(startIndex, endIndex);
+            attributes.add(firstLine.substring(startIndex, endIndex));
+            firstLine = firstLine.substring(endIndex);
         }
-        return attribute;
+        return attributes;
     }
 
     private boolean isFirstInRow(int i, List<Character> characters) {

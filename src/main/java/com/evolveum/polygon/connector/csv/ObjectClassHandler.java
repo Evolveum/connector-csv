@@ -52,7 +52,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	public Map<String, Column> getHeader() {
 		if (header == null) {
-			initHeader(configuration.getFilePath());
+			this.header = initHeader(configuration.getFilePath());
 		}
 		return header;
 	}
