@@ -352,8 +352,8 @@ public class ConfigurationDetector {
             List<String> idAttr = getAttribute(firstLine, "id");
             idAttr.addAll(nameAttr);
             if (!idAttr.isEmpty()) {
-                suggestions.put("UniqueAttribute",
-                        SuggestedValuesBuilder.buildOpen(idAttr));
+                suggestions.put("uniqueAttribute",
+                        SuggestedValuesBuilder.buildOpen(idAttr.toArray()));
             }
 
         } catch (IOException e) {
