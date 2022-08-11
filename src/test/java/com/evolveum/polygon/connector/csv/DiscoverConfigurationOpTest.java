@@ -40,8 +40,9 @@ public class DiscoverConfigurationOpTest extends BaseTest {
         assertSuggestion(suggestions, "multivalueDelimiter", ';');
         assertSuggestion(suggestions, "quote", '"');
         assertSuggestion(suggestions, "commentMarker", '#');
-        assertSuggestion(suggestions, "recordSeparator", '|');
+        assertSuggestion(suggestions, "fieldDelimiter", '|');
         assertSuggestion(suggestions, "nameAttribute", "myNameAttr");
+        assertSuggestion(suggestions, "uniqueAttribute", "myNameAttr");
     }
 
     private void assertSuggestion(Map<String, SuggestedValues> suggestions, String attributeName, Object expectedValue) {

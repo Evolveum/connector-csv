@@ -119,7 +119,8 @@ public class SyncOpTest extends BaseTest {
             long timestampToken = Long.valueOf((String) token.getValue());
             long timestampAfter = System.currentTimeMillis();
 
-            assertTrue(timestampToken>timestampBefore && timestampToken<timestampAfter, "wrong token, expected token between "+timestampBefore+" and "+timestampAfter);
+            assertTrue(timestampToken>timestampBefore && timestampToken<timestampAfter,
+                    "wrong token "+timestampToken+", expected token between "+timestampBefore+" and "+timestampAfter);
         } finally {
             CsvTestUtil.deleteAllSyncFiles();
         }
