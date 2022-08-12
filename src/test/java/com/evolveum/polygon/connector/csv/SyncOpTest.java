@@ -1,7 +1,15 @@
 package com.evolveum.polygon.connector.csv;
 
-import com.evolveum.polygon.connector.csv.util.CsvTestUtil;
-import com.evolveum.polygon.connector.csv.util.Util;
+import static org.testng.Assert.assertTrue;
+import static org.testng.AssertJUnit.assertEquals;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.commons.io.FileUtils;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
@@ -13,12 +21,8 @@ import org.testng.Assert;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
-
-import static org.testng.Assert.assertTrue;
-import static org.testng.AssertJUnit.assertEquals;
+import com.evolveum.polygon.connector.csv.util.CsvTestUtil;
+import com.evolveum.polygon.connector.csv.util.Util;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -119,8 +123,8 @@ public class SyncOpTest extends BaseTest {
             long timestampToken = Long.valueOf((String) token.getValue());
             long timestampAfter = System.currentTimeMillis();
 
-            assertTrue(timestampToken>timestampBefore && timestampToken<timestampAfter,
-                    "wrong token "+timestampToken+", expected token between "+timestampBefore+" and "+timestampAfter);
+            assertTrue(timestampToken >= timestampBefore && timestampToken <= timestampAfter,
+                    "wrong token " + timestampToken + ", expected token between " + timestampBefore + " and " + timestampAfter);
         } finally {
             CsvTestUtil.deleteAllSyncFiles();
         }
