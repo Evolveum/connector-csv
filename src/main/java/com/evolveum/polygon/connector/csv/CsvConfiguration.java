@@ -306,7 +306,7 @@ public class CsvConfiguration extends AbstractConfiguration {
         }
 
         try {
-            getAllConfigs();
+            getAllConfigs().forEach(config -> config.validate());
         } catch (IOException ex) {
             throw new ConfigurationException("Couldn't load configuration, reason: " + ex.getMessage(), ex);
         }

@@ -345,8 +345,6 @@ public class ObjectClassHandlerConfiguration {
         }
 
         Util.notEmpty(recordSeparator, "Record separator is not defined");
-
-        validateAttributeNames();
     }
 
     public void validateCsvFile() {
@@ -359,7 +357,9 @@ public class ObjectClassHandlerConfiguration {
     	}
     }
 
-    private void validateAttributeNames() {
+    public void validateAttributeNames() {
+        LOG.ok("Validating attribute names configuration for {0}", objectClass);
+
         if (StringUtil.isEmpty(uniqueAttribute)) {
             throw new ConfigurationException("Unique attribute is not defined.");
         }

@@ -35,6 +35,10 @@ import static com.evolveum.polygon.connector.csv.util.Util.handleGenericExceptio
 public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<String>,
 		UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, DiscoverConfigurationOp {
 
+	public void validate() {
+		configuration.validateAttributeNames();
+	}
+
 	private enum Operation {
 
 		DELETE, UPDATE, ADD_ATTR_VALUE, REMOVE_ATTR_VALUE;

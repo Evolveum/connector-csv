@@ -78,6 +78,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
         if (handler == null) {
             throw new ConnectorException("Unknown object class " + oc);
         }
+        handler.validate();
 
         return handler;
     }
