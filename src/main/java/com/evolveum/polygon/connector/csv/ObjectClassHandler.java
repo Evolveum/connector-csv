@@ -13,6 +13,8 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.*;
 import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
+import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 import org.identityconnectors.framework.spi.operations.*;
@@ -32,7 +34,7 @@ import static com.evolveum.polygon.connector.csv.util.Util.handleGenericExceptio
  * <p>
  * Created by lazyman on 27/01/2017.
  */
-public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<String>,
+public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<Filter>,
 		UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, DiscoverConfigurationOp {
 
 	public void validate() {
@@ -410,8 +412,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	@Override
-	public FilterTranslator<String> createFilterTranslator(ObjectClass oc, OperationOptions oo) {
-		return new CsvFilterTranslator();
+	public FilterTranslator<Filter> createFilterTranslator(ObjectClass oc, OperationOptions oo) {
+		// Should never be reached, this is handled in the main connector code.
+		throw new RuntimeException("Unreachable code reached");
 	}
 
 	private boolean skipRecord(CSVRecord record) {
@@ -427,7 +430,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	@Override
-	public void executeQuery(ObjectClass oc, String uid, ResultsHandler handler, OperationOptions oo) {
+	public void executeQuery(ObjectClass oc, Filter filter, ResultsHandler handler, OperationOptions oo) {
 		CSVFormat csv = Util.createCsvFormatReader(configuration);
 		try (Reader reader = Util.createReader(configuration)) {
 
@@ -441,12 +444,15 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				ConnectorObject obj = createConnectorObject(record);
 
+				String uid = extractUidFromFilter(filter);
+
 				if (uid == null) {
-					if (!handler.handle(obj)) {
-						break;
-					} else {
-						continue;
+					if (filter == null || filter.accept(obj)) {
+						if (!handler.handle(obj)) {
+							break;
+						}
 					}
+					continue;
 				}
 
 				if (!uidMatches(uid, obj.getUid().getUidValue(), configuration.isIgnoreIdentifierCase())) {
@@ -459,6 +465,27 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during query execution");
+		}
+	}
+
+	private String extractUidFromFilter(Filter filter) {
+		if (filter == null) {
+			return null;
+		}
+		if (! (filter instanceof EqualsFilter)) {
+			return null;
+		}
+		if (Uid.NAME.equals(((EqualsFilter)filter).getName())) {
+			List<Object> values = ((EqualsFilter) filter).getAttribute().getValue();
+			if (values == null || values.isEmpty()) {
+				return null;
+			}
+			if (values.size() > 1) {
+				throw new IllegalArgumentException("Illegal search filter for CSV connector, requesting multiple UID values");
+			}
+			return (String) values.get(0);
+		} else {
+			return null;
 		}
 	}
 

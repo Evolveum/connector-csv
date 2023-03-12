@@ -8,6 +8,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectionBrokenExcept
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
@@ -15,6 +16,7 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 import org.identityconnectors.framework.spi.operations.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +29,7 @@ import java.util.Set;
 @ConnectorClass(
         displayNameKey = "UI_CSV_CONNECTOR_NAME",
         configurationClass = CsvConfiguration.class)
-public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<String>, AuthenticateOp,
+public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filter>, AuthenticateOp,
         ResolveUsernameOp, SyncOp, CreateOp, UpdateOp, UpdateAttributeValuesOp, DeleteOp, ScriptOnResourceOp,
         ScriptOnConnectorOp, DiscoverConfigurationOp {
 
@@ -126,10 +128,19 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
     }
 
     @Override
-    public FilterTranslator<String> createFilterTranslator(ObjectClass oc, OperationOptions oo) {
+    public FilterTranslator<Filter> createFilterTranslator(ObjectClass oc, OperationOptions oo) {
         LOG.info(">>> createFilterTranslator {0} {1}", oc, oo);
 
-        FilterTranslator<String> translator = getHandler(oc).createFilterTranslator(oc, oo);
+        // Just return dummy filter translator that does not translate anything. We need better control over the
+        // filter translation than what the framework can provide.
+        FilterTranslator<Filter> translator = new FilterTranslator<Filter>() {
+            @Override
+            public List<Filter> translate(Filter filter) {
+                List<Filter> list = new ArrayList<>(1);
+                list.add(filter);
+                return list;
+            }
+        };
 
         LOG.info(">>> createFilterTranslator finished");
 
@@ -137,10 +148,10 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Strin
     }
 
     @Override
-    public void executeQuery(ObjectClass oc, String uid, ResultsHandler handler, OperationOptions oo) {
-        LOG.info(">>> executeQuery {0} {1} {2} {3}", oc, uid, handler, oo);
+    public void executeQuery(ObjectClass oc, Filter filter, ResultsHandler handler, OperationOptions oo) {
+        LOG.info(">>> executeQuery {0} {1} {2} {3}", oc, filter, handler, oo);
 
-        getHandler(oc).executeQuery(oc, uid, handler, oo);
+        getHandler(oc).executeQuery(oc, filter, handler, oo);
 
         LOG.info(">>> executeQuery finished");
     }
