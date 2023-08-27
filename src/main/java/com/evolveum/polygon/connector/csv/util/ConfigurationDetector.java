@@ -3,7 +3,6 @@ package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.CsvConnector;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
-import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.SuggestedValues;
@@ -336,21 +335,22 @@ public class ConfigurationDetector {
                 reader.close();
             }
 
-            List<String> passwordAttr = getAttribute(firstLine, "password");
+            List<String> attributes = getAttributes(firstLine);
+
+            List<String> passwordAttr = attributes;
 
             if (!passwordAttr.isEmpty()) {
                 suggestions.put("passwordAttribute",
                         SuggestedValuesBuilder.buildOpen(passwordAttr.toArray()));
             }
 
-            List<String> nameAttr = getAttribute(firstLine, "name");
+            List<String> nameAttr = attributes;
             if (!nameAttr.isEmpty()) {
                 suggestions.put("nameAttribute",
                         SuggestedValuesBuilder.buildOpen(nameAttr.toArray()));
             }
 
-            List<String> idAttr = getAttribute(firstLine, "id");
-            idAttr.addAll(nameAttr);
+            List<String> idAttr = attributes;
             if (!idAttr.isEmpty()) {
                 suggestions.put("uniqueAttribute",
                         SuggestedValuesBuilder.buildOpen(idAttr.toArray()));
@@ -363,30 +363,46 @@ public class ConfigurationDetector {
         return suggestions;
     }
 
-    private List<String> getAttribute(String firstLine, String attributeName) {
+    private List<String> getAttributes(String firstLine) {
         List<String> attributes = new ArrayList<>();
-        while (firstLine.toLowerCase().contains(attributeName)) {
-            int startIndex = firstLine.toLowerCase().indexOf(attributeName);
-            int endIndex = startIndex + attributeName.length();
-            int i;
-            for (i = startIndex; i >= 0; i--) {
-                char ch = firstLine.charAt(i);
-                if (isSymbol(ch) && ch != '_' && ch != '-') {
-                    break;
-                }
+        int startIndex = 0;
+        Integer endIndex = null;
+        for(int i = 0; i < firstLine.length(); i++) {
+            char ch = firstLine.charAt(i);
+            if (isSymbol(ch) && ch != '_' && ch != '-') {
+                endIndex = i;
             }
-            startIndex = i + 1;
 
-            for (i = endIndex; i < firstLine.length(); i++) {
-                char ch = firstLine.charAt(i);
-                if (isSymbol(ch) && ch != '_' && ch != '-') {
-                    break;
-                }
+            if (endIndex != null) {
+                attributes.add(firstLine.substring(startIndex, endIndex));
+                startIndex = endIndex + 1;
+                endIndex = null;
             }
-            endIndex = i;
-            attributes.add(firstLine.substring(startIndex, endIndex));
-            firstLine = firstLine.substring(endIndex);
         }
+        attributes.add(firstLine.substring(startIndex));
+
+//        while (firstLine.toLowerCase().contains(attributeName)) {
+//            int startIndex = firstLine.toLowerCase().indexOf(attributeName);
+//            int endIndex = startIndex + attributeName.length();
+//            int i;
+//            for (i = startIndex; i >= 0; i--) {
+//                char ch = firstLine.charAt(i);
+//                if (isSymbol(ch) && ch != '_' && ch != '-') {
+//                    break;
+//                }
+//            }
+//            startIndex = i + 1;
+//
+//            for (i = endIndex; i < firstLine.length(); i++) {
+//                char ch = firstLine.charAt(i);
+//                if (isSymbol(ch) && ch != '_' && ch != '-') {
+//                    break;
+//                }
+//            }
+//            endIndex = i;
+//            attributes.add(firstLine.substring(startIndex, endIndex));
+//            firstLine = firstLine.substring(endIndex);
+//        }
         return attributes;
     }
 

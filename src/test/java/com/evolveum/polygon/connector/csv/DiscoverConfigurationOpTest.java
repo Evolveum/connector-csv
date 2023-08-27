@@ -6,6 +6,8 @@ import org.identityconnectors.framework.common.objects.SuggestedValues;
 import org.testng.annotations.Test;
 
 import java.io.File;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -36,19 +38,32 @@ public class DiscoverConfigurationOpTest extends BaseTest {
         ConnectorFacade connector = setupConnector("/discover-configuration.csv");
         Map<String, SuggestedValues> suggestions = connector.discoverConfiguration();
 
-        assertSuggestion(suggestions, "passwordAttribute", "myPasswordAttr");
+        assertSuggestion(
+                suggestions,
+                "passwordAttribute",
+                List.of("myNameAttr","firstName","uid","lastName","myPasswordAttr"));
         assertSuggestion(suggestions, "multivalueDelimiter", ';');
         assertSuggestion(suggestions, "quote", '"');
         assertSuggestion(suggestions, "commentMarker", '#');
         assertSuggestion(suggestions, "fieldDelimiter", '|');
-        assertSuggestion(suggestions, "nameAttribute", "myNameAttr");
-        assertSuggestion(suggestions, "uniqueAttribute", "myNameAttr");
+        assertSuggestion(
+                suggestions,
+                "nameAttribute",
+                List.of("myNameAttr","firstName","uid","lastName","myPasswordAttr"));
+        assertSuggestion(
+                suggestions,
+                "uniqueAttribute",
+                List.of("myNameAttr","firstName","uid","lastName","myPasswordAttr"));
     }
 
     private void assertSuggestion(Map<String, SuggestedValues> suggestions, String attributeName, Object expectedValue) {
         assertTrue("Suggestions not contain suggestion for attribute " + attributeName, suggestions.containsKey(attributeName));
         List<Object> values = suggestions.get(attributeName).getValues();
-        assertTrue("Suggestions contains wrong suggestion value for attribute " + attributeName, values.contains(expectedValue));
+        if (expectedValue instanceof Collection){
+            assertTrue("Suggestions contains wrong suggestion value for attribute " + attributeName, values.containsAll((Collection) expectedValue));
+        } else {
+            assertTrue("Suggestions contains wrong suggestion value for attribute " + attributeName, values.contains(expectedValue));
+        }
     }
 
     protected CsvConfiguration createConfiguration() {
