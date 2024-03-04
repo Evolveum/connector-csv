@@ -115,6 +115,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					name = Util.DEFAULT_COLUMN_NAME + 0;
 				}
 
+				if (name.startsWith(Util.UTF8_BOM)){
+					name = name.substring(1);
+				}
+
 				String availableName = getAvailableAttributeName(header, name);
 				header.put(availableName, new Column(name, i));
 			}

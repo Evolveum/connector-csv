@@ -39,6 +39,8 @@ public class Util {
 
     public static final String DEFAULT_COLUMN_NAME = "col";
 
+    public static final String UTF8_BOM = "\uFEFF";
+
     public static void closeQuietly(Closeable closeable) {
         if (closeable == null) {
             return;
