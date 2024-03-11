@@ -56,6 +56,27 @@ public class DiscoverConfigurationOpTest extends BaseTest {
                 List.of("myNameAttr","firstName","uid","lastName","myPasswordAttr"));
     }
 
+    @Test
+    public void testDiscoverConfigurationFileStartsWithBOM() throws Exception {
+        ConnectorFacade connector = setupConnector("/discover-bom.csv");
+        Map<String, SuggestedValues> suggestions = connector.discoverConfiguration();
+
+        assertSuggestion(
+                suggestions,
+                "passwordAttribute",
+                List.of("userid","firstname","lastname","email"));
+        assertSuggestion(suggestions, "fieldDelimiter", ';');
+        assertSuggestion(suggestions, "multivalueDelimiter", List.of('@', '.'));
+        assertSuggestion(
+                suggestions,
+                "nameAttribute",
+                List.of("userid","firstname","lastname","email"));
+        assertSuggestion(
+                suggestions,
+                "uniqueAttribute",
+                List.of("userid","firstname","lastname","email"));
+    }
+
     private void assertSuggestion(Map<String, SuggestedValues> suggestions, String attributeName, Object expectedValue) {
         assertTrue("Suggestions not contain suggestion for attribute " + attributeName, suggestions.containsKey(attributeName));
         List<Object> values = suggestions.get(attributeName).getValues();

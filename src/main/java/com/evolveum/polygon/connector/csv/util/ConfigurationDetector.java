@@ -3,6 +3,7 @@ package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.CsvConnector;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
+import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.SuggestedValues;
@@ -43,7 +44,9 @@ public class ConfigurationDetector {
                 char ch = characters.get(i);
 
                 if (isSymbol(ch)) {
-                    allSymbols.add(ch);
+                    if (Util.UTF8_BOM.charAt(0) != ch) {
+                        allSymbols.add(ch);
+                    }
                     increment(symbols, ch, isFirstInRow(i, characters));
                 } else if (isNewLineChar(ch) && symbols.size() > 0) {
                     symbolsPerRow.add(symbols);
@@ -374,12 +377,21 @@ public class ConfigurationDetector {
             }
 
             if (endIndex != null) {
-                attributes.add(firstLine.substring(startIndex, endIndex));
+
+                String attribute = firstLine.substring(startIndex, endIndex);
+                if (StringUtil.isNotEmpty(attribute)) {
+                    attributes.add(attribute);
+                }
+
                 startIndex = endIndex + 1;
                 endIndex = null;
             }
         }
-        attributes.add(firstLine.substring(startIndex));
+
+        String attribute = firstLine.substring(startIndex);
+        if (StringUtil.isNotEmpty(attribute)) {
+            attributes.add(attribute);
+        }
 
 //        while (firstLine.toLowerCase().contains(attributeName)) {
 //            int startIndex = firstLine.toLowerCase().indexOf(attributeName);
