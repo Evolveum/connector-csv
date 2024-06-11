@@ -2,6 +2,7 @@ package com.evolveum.polygon.connector.csv;
 
 import com.evolveum.polygon.connector.csv.util.ListResultHandler;
 import org.identityconnectors.framework.api.ConnectorFacade;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.testng.AssertJUnit;
 import org.testng.annotations.Test;
@@ -34,5 +35,18 @@ public class ConfigurationTest extends BaseTest {
         AssertJUnit.assertEquals(1, handler.getObjects().size());
 
         data.setWritable(true);
+    }
+
+    @Test(expectedExceptions = ConfigurationException.class)
+    public void testMissingMultivalueDelimiter() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setUniqueAttribute("uid");
+        config.setMultivalueAttributes("lastName");
+        //missing multivalueDelimiter
+        config.setFieldDelimiter(";");
+        config.setReadOnly(true);
+
+        ConnectorFacade connector = setupConnector("/create.csv", config);
+        connector.test();
     }
 }

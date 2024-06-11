@@ -341,20 +341,24 @@ public class ObjectClassHandlerConfiguration {
             sb.deleteCharAt(sb.length() - 1);
 
             throw new ConfigurationException("Quote mode '" + quoteMode + "' is not supported, supported values: ["
-                    + sb.toString() + "]");
+                    + sb + "]");
         }
 
         Util.notEmpty(recordSeparator, "Record separator is not defined");
+
+        if (multivalueAttributes != null && multivalueDelimiter == null) {
+            throw new ConfigurationException("Multivalue attributes defined '" + multivalueAttributes + "', but multivalue delimiter is not defined");
+        }
     }
 
     public void validateCsvFile() {
-    	Util.checkCanReadFile(filePath);
+        Util.checkCanReadFile(filePath);
 
-    	synchronized (CsvConnector.SYNCH_FILE_LOCK) {
-    		if (!readOnly && !filePath.canWrite()) {
-    			throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
-    		}
-    	}
+        synchronized (CsvConnector.SYNCH_FILE_LOCK) {
+            if (!readOnly && !filePath.canWrite()) {
+                throw new ConfigurationException("Can't write to file '" + filePath.getAbsolutePath() + "'");
+            }
+        }
     }
 
     public void validateAttributeNames() {
