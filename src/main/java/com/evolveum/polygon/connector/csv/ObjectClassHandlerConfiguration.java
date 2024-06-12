@@ -55,6 +55,8 @@ public class ObjectClassHandlerConfiguration {
     private boolean container = false;
     private boolean auxiliary = false;
 
+    private boolean groupByEnabled = false;
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -92,6 +94,8 @@ public class ObjectClassHandlerConfiguration {
 
         setContainer(Util.getSafeValue(values, "container", false, Boolean.class));
         setAuxiliary(Util.getSafeValue(values, "auxiliary", false, Boolean.class));
+
+        setGroupByEnabled(Util.getSafeValue(values, "groupByEnabled", false, Boolean.class));
     }
 
     public void recompute() {
@@ -102,6 +106,14 @@ public class ObjectClassHandlerConfiguration {
         if (StringUtil.isEmpty(nameAttribute)) {
             nameAttribute = uniqueAttribute;
         }
+    }
+
+    public boolean isGroupByEnabled() {
+        return groupByEnabled;
+    }
+
+    public void setGroupByEnabled(boolean groupByEnabled) {
+        this.groupByEnabled = groupByEnabled;
     }
 
     public boolean isContainer() {
