@@ -197,6 +197,17 @@ public class CsvConfiguration extends AbstractConfiguration {
         return config.isAuxiliary();
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_CSV_GROUP_BY_ENABLED",
+            helpMessageKey = "UI_CSV_GROUP_BY_ENABLED_HELP")
+    public boolean isGroupByEnabled() {
+        return config.isGroupByEnabled();
+    }
+
+    public void setGroupByEnabled(boolean groupByEnabled) {
+        config.setGroupByEnabled(groupByEnabled);
+    }
+
     public void setContainer(boolean container) {
         config.setContainer(container);
     }

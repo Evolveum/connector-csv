@@ -4,6 +4,7 @@ import com.evolveum.polygon.connector.csv.util.Column;
 import com.evolveum.polygon.connector.csv.util.ConfigurationDetector;
 import com.evolveum.polygon.connector.csv.util.StringAccessor;
 import com.evolveum.polygon.connector.csv.util.Util;
+import com.google.gson.Gson;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
@@ -47,6 +48,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private static final Log LOG = Log.getLog(ObjectClassHandler.class);
+	private static final String ATTR_RAW_JSON = AttributeUtil.createSpecialName("RAW_JSON");
 
 	private ObjectClassHandlerConfiguration configuration;
 
@@ -264,6 +266,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			infos.add(builder.build());
 		}
 
+		if (configuration.isGroupByEnabled()) {
+			AttributeInfoBuilder builder = new AttributeInfoBuilder(ATTR_RAW_JSON);
+			builder.setType(String.class);
+			builder.setNativeName(ATTR_RAW_JSON);
+			builder.setCreateable(false);
+			builder.setUpdateable(false);
+			builder.setSubtype(AttributeInfo.Subtypes.STRING_JSON);
+
+			infos.add(builder.build());
+		}
+
 		return infos;
 	}
 
@@ -438,6 +451,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		CSVFormat csv = Util.createCsvFormatReader(configuration);
 		try (Reader reader = Util.createReader(configuration)) {
 
+			boolean shouldContinue = true;
+			List<CSVRecord> recordGroup = new ArrayList<>();
+			int uidIndex = this.getHeader().get(configuration.getUniqueAttribute()).getIndex();
+			String uid = extractUidFromFilter(filter);
+
 			CSVParser parser = csv.parse(reader);
 			Iterator<CSVRecord> iterator = parser.iterator();
 			while (iterator.hasNext()) {
@@ -446,13 +464,36 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					continue;
 				}
 
-				ConnectorObject obj = createConnectorObject(record);
+				ConnectorObject obj;
 
-				String uid = extractUidFromFilter(filter);
+				if (configuration.isGroupByEnabled()) {
+					// Record group is empty, so push it then check next record
+					if (recordGroup.isEmpty()) {
+						recordGroup.add(record);
+						continue;
+					}
+					// If the current record has same uid with the current record group, push it then check next record
+					String currentUid = record.get(uidIndex);
+					String currentUidOfRecordGroup = recordGroup.get(0).get(uidIndex);
+					if (uidMatches(currentUid, currentUidOfRecordGroup, configuration.isIgnoreIdentifierCase())) {
+						recordGroup.add(record);
+						continue;
+					}
+
+					obj = createConnectorObject(recordGroup);
+
+					// Reset record group for next
+					recordGroup.clear();
+					recordGroup.add(record);
+
+				} else {
+					obj = createConnectorObject(record);
+				}
 
 				if (uid == null) {
 					if (filter == null || filter.accept(obj)) {
-						if (!handler.handle(obj)) {
+						shouldContinue = handler.handle(obj);
+						if (!shouldContinue) {
 							break;
 						}
 					}
@@ -463,8 +504,29 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					continue;
 				}
 
-				if (!handler.handle(obj)) {
+				shouldContinue = handler.handle(obj);
+				if (!shouldContinue) {
 					break;
+				}
+			}
+
+			if (configuration.isGroupByEnabled()) {
+				// Handle remaining record group
+				if (shouldContinue && !recordGroup.isEmpty()) {
+					ConnectorObject obj = createConnectorObject(recordGroup);
+
+					if (uid == null) {
+						if (filter == null || filter.accept(obj)) {
+							handler.handle(obj);
+						}
+						return;
+					}
+
+					if (!uidMatches(uid, obj.getUid().getUidValue(), configuration.isIgnoreIdentifierCase())) {
+						return;
+					}
+
+					handler.handle(obj);
 				}
 			}
 		} catch (Exception ex) {
@@ -938,7 +1000,59 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return reversed;
 	}
 
+	private ConnectorObject createConnectorObject(List<CSVRecord> recordGroup) {
+		Map<Integer, String> header = reverseHeaderMap();
+		Set<String> multivalueAttrs = StringUtil.isEmpty(configuration.getMultivalueAttributes()) || StringUtil.isEmpty(configuration.getMultivalueDelimiter()) ?
+				Collections.emptySet() : Set.of(configuration.getMultivalueAttributes().split(configuration.getMultivalueDelimiter()));
+
+		// Create base connectorObject using first record
+		ConnectorObjectBuilder builder = createConnectorObjectBuilder(recordGroup.get(0));
+
+		// Create rawJson and append to the connectorObject
+		List<Map<String, Object>> data = new ArrayList<>();
+		for (CSVRecord record : recordGroup) {
+			if (header.size() != record.size()) {
+				throw new ConnectorException("Number of columns in header (" + header.size()
+						+ ") doesn't match number of columns for record (" + record.size()
+						+ "). File row number: " + record.getRecordNumber());
+			}
+
+			Map<String, Object> recordMap = new HashMap<>();
+			for (int i = 0; i < record.size(); i++) {
+				String name = header.get(i);
+				String value = record.get(i);
+
+				if (multivalueAttrs.contains(name)) {
+					// Multiple value
+					String[] values = Arrays.stream(value.split(configuration.getMultivalueDelimiter()))
+							.filter(StringUtil::isNotEmpty)
+							.toArray(String[]::new);
+					recordMap.put(name, values);
+				} else {
+					// Single value
+					if (StringUtil.isEmpty(value)) {
+						// Include empty string for JSON if empty
+						recordMap.put(name, "");
+					} else {
+						recordMap.put(name, value);
+					}
+				}
+			}
+			data.add(recordMap);
+		}
+		if (!data.isEmpty()) {
+			String json = new Gson().toJson(data);
+			builder.addAttribute(ATTR_RAW_JSON, json);
+		}
+
+		return builder.build();
+	}
+
 	private ConnectorObject createConnectorObject(CSVRecord record) {
+		return createConnectorObjectBuilder(record).build();
+	}
+
+	private ConnectorObjectBuilder createConnectorObjectBuilder(CSVRecord record) {
 		ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
 
 		Map<Integer, String> header = reverseHeaderMap();
@@ -978,7 +1092,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			builder.addAttribute(name, createAttributeValues(value));
 		}
 
-		return builder.build();
+		return builder;
 	}
 
 	private boolean isUniqueAndNameAttributeEqual() {
