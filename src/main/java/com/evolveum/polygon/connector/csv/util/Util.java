@@ -226,6 +226,19 @@ public class Util {
             return null;
         }
 
+        if (value.length() == 2 && value.startsWith("\\")) {
+            // This is likely to be an escape sequence, like \t
+            // We'll take advantage of Properties to convert this to a character
+            Properties props = new Properties();
+            try {
+                props.load(new StringReader("key=" + value));
+            } catch (IOException ex) {
+                throw new ConfigurationException("Can't cast to character, reason: " + ex.getMessage(), ex);
+            }
+
+            value = props.getProperty("key");
+        }
+
         if (value.length() != 1) {
             throw new ConfigurationException("Can't cast to character, illegal string size: "
                     + value.length() + ", should be 1");
