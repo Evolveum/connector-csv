@@ -43,6 +43,15 @@ public abstract class BaseTest {
         config.setTmpFolder(null);
         config.setUniqueAttribute(ATTR_UID);
         config.setPasswordAttribute(ATTR_PASSWORD);
+// TODO # A change test init
+//        Set<String> values =Set.of("-# \"group\"+members");
+//        Set<String> values =Set.of(
+//                "\"account\"+id\"-#\"access\"+subject_id",
+//                "\"access\"+subject_id\"#-\"group\"+id",
+//                "\"group\"+id\"-#\"accesses\"+subject_id"
+//        );
+//
+//        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
 
         return config;
     }

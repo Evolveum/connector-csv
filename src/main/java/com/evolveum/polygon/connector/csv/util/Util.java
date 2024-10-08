@@ -5,7 +5,7 @@ import com.evolveum.polygon.connector.csv.CsvConnector;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
-import org.identityconnectors.common.Base64;
+import java.util.Base64;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedByteArray;
@@ -145,6 +145,10 @@ public class Util {
         Object value = map.get(key);
         if (value == null) {
             return defValue;
+        }
+
+        if (String[].class.equals(type)) {
+            return (T) value;
         }
 
         String strValue = value.toString();
@@ -296,7 +300,7 @@ public class Util {
                 ByteArrayAccessor ba = new ByteArrayAccessor();
                 ga.access(ba);
 
-                String value = org.identityconnectors.common.Base64.encode(ba.getValue());
+                String value = Base64.getEncoder().encodeToString(ba.getValue());
                 sb.append(value);
             } else {
                 sb.append(obj);
@@ -348,7 +352,7 @@ public class Util {
         if (GuardedString.class.equals(type)) {
             return new GuardedString(raw.toCharArray());
         } else if (GuardedByteArray.class.equals(type)) {
-            byte[] bytes = Base64.decode(raw);
+            byte[] bytes = Base64.getDecoder().decode(raw);
             return new GuardedByteArray(bytes);
         }
 

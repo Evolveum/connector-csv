@@ -1,0 +1,5 @@
+id;level;description;subject_id;object_id
+1;test;test accounts;1;1
+2;standard;standard accounts;2;1
+3;admin;admin accounts;2;1
+3;test;test accounts;1;2

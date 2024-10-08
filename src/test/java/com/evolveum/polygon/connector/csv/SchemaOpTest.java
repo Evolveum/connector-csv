@@ -44,6 +44,86 @@ public class SchemaOpTest extends BaseTest {
     }
 
     @Test
+    public void multipleClassesWithAssociation() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values =Set.of(
+                "\"account\"+id -# \"access\"+subject_id",
+                "\"access\"+object_id #- \"group\"+id"
+//                ,
+//                "\"group\"+id\"-#\"accesses\"+subject_id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groupsAndAccessObjectClass.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groupsAndAccessObjectClass.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-no-member.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-no-member.csv"), groupsCsv);
+
+        File accessCsv = new File("./target/access.csv");
+        accessCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/access.csv"), accessCsv);
+
+
+        ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
+
+        Schema schema = connector.schema();
+        assertEquals(3, schema.getObjectClassInfo().size());
+
+        ObjectClassInfo infoAccount = schema.findObjectClassInfo(ObjectClass.ACCOUNT_NAME);
+        assertNotNull(infoAccount);
+
+        ObjectClassInfo infoGroup = schema.findObjectClassInfo("group");
+        assertNotNull(infoGroup);
+
+        ObjectClassInfo infoAccess = schema.findObjectClassInfo("access");
+        assertNotNull(infoAccess);
+    }
+
+    @Test
+    public void multipleClassesWithAssociationOnlyGroup() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values =Set.of(
+                "\"account\"+id -# \"group\"+members-test",
+                "\"account\"+id -# \"group\"+members-default",
+                "\"account\"+id -# \"group\"+members-admin"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groupsAccessParameters.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groupsAccessParameters.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-access.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-access.csv"), groupsCsv);
+
+
+        ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
+
+        Schema schema = connector.schema();
+        assertEquals(2, schema.getObjectClassInfo().size());
+
+        ObjectClassInfo infoAccount = schema.findObjectClassInfo(ObjectClass.ACCOUNT_NAME);
+        assertNotNull(infoAccount);
+
+        ObjectClassInfo infoGroup = schema.findObjectClassInfo("group");
+        assertNotNull(infoGroup);
+    }
+
+    @Test
     public void repeatingColumns() throws Exception {
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");

@@ -197,6 +197,17 @@ public class CsvConfiguration extends AbstractConfiguration {
         return config.isAuxiliary();
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_MANAGED_ASSOCIATION_PAIRS",
+            helpMessageKey = "UI_MANAGED_ASSOCIATION_PAIRS_HELP")
+    public String[] getManagedAssociationPairs() {
+        return config.getManagedAssociationPairs();
+    }
+
+    public void setManagedAssociationPairs(String[] managedAssociationPairs) {
+        config.setManagedAssociationPairs(managedAssociationPairs);
+    }
+
     public void setContainer(boolean container) {
         config.setContainer(container);
     }
@@ -354,6 +365,9 @@ public class CsvConfiguration extends AbstractConfiguration {
         ocMap.keySet().forEach(key -> {
 
             Map<String, Object> values = ocMap.get(key);
+            //TODO #A
+            LOG.ok("# MAS 2: {0}", getManagedAssociationPairs());
+            values.put("managedAssociationPairs",getManagedAssociationPairs());
 
             ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration(new ObjectClass(key), values);
             config.recompute();

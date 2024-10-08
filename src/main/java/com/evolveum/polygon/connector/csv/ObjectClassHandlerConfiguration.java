@@ -54,6 +54,7 @@ public class ObjectClassHandlerConfiguration {
 
     private boolean container = false;
     private boolean auxiliary = false;
+    private String[] managedAssociationPairs;
 
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
@@ -92,6 +93,12 @@ public class ObjectClassHandlerConfiguration {
 
         setContainer(Util.getSafeValue(values, "container", false, Boolean.class));
         setAuxiliary(Util.getSafeValue(values, "auxiliary", false, Boolean.class));
+        setManagedAssociationPairs(Util.getSafeValue(values, "managedAssociationPairs", null, String[].class));
+        // TODO # A
+        LOG.ok("# MAS: {0}, OC: {1}",getManagedAssociationPairs(), getObjectClass());
+        if(values!=null){
+        LOG.ok("# MAS in values: {0}, the oc: {1}",values.get("managedAssociationPairs"), getObjectClass());
+        }
     }
 
     public void recompute() {
@@ -308,6 +315,15 @@ public class ObjectClassHandlerConfiguration {
         this.ignoreIdentifierCase = ignoreIdentifierCase;
     }
 
+    public String[] getManagedAssociationPairs() {
+        return managedAssociationPairs;
+    }
+
+    public void setManagedAssociationPairs(String[] managedAssociationPairs) {
+        this.managedAssociationPairs = managedAssociationPairs;
+    }
+
+
     public void validate() {
         LOG.ok("Validating configuration for {0}", objectClass);
 
@@ -395,5 +411,4 @@ public class ObjectClassHandlerConfiguration {
             throw new ConfigurationException("Can't write to tmp folder '" + tmpFolder + "'");
         }
     }
-
 }

@@ -1,13 +1,11 @@
 package com.evolveum.polygon.connector.csv;
 
-import com.evolveum.polygon.connector.csv.util.Column;
-import com.evolveum.polygon.connector.csv.util.ConfigurationDetector;
-import com.evolveum.polygon.connector.csv.util.StringAccessor;
-import com.evolveum.polygon.connector.csv.util.Util;
+import com.evolveum.polygon.connector.csv.util.*;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
+import org.apache.commons.lang3.ArrayUtils;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
@@ -26,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
+import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.*;
 import static com.evolveum.polygon.connector.csv.util.Util.createSyncFileName;
 import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
 
@@ -36,6 +35,8 @@ import static com.evolveum.polygon.connector.csv.util.Util.handleGenericExceptio
  */
 public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<Filter>,
 		UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, DiscoverConfigurationOp {
+
+	protected Map<String, HashSet<AssociationHolder>> associationHolders;
 
 	public void validate() {
 		configuration.validateAttributeNames();
@@ -51,6 +52,15 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private ObjectClassHandlerConfiguration configuration;
 
 	private Map<String, Column> header;
+
+	private String CONF_ASSOC_ATTR_DELIMITER ="\"\\+";
+	private String ASSOC_ATTR_MEMBER ="member";
+	private String ASSOC_ATTR_GROUP ="group";
+
+	public static final String R_I_R_OBJECT = AttributeUtil.createSpecialName("OBJECT");
+	public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
+
+//	private String ASSOC_ATTR_RELATION ="relation";
 
 	public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
 		this.configuration = configuration;
@@ -195,12 +205,111 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private List<AttributeInfo> createAttributeInfo(Map<String, Column> columns) {
 		List<String> multivalueAttributes = new ArrayList<>();
+
+
 		if (StringUtil.isNotEmpty(configuration.getMultivalueAttributes())) {
 			String[] array = configuration.getMultivalueAttributes().split(configuration.getMultivalueDelimiter());
 			multivalueAttributes = Arrays.asList(array);
 		}
 
 		List<AttributeInfo> infos = new ArrayList<>();
+
+		if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+			Map<String, HashSet<AssociationHolder>> associationHolders = getAssociationHolders();
+
+
+			String objectClassName;
+			ObjectClass objectClass = getObjectClass();
+			if(ObjectClass.ACCOUNT.equals(objectClass)){
+
+				objectClassName = "account";
+			} else if (ObjectClass.GROUP.equals(objectClass)) {
+
+				objectClassName = "group";
+			} else {
+				objectClassName = objectClass.getObjectClassValue();
+			}
+
+			HashSet<AssociationHolder> holders = null;
+			for (String holderOcName :  associationHolders.keySet()){
+
+				if(holderOcName.equalsIgnoreCase(objectClassName)){
+
+					holders = associationHolders.get(holderOcName);
+				}
+			}
+			AttributeInfoBuilder builder = null;
+			Set<AttributeInfo> attributeInfos = new HashSet<>();
+
+// TODO # A configuration does not return association information for most object classes ??
+			LOG.ok("## The objectClass {0}, the MAS {1}", objectClassName, Arrays.stream(configuration.getManagedAssociationPairs()).toList()); // TODO remove # A
+
+			if (holders != null && !holders.isEmpty()) {
+
+				for (AssociationHolder holder : holders) {
+
+					StringBuilder subTypeBuilder = new StringBuilder();
+					String associationAttr = holder.getAssociationAttributeName();
+					String evaluatedAttribute = null;
+
+					if (associationAttr != null && !associationAttr.isEmpty()) {
+						subTypeBuilder.append(associationAttr);
+					} else {
+						subTypeBuilder.append(configuration.getUniqueAttribute());
+					}
+					subTypeBuilder.append("-" + holder.getObjectObjectClassName());
+
+					if (objectClassName.equals(holder.getSubjectObjectClassName())) {
+
+						evaluatedAttribute = associationAttr;
+						builder = new AttributeInfoBuilder(ASSOC_ATTR_GROUP, ConnectorObjectReference.class);
+						builder.setCreateable(true);
+						builder.setUpdateable(true);
+						builder.setReadable(true);
+						builder.setMultiValued(true);
+						builder.setReturnedByDefault(true);
+
+						builder.setRoleInReference(R_I_R_SUBJECT);
+						builder.setReferencedObjectClassName(holder.getObjectObjectClassName());
+						builder.setSubtype(subTypeBuilder.toString());
+
+					} else {
+
+						evaluatedAttribute = holder.getValueAttributeName();
+						//builder = new AttributeInfoBuilder(ASSOC_ATTR_MEMBER, ConnectorObjectReference.class);
+						builder = new AttributeInfoBuilder(evaluatedAttribute, ConnectorObjectReference.class);
+						//builder.setSubtype(subTypeBuilder.toString());
+						builder.setType(String.class);
+						builder.setReturnedByDefault(false);
+						builder.setReadable(false);
+
+						//builder.setRoleInReference(R_I_R_OBJECT);
+					}
+
+					if (evaluatedAttribute != null) {
+
+						// TODO # A when subject side attr is multivalued list representing a list of  memberships
+						if (!configuration.getUniqueAttribute().equals(evaluatedAttribute)) {
+
+							if (columns.containsKey(evaluatedAttribute)) {
+								columns.remove(evaluatedAttribute);
+								if (multivalueAttributes.contains(evaluatedAttribute)) {
+									builder.setMultiValued(true);
+								}
+							} else {
+
+								throw new ConfigurationException("Reference Attribute \"" + evaluatedAttribute + "\" not found " + "amongst attributes.");
+							}
+						}
+					}
+					attributeInfos.add(builder.build());
+				}
+				if (builder != null) {
+					infos.addAll(attributeInfos);
+				}
+			}
+		}
+
 		for (String name : columns.keySet()) {
 			if (name == null || name.isEmpty()) {
 				continue;
@@ -250,6 +359,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				continue;
 			}
 
+			// TODO # A build virtual attributes
+
 			AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
 			if (name.equals(configuration.getPasswordAttribute())) {
 				builder.setType(GuardedString.class);
@@ -265,6 +376,163 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		return infos;
+	}
+
+	private Map<String, HashSet<AssociationHolder>> getAssociationHolders() {
+
+		if (associationHolders != null && !associationHolders.isEmpty()) {
+
+		} else {
+
+			generateAssociationHolders();
+		}
+
+		return associationHolders;
+	}
+
+	private void generateAssociationHolders() {
+		String[] associationPairs = configuration.getManagedAssociationPairs();
+		for (String associationPair : associationPairs) {
+
+			String[] pairArray;
+		    if (associationPair.contains(REFERS_TO.value)) {
+
+				pairArray = associationPair.split(REFERS_TO.value);
+				constructAssociationHolder(pairArray, REFERS_TO);
+			} else if (associationPair.contains(OBTAINS.value)) {
+
+				pairArray = associationPair.split(OBTAINS.value);
+				constructAssociationHolder(pairArray, OBTAINS);
+			} else {
+
+				throw new InvalidAttributeValueException("Association pair syntax contains none of the permitted " +
+						"delimiters \"" + REFERS_TO + "\", \"" + OBTAINS + " \"");
+			}
+		}
+	}
+
+	private void constructAssociationHolder(String[] pairArray, AssociationCharacter character) {
+		if (associationHolders == null) {
+			associationHolders = new HashMap<>();
+		}
+
+		AssociationHolder associationHolder = new AssociationHolder();
+		if (pairArray.length == 2) {
+
+			for (int i = 0; i < 2; i++) {
+
+				String objectClassAndMemberAttribute = pairArray[i].trim();
+				String[] objectClassAndMemberAttributes = objectClassAndMemberAttribute.split(CONF_ASSOC_ATTR_DELIMITER);
+
+				if (i == 0) {
+					if (objectClassAndMemberAttributes.length != 0 && !objectClassAndMemberAttributes[0].isEmpty()) {
+
+						String subjectObjectClassName = objectClassAndMemberAttributes[0].
+								trim().substring(1);
+
+						if (!subjectObjectClassName.isEmpty()) {
+							associationHolder.setSubjectObjectClassName(subjectObjectClassName);
+						} else {
+
+							associationHolder.setSubjectObjectClassName(ObjectClass.ACCOUNT_NAME);
+						}
+					} else {
+
+						associationHolder.setSubjectObjectClassName(ObjectClass.ACCOUNT_NAME);
+					}
+
+					if (OBTAINS.equals(character)) {
+
+						if (objectClassAndMemberAttributes.length != 2) {
+
+							associationHolder.setAssociationAttributeName(null);
+						} else {
+
+							associationHolder.setAssociationAttributeName(objectClassAndMemberAttributes[1].
+									trim());
+						}
+					} else if (REFERS_TO.equals(character)) {
+
+						if (objectClassAndMemberAttributes.length != 2) {
+
+							throw new InvalidAttributeValueException("Association pair syntax contain no or " +
+									"multiple delimiters \" " + CONF_ASSOC_ATTR_DELIMITER + " \"");
+						}
+
+						associationHolder.setValueAttributeName(objectClassAndMemberAttributes[1].trim());
+					}
+				} else {
+
+					if (objectClassAndMemberAttributes.length != 2) {
+
+						throw new InvalidAttributeValueException("Association pair syntax contain no or " +
+								"multiple delimiters \" " + CONF_ASSOC_ATTR_DELIMITER + " \"");
+					}
+
+
+					associationHolder.setObjectObjectClassName(objectClassAndMemberAttributes[0].
+							trim().substring(1));
+					if (OBTAINS.equals(character)) {
+
+						associationHolder.setCharacter(OBTAINS);
+						associationHolder.setValueAttributeName(objectClassAndMemberAttributes[1].trim());
+					} else if (REFERS_TO.equals(character)) {
+
+						associationHolder.setCharacter(REFERS_TO);
+						associationHolder.setAssociationAttributeName(objectClassAndMemberAttributes[1].trim());
+					}
+				}
+			}
+		} else {
+
+			throw new InvalidAttributeValueException("Association pair syntax contains multiple delimiters \""
+					+ "\"" + REFERS_TO
+					+ "\" or \"" + OBTAINS + " \"");
+		}
+
+		if (associationHolders != null && !associationHolders.isEmpty()) {
+
+			List<String> ocNames;
+
+			if (OBTAINS.equals(character)) {
+
+				ocNames = List.of(associationHolder.getSubjectObjectClassName(), associationHolder.getObjectObjectClassName());
+			} else {
+
+				ocNames = List.of(associationHolder.getSubjectObjectClassName());
+			}
+
+
+			for (String ocName : ocNames) {
+
+				if (!associationHolders.containsKey(ocName)) {
+
+					HashSet associationHolderSet = new HashSet<>();
+					associationHolderSet.add(associationHolder);
+					associationHolders.put(ocName, associationHolderSet);
+				} else {
+
+					HashSet holders = associationHolders.get(ocName);
+					holders.add(associationHolder);
+					associationHolders.put(ocName, holders);
+				}
+			}
+
+		} else {
+			HashSet hashSet = new HashSet();
+			hashSet.add(associationHolder);
+
+			if (OBTAINS.equals(character)) {
+
+				associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
+				associationHolders.put(associationHolder.getObjectObjectClassName(), (HashSet<AssociationHolder>) hashSet.clone());
+			} else {
+
+				associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
+			}
+		}
+
+
 	}
 
 	@Override
@@ -330,7 +598,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		} finally {
 			Util.cleanupResources(writer, reader, lock, configuration);
 		}
-		
+
 		return uid;
 	}
 
@@ -610,7 +878,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private File findOldCsv(long token, String newToken, SyncResultsHandler handler) {
-		File oldCsv = Util.createSyncFileName(token, configuration);
+		File oldCsv = createSyncFileName(token, configuration);
 		if (!oldCsv.exists()) {
 			// we'll try to find first sync file which is newer than token (there's a possibility
 			// that we loose some changes this way - same as for example ldap)
@@ -631,7 +899,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		String newToken = createNewSyncFile();
 		SyncToken newSyncToken = new SyncToken(newToken);
 
-		File newCsv = Util.createSyncFileName(Long.parseLong(newToken), configuration);
+		File newCsv = createSyncFileName(Long.parseLong(newToken), configuration);
 
 		Integer uidIndex = getHeader().get(configuration.getUniqueAttribute()).getIndex();
 
@@ -840,7 +1108,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		try {
 			File real = configuration.getFilePath();
 
-			File last = Util.createSyncFileName(timestamp, configuration);
+			File last = createSyncFileName(timestamp, configuration);
 
 			LOG.info("Creating new sync file {0} file {1}", timestamp, last.getName());
 			Files.copy(real.toPath(), last.toPath(), StandardCopyOption.REPLACE_EXISTING);
@@ -975,6 +1243,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				continue;
 			}
 
+			if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+
+				//TODO #A
+				associationHolders = getAssociationHolders();
+
+				continue;
+			}
 			builder.addAttribute(name, createAttributeValues(value));
 		}
 
@@ -1050,7 +1325,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					if (StringUtil.isEmpty(recordUidValue)) {
 						continue;
 					}
-				
+
 					if (!uidMatches(uid.getUidValue(), recordUidValue, configuration.isIgnoreIdentifierCase())) {
 						printer.printRecord(record);
 						continue;
@@ -1064,7 +1339,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						int uidIndex = this.getHeader().get(configuration.getUniqueAttribute()).getIndex();
 						Object newUidValue = updated.get(uidIndex);
 						uid = new Uid(newUidValue.toString());
-					
+
 						printer.printRecord(updated);
 					}
 				}
