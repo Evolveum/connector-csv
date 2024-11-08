@@ -197,6 +197,28 @@ public class CsvConfiguration extends AbstractConfiguration {
         return config.isAuxiliary();
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_LAST_LOGIN_DATE",
+            helpMessageKey = "UI_LAST_LOGIN_DATE_HELP")
+    public String getLastLoginDateAttribute() {
+        return config.getLastLoginDateAttribute();
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_LAST_LOGIN_DATE_FORMAT",
+            helpMessageKey = "UI_LAST_LOGIN_DATE_FORMAT_HELP")
+    public String getLastLoginDateFormat() {
+        return config.getLastLoginDateFormat();
+    }
+
+    public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
+        config.setLastLoginDateAttribute(lastLoginDateAttribute);
+    }
+
+    public void setLastLoginDateFormat(String lastLoginDateFormat) {
+        config.setLastLoginDateFormat(lastLoginDateFormat);
+    }
+
     public void setContainer(boolean container) {
         config.setContainer(container);
     }

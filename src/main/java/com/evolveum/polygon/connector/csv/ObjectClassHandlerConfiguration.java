@@ -9,6 +9,7 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.File;
 import java.nio.charset.Charset;
+import java.text.SimpleDateFormat;
 import java.util.Map;
 
 /**
@@ -54,6 +55,9 @@ public class ObjectClassHandlerConfiguration {
 
     private boolean container = false;
     private boolean auxiliary = false;
+
+    private String lastLoginDateAttribute;
+    private String lastLoginDateFormat;
 
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
@@ -304,6 +308,22 @@ public class ObjectClassHandlerConfiguration {
         return ignoreIdentifierCase;
     }
 
+    public String getLastLoginDateFormat() {
+        return lastLoginDateFormat;
+    }
+
+    public void setLastLoginDateFormat(String lastLoginDateFormat) {
+        this.lastLoginDateFormat = lastLoginDateFormat;
+    }
+
+    public String getLastLoginDateAttribute() {
+        return lastLoginDateAttribute;
+    }
+
+    public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
+        this.lastLoginDateAttribute = lastLoginDateAttribute;
+    }
+
     public void setIgnoreIdentifierCase(boolean ignoreIdentifierCase) {
         this.ignoreIdentifierCase = ignoreIdentifierCase;
     }
@@ -348,6 +368,14 @@ public class ObjectClassHandlerConfiguration {
 
         if (multivalueAttributes != null && multivalueDelimiter == null) {
             throw new ConfigurationException("Multivalue attributes defined '" + multivalueAttributes + "', but multivalue delimiter is not defined");
+        }
+
+        if (StringUtil.isNotEmpty(lastLoginDateFormat)) {
+            try {
+                new SimpleDateFormat(lastLoginDateFormat);
+            } catch (Exception ex) {
+                throw new ConfigurationException("Invalid last login date format '"+lastLoginDateFormat+"', reason: " + ex.getMessage(), ex);
+            }
         }
     }
 
