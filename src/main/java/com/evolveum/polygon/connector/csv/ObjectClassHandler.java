@@ -25,7 +25,6 @@ import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static com.evolveum.polygon.connector.csv.util.Util.createSyncFileName;
@@ -54,18 +53,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     private Map<String, Column> header;
 
-    private SimpleDateFormat lastLoginDateFormat;
-
     public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
         this.configuration = configuration;
-
-        if (StringUtil.isNotEmpty(configuration.getLastLoginDateFormat())) {
-            try {
-                lastLoginDateFormat = new SimpleDateFormat(configuration.getLastLoginDateFormat());
-            } catch (Exception ex) {
-                throw new ConfigurationException("Invalid last login date format", ex);
-            }
-        }
     }
 
     public Map<String, Column> getHeader() {
@@ -1010,7 +999,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             return null;
         }
 
-        if (lastLoginDateFormat == null) {
+        if (configuration.getLastLoginDateFormat() == null) {
             try {
                 return Long.parseLong(value);
             } catch (NumberFormatException ex) {
@@ -1020,7 +1009,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         }
 
         try {
-            return lastLoginDateFormat.parse(value).getTime();
+            return configuration.getLastLoginDateFormatInstance().parse(value).getTime();
         } catch (ParseException ex) {
             throw new InvalidAttributeValueException("Value " + value + " for last login date ("
                     + configuration.getLastLoginDateAttribute() + ") doesn't have proper format (" + configuration.getLastLoginDateFormat() + ")", ex);
@@ -1172,6 +1161,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                 continue;
             }
 
+            if (configuration.getLastLoginDateAttribute() != null &&
+                    PredefinedAttributes.LAST_LOGIN_DATE_NAME.equals(attrName)) {
+                continue;
+            }
+
             if (!columns.contains(attrName)) {
                 throw new ConnectorException("Unknown attribute " + attrName);
             }
@@ -1200,18 +1194,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         switch (operation) {
             case UPDATE:
                 for (Attribute attribute : attributes) {
-                    Integer index;
-
-                    String name = attribute.getName();
-                    if (name.equals(Uid.NAME)) {
-                        index = getHeader().get(configuration.getUniqueAttribute()).getIndex();
-                    } else if (name.equals(Name.NAME)) {
-                        index = getHeader().get(configuration.getNameAttribute()).getIndex();
-                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-                        index = getHeader().get(configuration.getPasswordAttribute()).getIndex();
-                    } else {
-                        index = getHeader().get(name).getIndex();
-                    }
+                    int index = getColumnIndex(attribute);
 
                     String value = Util.createRawValue(attribute, configuration);
                     result[index] = value;
@@ -1220,19 +1203,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             case ADD_ATTR_VALUE:
             case REMOVE_ATTR_VALUE:
                 for (Attribute attribute : attributes) {
-                    Class type = String.class;
-                    Integer index;
-
                     String name = attribute.getName();
-                    if (name.equals(Uid.NAME)) {
-                        index = getHeader().get(configuration.getUniqueAttribute()).getIndex();
-                    } else if (name.equals(Name.NAME)) {
-                        index = getHeader().get(configuration.getNameAttribute()).getIndex();
-                    } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-                        index = getHeader().get(configuration.getPasswordAttribute()).getIndex();
+
+                    int index = getColumnIndex(attribute);
+                    Class type = String.class;
+                    if (OperationalAttributes.PASSWORD_NAME.equals(name)) {
                         type = GuardedString.class;
-                    } else {
-                        index = getHeader().get(name).getIndex();
                     }
 
                     List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
@@ -1244,11 +1220,26 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
                         throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
                     }
 
-                    String value = Util.createRawValue(updated, configuration);
+                    String value = Util.createRawValue(attribute.getName(), updated, configuration);
                     result[index] = value;
                 }
         }
 
         return Arrays.asList(result);
+    }
+
+    private int getColumnIndex(Attribute attribute) {
+        String name = attribute.getName();
+        if (name.equals(Uid.NAME)) {
+            return getHeader().get(configuration.getUniqueAttribute()).getIndex();
+        } else if (name.equals(Name.NAME)) {
+            return getHeader().get(configuration.getNameAttribute()).getIndex();
+        } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+            return getHeader().get(configuration.getPasswordAttribute()).getIndex();
+        } else if (name.equals(PredefinedAttributes.LAST_LOGIN_DATE_NAME)) {
+            return getHeader().get(configuration.getLastLoginDateAttribute()).getIndex();
+        }
+
+        return getHeader().get(name).getIndex();
     }
 }

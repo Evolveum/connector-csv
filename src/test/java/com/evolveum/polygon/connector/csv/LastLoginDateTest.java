@@ -29,7 +29,6 @@ public class LastLoginDateTest extends BaseTest {
 
     private static final String LAST_LOGIN_DATE_CUSTOM_FORMAT_VALUE = "2024-11-08T17:39:05.311+01:00";
 
-
     @Test(expectedExceptions = ConfigurationException.class, expectedExceptionsMessageRegExp = ".*Invalid last login date format.*")
     public void wrongLastLoginDateFormat() throws Exception {
         setupConnectorFacade(LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE, "wrong\nformatasdfjklo");
@@ -43,18 +42,7 @@ public class LastLoginDateTest extends BaseTest {
         assertSchema(schema, null);
 
         ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, new Uid(JOHN_UID), null);
-        assertNotNull(object);
-
-        Attribute lastLoginDate = object.getAttributeByName(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
-        assertNull(lastLoginDate);
-
-        Attribute myLastLoginDate = object.getAttributeByName(LAST_LOGIN_DATE_ATTRIBUTE);
-        assertNotNull(myLastLoginDate);
-        assertEquals(Long.toString(LAST_LOGIN_DATE_VALUE), myLastLoginDate.getValue().get(0));
-
-        Attribute myLastLoginDateCustomFormat = object.getAttributeByName(LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE);
-        assertNotNull(myLastLoginDateCustomFormat);
-        assertEquals(LAST_LOGIN_DATE_CUSTOM_FORMAT_VALUE, myLastLoginDateCustomFormat.getValue().get(0));
+        assertAttributes(object, null, Long.toString(LAST_LOGIN_DATE_VALUE), LAST_LOGIN_DATE_CUSTOM_FORMAT_VALUE);
     }
 
     @Test
@@ -65,18 +53,56 @@ public class LastLoginDateTest extends BaseTest {
         assertSchema(schema, LAST_LOGIN_DATE_ATTRIBUTE);
 
         ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, new Uid(JOHN_UID), null);
+        assertAttributes(object, LAST_LOGIN_DATE_VALUE, null, LAST_LOGIN_DATE_CUSTOM_FORMAT_VALUE);
+
+        updateAndAssertLastLoginDate(connector, object);
+    }
+
+    private void updateAndAssertLastLoginDate(ConnectorFacade connector, ConnectorObject object) {
+        long current = System.currentTimeMillis();
+        Attribute updated = AttributeBuilder.build(PredefinedAttributes.LAST_LOGIN_DATE_NAME, current);
+        connector.update(ObjectClass.ACCOUNT, new Uid(JOHN_UID), Set.of(updated), null);
+
+        String myLastLoginDate = null;
+        if (object.getAttributeByName(LAST_LOGIN_DATE_ATTRIBUTE) != null) {
+            myLastLoginDate = object.getAttributeByName(LAST_LOGIN_DATE_ATTRIBUTE).getValue().get(0).toString();
+        }
+
+        String myLastLoginDateCustomFormat = null;
+        if (object.getAttributeByName(LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE) != null) {
+            myLastLoginDateCustomFormat = object.getAttributeByName(LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE).getValue().get(0).toString();
+        }
+
+        object = connector.getObject(ObjectClass.ACCOUNT, new Uid(JOHN_UID), null);
+        assertAttributes(object, current, myLastLoginDate, myLastLoginDateCustomFormat);
+    }
+
+    private void assertAttributes(ConnectorObject object, Long lastLoginDate, String myLastLoginDate, String myLastLoginDateCustomFormat) {
         assertNotNull(object);
 
-        Attribute lastLoginDate = object.getAttributeByName(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
-        assertNotNull(lastLoginDate);
-        assertEquals(LAST_LOGIN_DATE_VALUE, lastLoginDate.getValue().get(0));
+        Attribute lastLoginDateAttribute = object.getAttributeByName(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
+        if (lastLoginDate != null) {
+            assertNotNull(lastLoginDateAttribute);
+            assertEquals(lastLoginDate, lastLoginDateAttribute.getValue().get(0));
+        } else {
+            assertNull(lastLoginDateAttribute);
+        }
 
-        Attribute myLastLoginDate = object.getAttributeByName(LAST_LOGIN_DATE_ATTRIBUTE);
-        assertNull(myLastLoginDate);
+        Attribute myLastLoginDateAttribute = object.getAttributeByName(LAST_LOGIN_DATE_ATTRIBUTE);
+        if (myLastLoginDate != null) {
+            assertNotNull(myLastLoginDateAttribute);
+            assertEquals(myLastLoginDate, myLastLoginDateAttribute.getValue().get(0));
+        } else {
+            assertNull(myLastLoginDateAttribute);
+        }
 
-        Attribute myLastLoginDateCustomFormat = object.getAttributeByName(LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE);
-        assertNotNull(myLastLoginDateCustomFormat);
-        assertEquals(LAST_LOGIN_DATE_CUSTOM_FORMAT_VALUE, myLastLoginDateCustomFormat.getValue().get(0));
+        Attribute myLastLoginDateCustomFormatAttribute = object.getAttributeByName(LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE);
+        if (myLastLoginDateCustomFormat != null) {
+            assertNotNull(myLastLoginDateCustomFormatAttribute);
+            assertEquals(myLastLoginDateCustomFormat, myLastLoginDateCustomFormatAttribute.getValue().get(0));
+        } else {
+            assertNull(myLastLoginDateCustomFormatAttribute);
+        }
     }
 
     @Test
@@ -87,18 +113,9 @@ public class LastLoginDateTest extends BaseTest {
         assertSchema(schema, LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE);
 
         ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, new Uid(JOHN_UID), null);
-        assertNotNull(object);
+        assertAttributes(object, LAST_LOGIN_DATE_VALUE, Long.toString(LAST_LOGIN_DATE_VALUE), null);
 
-        Attribute lastLoginDate = object.getAttributeByName(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
-        assertNotNull(lastLoginDate);
-        assertEquals(LAST_LOGIN_DATE_VALUE, lastLoginDate.getValue().get(0));
-
-        Attribute myLastLoginDate = object.getAttributeByName(LAST_LOGIN_DATE_ATTRIBUTE);
-        assertNotNull(myLastLoginDate);
-        assertEquals(Long.toString(LAST_LOGIN_DATE_VALUE), myLastLoginDate.getValue().get(0));
-
-        Attribute myLastLoginDateCustomFormat = object.getAttributeByName(LAST_LOGIN_DATE_CUSTOM_FORMAT_ATTRIBUTE);
-        assertNull(myLastLoginDateCustomFormat);
+        updateAndAssertLastLoginDate(connector, object);
     }
 
     private void assertSchema(Schema schema, String lastLoginDateAttribute) {

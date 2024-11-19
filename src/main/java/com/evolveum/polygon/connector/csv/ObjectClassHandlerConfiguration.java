@@ -9,6 +9,7 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.File;
 import java.nio.charset.Charset;
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Map;
 
@@ -59,6 +60,8 @@ public class ObjectClassHandlerConfiguration {
     private String lastLoginDateAttribute;
     private String lastLoginDateFormat;
 
+    private DateFormat lastLoginDateFormatInstance;
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -96,6 +99,9 @@ public class ObjectClassHandlerConfiguration {
 
         setContainer(Util.getSafeValue(values, "container", false, Boolean.class));
         setAuxiliary(Util.getSafeValue(values, "auxiliary", false, Boolean.class));
+
+        setLastLoginDateAttribute(Util.getSafeValue(values, "lastLoginDateAttribute", null));
+        setLastLoginDateFormat(Util.getSafeValue(values, "lastLoginDateFormat", null));
     }
 
     public void recompute() {
@@ -314,6 +320,8 @@ public class ObjectClassHandlerConfiguration {
 
     public void setLastLoginDateFormat(String lastLoginDateFormat) {
         this.lastLoginDateFormat = lastLoginDateFormat;
+
+        this.lastLoginDateFormatInstance = null;
     }
 
     public String getLastLoginDateAttribute() {
@@ -374,7 +382,15 @@ public class ObjectClassHandlerConfiguration {
             try {
                 new SimpleDateFormat(lastLoginDateFormat);
             } catch (Exception ex) {
-                throw new ConfigurationException("Invalid last login date format '"+lastLoginDateFormat+"', reason: " + ex.getMessage(), ex);
+                throw new ConfigurationException("Invalid last login date format '" + lastLoginDateFormat + "', reason: " + ex.getMessage(), ex);
+            }
+        }
+
+        if (lastLoginDateFormat != null) {
+            try {
+                new SimpleDateFormat(lastLoginDateFormat);
+            } catch (Exception ex) {
+                throw new ConfigurationException("Invalid last login date format", ex);
             }
         }
     }
@@ -424,4 +440,19 @@ public class ObjectClassHandlerConfiguration {
         }
     }
 
+    public DateFormat getLastLoginDateFormatInstance() {
+        if (lastLoginDateFormatInstance != null) {
+            return lastLoginDateFormatInstance;
+        }
+
+        if (lastLoginDateFormat != null) {
+            try {
+                lastLoginDateFormatInstance = new SimpleDateFormat(lastLoginDateFormat);
+            } catch (Exception ex) {
+                throw new ConfigurationException("Invalid last login date format", ex);
+            }
+        }
+
+        return lastLoginDateFormatInstance;
+    }
 }
