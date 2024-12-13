@@ -53,8 +53,6 @@ public class SchemaOpTest extends BaseTest {
         Set<String> values =Set.of(
                 "\"account\"+id -# \"access\"+subject_id",
                 "\"access\"+object_id #- \"group\"+id"
-//                ,
-//                "\"group\"+id\"-#\"accesses\"+subject_id"
         );
 
         config.setManagedAssociationPairs(values.toArray(new String[values.size()]));

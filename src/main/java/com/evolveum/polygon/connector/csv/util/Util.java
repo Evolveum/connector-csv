@@ -15,6 +15,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeUtil;
+import org.identityconnectors.framework.common.objects.PredefinedAttributes;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
@@ -278,10 +279,10 @@ public class Util {
             return null;
         }
 
-        return createRawValue(attribute.getValue(), configuration);
+        return createRawValue(attribute.getName(), attribute.getValue(), configuration);
     }
 
-    public static String createRawValue(List<Object> values, ObjectClassHandlerConfiguration configuration) {
+    public static String createRawValue(String attributeName, List<Object> values, ObjectClassHandlerConfiguration configuration) {
         if (values == null || values.isEmpty()) {
             return null;
         }
@@ -294,6 +295,12 @@ public class Util {
 
         for (int i = 0; i < values.size(); i++) {
             Object obj = values.get(i);
+            if (PredefinedAttributes.LAST_LOGIN_DATE_NAME.equals(attributeName)) {
+                if (configuration.getLastLoginDateFormat() != null) {
+                    obj = configuration.getLastLoginDateFormatInstance().format(new Date((Long) obj));
+                }
+            }
+
             if (obj instanceof GuardedString) {
                 GuardedString gs = (GuardedString) obj;
                 StringAccessor sa = new StringAccessor();

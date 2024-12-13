@@ -9,6 +9,8 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.io.File;
 import java.nio.charset.Charset;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.Map;
 
 /**
@@ -56,6 +58,11 @@ public class ObjectClassHandlerConfiguration {
     private boolean auxiliary = false;
     private String[] managedAssociationPairs;
 
+    private String lastLoginDateAttribute;
+    private String lastLoginDateFormat;
+
+    private DateFormat lastLoginDateFormatInstance;
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -94,11 +101,8 @@ public class ObjectClassHandlerConfiguration {
         setContainer(Util.getSafeValue(values, "container", false, Boolean.class));
         setAuxiliary(Util.getSafeValue(values, "auxiliary", false, Boolean.class));
         setManagedAssociationPairs(Util.getSafeValue(values, "managedAssociationPairs", null, String[].class));
-        // TODO # A do we still need to set the association pairs per object class handler when this is done in connector class?
-        LOG.ok("# MAS: {0}, OC: {1}",getManagedAssociationPairs(), getObjectClass());
-        if(values!=null){
-        LOG.ok("# MAS in values: {0}, the oc: {1}",values.get("managedAssociationPairs"), getObjectClass());
-        }
+        setLastLoginDateAttribute(Util.getSafeValue(values, "lastLoginDateAttribute", null));
+        setLastLoginDateFormat(Util.getSafeValue(values, "lastLoginDateFormat", null));
     }
 
     public void recompute() {
@@ -311,6 +315,24 @@ public class ObjectClassHandlerConfiguration {
         return ignoreIdentifierCase;
     }
 
+    public String getLastLoginDateFormat() {
+        return lastLoginDateFormat;
+    }
+
+    public void setLastLoginDateFormat(String lastLoginDateFormat) {
+        this.lastLoginDateFormat = lastLoginDateFormat;
+
+        this.lastLoginDateFormatInstance = null;
+    }
+
+    public String getLastLoginDateAttribute() {
+        return lastLoginDateAttribute;
+    }
+
+    public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
+        this.lastLoginDateAttribute = lastLoginDateAttribute;
+    }
+
     public void setIgnoreIdentifierCase(boolean ignoreIdentifierCase) {
         this.ignoreIdentifierCase = ignoreIdentifierCase;
     }
@@ -365,6 +387,22 @@ public class ObjectClassHandlerConfiguration {
         if (multivalueAttributes != null && multivalueDelimiter == null) {
             throw new ConfigurationException("Multivalue attributes defined '" + multivalueAttributes + "', but multivalue delimiter is not defined");
         }
+
+        if (StringUtil.isNotEmpty(lastLoginDateFormat)) {
+            try {
+                new SimpleDateFormat(lastLoginDateFormat);
+            } catch (Exception ex) {
+                throw new ConfigurationException("Invalid last login date format '" + lastLoginDateFormat + "', reason: " + ex.getMessage(), ex);
+            }
+        }
+
+        if (lastLoginDateFormat != null) {
+            try {
+                new SimpleDateFormat(lastLoginDateFormat);
+            } catch (Exception ex) {
+                throw new ConfigurationException("Invalid last login date format", ex);
+            }
+        }
     }
 
     public void validateCsvFile() {
@@ -410,5 +448,21 @@ public class ObjectClassHandlerConfiguration {
         if (!tmpFolder.canWrite()) {
             throw new ConfigurationException("Can't write to tmp folder '" + tmpFolder + "'");
         }
+    }
+
+    public DateFormat getLastLoginDateFormatInstance() {
+        if (lastLoginDateFormatInstance != null) {
+            return lastLoginDateFormatInstance;
+        }
+
+        if (lastLoginDateFormat != null) {
+            try {
+                lastLoginDateFormatInstance = new SimpleDateFormat(lastLoginDateFormat);
+            } catch (Exception ex) {
+                throw new ConfigurationException("Invalid last login date format", ex);
+            }
+        }
+
+        return lastLoginDateFormatInstance;
     }
 }

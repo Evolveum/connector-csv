@@ -22,6 +22,7 @@ import java.nio.channels.Channels;
 import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.text.ParseException;
 import java.util.*;
 
 import static com.evolveum.polygon.connector.csv.util.Util.*;
@@ -49,8 +50,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private static final Log LOG = Log.getLog(ObjectClassHandler.class);
 
+
 	private ObjectClassHandlerConfiguration configuration;
 	private Map<ObjectClass, ObjectClassHandler> handlers;
+
 	private Map<String, Column> header;
 
 	public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
@@ -116,7 +119,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					name = DEFAULT_COLUMN_NAME + 0;
 				}
 
-				if (name.startsWith(UTF8_BOM)){
+
+                if (name.startsWith(Util.UTF8_BOM)) {
+
 					name = name.substring(1);
 				}
 
@@ -329,6 +334,16 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				continue;
 			}
+
+            if (name.equals(configuration.getLastLoginDateAttribute())) {
+                AttributeInfoBuilder builder = new AttributeInfoBuilder(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
+                builder.setType(Long.class);
+                builder.setNativeName(name);
+
+                infos.add(builder.build());
+
+                continue;
+            }
 
 			AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
 			if (name.equals(configuration.getPasswordAttribute())) {
@@ -884,6 +899,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				continue;
 			}
 
+			if (name.equals(configuration.getLastLoginDateAttribute())) {
+				builder.addAttribute(PredefinedAttributes.LAST_LOGIN_DATE_NAME, createLastLoginDateValue(value));
+				continue;
+			}
+
 			builder.addAttribute(name, createAttributeValues(value));
 		}
 
@@ -899,14 +919,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private String extractUidFromFilter(Filter filter) {
-		if (filter == null) {
+        if (!(filter instanceof EqualsFilter eq)) {
 			return null;
 		}
-		if (! (filter instanceof EqualsFilter)) {
-			return null;
-		}
-		if (Uid.NAME.equals(((EqualsFilter)filter).getName())) {
-			List<Object> values = ((EqualsFilter) filter).getAttribute().getValue();
+        if (Uid.NAME.equals(eq.getName())) {
+            List<Object> values = eq.getAttribute().getValue();
 			if (values == null || values.isEmpty()) {
 				return null;
 			}
@@ -1785,6 +1802,28 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 	}
 
+    private Long createLastLoginDateValue(String value) {
+        if (StringUtil.isEmpty(value)) {
+            return null;
+        }
+
+        if (configuration.getLastLoginDateFormat() == null) {
+            try {
+                return Long.parseLong(value);
+            } catch (NumberFormatException ex) {
+                throw new InvalidAttributeValueException("Value " + value + " for last login date ("
+                        + configuration.getLastLoginDateAttribute() + ") is not a number (long)", ex);
+            }
+        }
+
+        try {
+            return configuration.getLastLoginDateFormatInstance().parse(value).getTime();
+        } catch (ParseException ex) {
+            throw new InvalidAttributeValueException("Value " + value + " for last login date ("
+                    + configuration.getLastLoginDateAttribute() + ") doesn't have proper format (" + configuration.getLastLoginDateFormat() + ")", ex);
+        }
+    }
+
 	private boolean isUniqueAndNameAttributeEqual() {
 		String uniqueAttribute = configuration.getUniqueAttribute();
 		String nameAttribute = configuration.getNameAttribute();
@@ -1930,6 +1969,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				continue;
 			}
 
+            if (configuration.getLastLoginDateAttribute() != null &&
+                    PredefinedAttributes.LAST_LOGIN_DATE_NAME.equals(attrName)) {
+                continue;
+            }
+
 			if (!columns.contains(attrName)) {
 				throw new ConnectorException("Unknown attribute " + attrName);
 			}
@@ -1958,18 +2002,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		switch (operation) {
 			case UPDATE:
 				for (Attribute attribute : attributes) {
-					Integer index;
-
-					String name = attribute.getName();
-					if (name.equals(Uid.NAME)) {
-						index = getHeader().get(configuration.getUniqueAttribute()).getIndex();
-					} else if (name.equals(Name.NAME)) {
-						index = getHeader().get(configuration.getNameAttribute()).getIndex();
-					} else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-						index = getHeader().get(configuration.getPasswordAttribute()).getIndex();
-					} else {
-						index = getHeader().get(name).getIndex();
-					}
+                    int index = getColumnIndex(attribute);
 
 					String value = createRawValue(attribute, configuration);
 					result[index] = value;
@@ -1978,19 +2011,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			case ADD_ATTR_VALUE:
 			case REMOVE_ATTR_VALUE:
 				for (Attribute attribute : attributes) {
-					Class type = String.class;
-					Integer index;
-
 					String name = attribute.getName();
-					if (name.equals(Uid.NAME)) {
-						index = getHeader().get(configuration.getUniqueAttribute()).getIndex();
-					} else if (name.equals(Name.NAME)) {
-						index = getHeader().get(configuration.getNameAttribute()).getIndex();
-					} else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-						index = getHeader().get(configuration.getPasswordAttribute()).getIndex();
+
+                    int index = getColumnIndex(attribute);
+                    Class type = String.class;
+                    if (OperationalAttributes.PASSWORD_NAME.equals(name)) {
 						type = GuardedString.class;
-					} else {
-						index = getHeader().get(name).getIndex();
 					}
 
 					List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
@@ -2002,13 +2028,15 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
 					}
 
-					String value = createRawValue(updated, configuration);
+                    String value = Util.createRawValue(attribute.getName(), updated, configuration);
+
 					result[index] = value;
 				}
 		}
 
 		return Arrays.asList(result);
 	}
+
 
 	public Map<ObjectClass ,ObjectClassHandler> getHandlers() {
 		return handlers;
@@ -2062,5 +2090,19 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	public void setSyncHook(Map<String, HashSet<String>> syncHook) {
 		this.syncHook = syncHook;
+	}
+
+    private int getColumnIndex(Attribute attribute) {
+        String name = attribute.getName();
+        if (name.equals(Uid.NAME)) {
+            return getHeader().get(configuration.getUniqueAttribute()).getIndex();
+        } else if (name.equals(Name.NAME)) {
+            return getHeader().get(configuration.getNameAttribute()).getIndex();
+        } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+            return getHeader().get(configuration.getPasswordAttribute()).getIndex();
+        } else if (name.equals(PredefinedAttributes.LAST_LOGIN_DATE_NAME)) {
+            return getHeader().get(configuration.getLastLoginDateAttribute()).getIndex();
+        }
+        return getHeader().get(name).getIndex();
 	}
 }

@@ -53,6 +53,19 @@
         </repository>
     </repositories>
 
+    <distributionManagement>
+        <repository>
+            <id>evolveum-nexus</id>
+            <name>Internal Releases</name>
+            <url>https://nexus.evolveum.com/nexus/repository/releases/</url>
+        </repository>
+        <snapshotRepository>
+            <id>evolveum-nexus</id>
+            <name>Internal Snapshots</name>
+            <url>https://nexus.evolveum.com/nexus/repository/snapshots/</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <build>
         <plugins>
             <plugin>
@@ -74,6 +87,15 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <!-- surefire-testng dependency needed until common-parent is updated to 1.5.3.0-SNAPSHOT at least -->
+                <!-- reason: maven by default uses junit platform therefore all testng tests are skipped silently -->
+                <dependencies>
+                    <dependency>
+                        <groupId>org.apache.maven.surefire</groupId>
+                        <artifactId>surefire-testng</artifactId>
+                        <version>3.5.1</version>
+                    </dependency>
+                </dependencies>
             </plugin>
         </plugins>
     </build>
