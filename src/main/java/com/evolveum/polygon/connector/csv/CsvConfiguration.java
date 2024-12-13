@@ -365,8 +365,7 @@ public class CsvConfiguration extends AbstractConfiguration {
         ocMap.keySet().forEach(key -> {
 
             Map<String, Object> values = ocMap.get(key);
-            //TODO #A
-            LOG.ok("# MAS 2: {0}", getManagedAssociationPairs());
+
             values.put("managedAssociationPairs",getManagedAssociationPairs());
 
             ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration(new ObjectClass(key), values);

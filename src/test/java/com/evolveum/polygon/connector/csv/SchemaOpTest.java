@@ -124,6 +124,44 @@ public class SchemaOpTest extends BaseTest {
     }
 
     @Test
+    public void multipleClassesWithAssociationMemberOf() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setNameAttribute("id");
+        config.setMultivalueDelimiter(",");
+        config.setMultivalueAttributes("memberOf");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values =Set.of(
+                "\"account\"+memberOf -# \"group\"+id",
+                "\"group\"+memberOf -# \"group\"+id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groups-memberOf.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-memberOf.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.csv"), groupsCsv);
+
+
+        ConnectorFacade connector = setupConnector("/account-memberOf.csv", config);
+
+        Schema schema = connector.schema();
+        assertEquals(2, schema.getObjectClassInfo().size());
+
+        ObjectClassInfo infoAccount = schema.findObjectClassInfo(ObjectClass.ACCOUNT_NAME);
+        assertNotNull(infoAccount);
+
+        ObjectClassInfo infoGroup = schema.findObjectClassInfo("group");
+        assertNotNull(infoGroup);
+    }
+
+    @Test
     public void repeatingColumns() throws Exception {
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");

@@ -94,7 +94,7 @@ public class ObjectClassHandlerConfiguration {
         setContainer(Util.getSafeValue(values, "container", false, Boolean.class));
         setAuxiliary(Util.getSafeValue(values, "auxiliary", false, Boolean.class));
         setManagedAssociationPairs(Util.getSafeValue(values, "managedAssociationPairs", null, String[].class));
-        // TODO # A
+        // TODO # A do we still need to set the association pairs per object class handler when this is done in connector class?
         LOG.ok("# MAS: {0}, OC: {1}",getManagedAssociationPairs(), getObjectClass());
         if(values!=null){
         LOG.ok("# MAS in values: {0}, the oc: {1}",values.get("managedAssociationPairs"), getObjectClass());

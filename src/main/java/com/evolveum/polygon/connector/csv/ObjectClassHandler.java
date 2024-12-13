@@ -24,9 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
-import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.*;
-import static com.evolveum.polygon.connector.csv.util.Util.createSyncFileName;
-import static com.evolveum.polygon.connector.csv.util.Util.handleGenericException;
+import static com.evolveum.polygon.connector.csv.util.Util.*;
 
 /**
  * todo check new FileSystem().newWatchService() to create exclusive tmp file https://docs.oracle.com/javase/tutorial/essential/io/notification.html
@@ -37,6 +35,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		UpdateAttributeValuesOp, AuthenticateOp, ResolveUsernameOp, SyncOp, DiscoverConfigurationOp {
 
 	protected Map<String, HashSet<AssociationHolder>> associationHolders;
+	protected Map<String, HashSet<String>> syncHook;
+
 
 	public void validate() {
 		configuration.validateAttributeNames();
@@ -50,17 +50,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private static final Log LOG = Log.getLog(ObjectClassHandler.class);
 
 	private ObjectClassHandlerConfiguration configuration;
-
+	private Map<ObjectClass, ObjectClassHandler> handlers;
 	private Map<String, Column> header;
-
-	private String CONF_ASSOC_ATTR_DELIMITER ="\"\\+";
-	private String ASSOC_ATTR_MEMBER ="member";
-	private String ASSOC_ATTR_GROUP ="group";
-
-	public static final String R_I_R_OBJECT = AttributeUtil.createSpecialName("OBJECT");
-	public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
-
-//	private String ASSOC_ATTR_RELATION ="relation";
 
 	public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
 		this.configuration = configuration;
@@ -75,8 +66,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private Map<String, Column> initHeader(File csvFile) {
 		synchronized (CsvConnector.SYNCH_FILE_LOCK) {
-			CSVFormat csv = Util.createCsvFormat(configuration);
-			try (Reader reader = Util.createReader(csvFile, configuration)) {
+			CSVFormat csv = createCsvFormat(configuration);
+			try (Reader reader = createReader(csvFile, configuration)) {
 				CSVParser parser = csv.parse(reader);
 				Iterator<CSVRecord> iterator = parser.iterator();
 
@@ -122,10 +113,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				String name = record.get(i);
 
 				if (StringUtil.isEmpty(name)) {
-					name = Util.DEFAULT_COLUMN_NAME + 0;
+					name = DEFAULT_COLUMN_NAME + 0;
 				}
 
-				if (name.startsWith(Util.UTF8_BOM)){
+				if (name.startsWith(UTF8_BOM)){
 					name = name.substring(1);
 				}
 
@@ -135,7 +126,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		} else {
 			// header doesn't exist, we just create col0...colN
 			for (int i = 0; i < record.size(); i++) {
-				header.put(Util.DEFAULT_COLUMN_NAME + i, new Column(null, i));
+				header.put(DEFAULT_COLUMN_NAME + i, new Column(null, i));
 			}
 		}
 
@@ -215,20 +206,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		List<AttributeInfo> infos = new ArrayList<>();
 
 		if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
-			Map<String, HashSet<AssociationHolder>> associationHolders = getAssociationHolders();
 
-
-			String objectClassName;
-			ObjectClass objectClass = getObjectClass();
-			if(ObjectClass.ACCOUNT.equals(objectClass)){
-
-				objectClassName = "account";
-			} else if (ObjectClass.GROUP.equals(objectClass)) {
-
-				objectClassName = "group";
-			} else {
-				objectClassName = objectClass.getObjectClassValue();
-			}
+			String objectClassName = getObjectClassName();
 
 			HashSet<AssociationHolder> holders = null;
 			for (String holderOcName :  associationHolders.keySet()){
@@ -240,9 +219,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 			AttributeInfoBuilder builder = null;
 			Set<AttributeInfo> attributeInfos = new HashSet<>();
-
-// TODO # A configuration does not return association information for most object classes ??
-			LOG.ok("## The objectClass {0}, the MAS {1}", objectClassName, Arrays.stream(configuration.getManagedAssociationPairs()).toList()); // TODO remove # A
 
 			if (holders != null && !holders.isEmpty()) {
 
@@ -276,19 +252,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					} else {
 
 						evaluatedAttribute = holder.getValueAttributeName();
-						//builder = new AttributeInfoBuilder(ASSOC_ATTR_MEMBER, ConnectorObjectReference.class);
 						builder = new AttributeInfoBuilder(evaluatedAttribute, ConnectorObjectReference.class);
-						//builder.setSubtype(subTypeBuilder.toString());
 						builder.setType(String.class);
 						builder.setReturnedByDefault(false);
 						builder.setReadable(false);
-
-						//builder.setRoleInReference(R_I_R_OBJECT);
 					}
 
 					if (evaluatedAttribute != null) {
 
-						// TODO # A when subject side attr is multivalued list representing a list of  memberships
 						if (!configuration.getUniqueAttribute().equals(evaluatedAttribute)) {
 
 							if (columns.containsKey(evaluatedAttribute)) {
@@ -359,8 +330,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				continue;
 			}
 
-			// TODO # A build virtual attributes
-
 			AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
 			if (name.equals(configuration.getPasswordAttribute())) {
 				builder.setType(GuardedString.class);
@@ -378,162 +347,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return infos;
 	}
 
-	private Map<String, HashSet<AssociationHolder>> getAssociationHolders() {
 
-		if (associationHolders != null && !associationHolders.isEmpty()) {
-
-		} else {
-
-			generateAssociationHolders();
-		}
-
-		return associationHolders;
-	}
-
-	private void generateAssociationHolders() {
-		String[] associationPairs = configuration.getManagedAssociationPairs();
-		for (String associationPair : associationPairs) {
-
-			String[] pairArray;
-		    if (associationPair.contains(REFERS_TO.value)) {
-
-				pairArray = associationPair.split(REFERS_TO.value);
-				constructAssociationHolder(pairArray, REFERS_TO);
-			} else if (associationPair.contains(OBTAINS.value)) {
-
-				pairArray = associationPair.split(OBTAINS.value);
-				constructAssociationHolder(pairArray, OBTAINS);
-			} else {
-
-				throw new InvalidAttributeValueException("Association pair syntax contains none of the permitted " +
-						"delimiters \"" + REFERS_TO + "\", \"" + OBTAINS + " \"");
-			}
-		}
-	}
-
-	private void constructAssociationHolder(String[] pairArray, AssociationCharacter character) {
-		if (associationHolders == null) {
-			associationHolders = new HashMap<>();
-		}
-
-		AssociationHolder associationHolder = new AssociationHolder();
-		if (pairArray.length == 2) {
-
-			for (int i = 0; i < 2; i++) {
-
-				String objectClassAndMemberAttribute = pairArray[i].trim();
-				String[] objectClassAndMemberAttributes = objectClassAndMemberAttribute.split(CONF_ASSOC_ATTR_DELIMITER);
-
-				if (i == 0) {
-					if (objectClassAndMemberAttributes.length != 0 && !objectClassAndMemberAttributes[0].isEmpty()) {
-
-						String subjectObjectClassName = objectClassAndMemberAttributes[0].
-								trim().substring(1);
-
-						if (!subjectObjectClassName.isEmpty()) {
-							associationHolder.setSubjectObjectClassName(subjectObjectClassName);
-						} else {
-
-							associationHolder.setSubjectObjectClassName(ObjectClass.ACCOUNT_NAME);
-						}
-					} else {
-
-						associationHolder.setSubjectObjectClassName(ObjectClass.ACCOUNT_NAME);
-					}
-
-					if (OBTAINS.equals(character)) {
-
-						if (objectClassAndMemberAttributes.length != 2) {
-
-							associationHolder.setAssociationAttributeName(null);
-						} else {
-
-							associationHolder.setAssociationAttributeName(objectClassAndMemberAttributes[1].
-									trim());
-						}
-					} else if (REFERS_TO.equals(character)) {
-
-						if (objectClassAndMemberAttributes.length != 2) {
-
-							throw new InvalidAttributeValueException("Association pair syntax contain no or " +
-									"multiple delimiters \" " + CONF_ASSOC_ATTR_DELIMITER + " \"");
-						}
-
-						associationHolder.setValueAttributeName(objectClassAndMemberAttributes[1].trim());
-					}
-				} else {
-
-					if (objectClassAndMemberAttributes.length != 2) {
-
-						throw new InvalidAttributeValueException("Association pair syntax contain no or " +
-								"multiple delimiters \" " + CONF_ASSOC_ATTR_DELIMITER + " \"");
-					}
-
-
-					associationHolder.setObjectObjectClassName(objectClassAndMemberAttributes[0].
-							trim().substring(1));
-					if (OBTAINS.equals(character)) {
-
-						associationHolder.setCharacter(OBTAINS);
-						associationHolder.setValueAttributeName(objectClassAndMemberAttributes[1].trim());
-					} else if (REFERS_TO.equals(character)) {
-
-						associationHolder.setCharacter(REFERS_TO);
-						associationHolder.setAssociationAttributeName(objectClassAndMemberAttributes[1].trim());
-					}
-				}
-			}
-		} else {
-
-			throw new InvalidAttributeValueException("Association pair syntax contains multiple delimiters \""
-					+ "\"" + REFERS_TO
-					+ "\" or \"" + OBTAINS + " \"");
-		}
-
-		if (associationHolders != null && !associationHolders.isEmpty()) {
-
-			List<String> ocNames;
-
-			if (OBTAINS.equals(character)) {
-
-				ocNames = List.of(associationHolder.getSubjectObjectClassName(), associationHolder.getObjectObjectClassName());
-			} else {
-
-				ocNames = List.of(associationHolder.getSubjectObjectClassName());
-			}
-
-
-			for (String ocName : ocNames) {
-
-				if (!associationHolders.containsKey(ocName)) {
-
-					HashSet associationHolderSet = new HashSet<>();
-					associationHolderSet.add(associationHolder);
-					associationHolders.put(ocName, associationHolderSet);
-				} else {
-
-					HashSet holders = associationHolders.get(ocName);
-					holders.add(associationHolder);
-					associationHolders.put(ocName, holders);
-				}
-			}
-
-		} else {
-			HashSet hashSet = new HashSet();
-			hashSet.add(associationHolder);
-
-			if (OBTAINS.equals(character)) {
-
-				associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
-				associationHolders.put(associationHolder.getObjectObjectClassName(), (HashSet<AssociationHolder>) hashSet.clone());
-			} else {
-
-				associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
-			}
-		}
-
-
-	}
 
 	@Override
 	public Uid authenticate(ObjectClass oc, String username, GuardedString password, OperationOptions oo) {
@@ -551,18 +365,18 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		String uidValue = findUidValue(attributes);
 		Uid uid = new Uid(uidValue);
 
-		FileLock lock = Util.obtainTmpFileLock(configuration);
+		FileLock lock = obtainTmpFileLock(configuration);
 		Reader reader = null;
 		Writer writer = null;
 		try {
 			synchronized (CsvConnector.SYNCH_FILE_LOCK) {
-				reader = Util.createReader(configuration);
+				reader = createReader(configuration);
 				writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
 
-				CSVFormat csv = Util.createCsvFormat(configuration);
+				CSVFormat csv = createCsvFormat(configuration);
 				CSVParser parser = csv.parse(reader);
 
-				csv = Util.createCsvFormat(configuration);
+				csv = createCsvFormat(configuration);
 				CSVPrinter printer = csv.print(writer);
 
 				Iterator<CSVRecord> iterator = parser.iterator();
@@ -577,7 +391,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				// handling real records
 				while (iterator.hasNext()) {
 					CSVRecord record = iterator.next();
-					ConnectorObject obj = createConnectorObject(record);
+					ConnectorObject obj = createConnectorObject(record, false);
 
 					if (uid.equals(obj.getUid())) {
 						throw new AlreadyExistsException("Account already exists '" + uid.getUidValue() + "'.");
@@ -596,7 +410,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' create");
 		} finally {
-			Util.cleanupResources(writer, reader, lock, configuration);
+			cleanupResources(writer, reader, lock, configuration);
 		}
 
 		return uid;
@@ -607,7 +421,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		String path = configuration.getFilePath().getPath();
 		File orig = new File(path);
 
-		File tmp = Util.createTmpPath(configuration);
+		File tmp = createTmpPath(configuration);
 
 		Files.move(tmp.toPath(), orig.toPath(), StandardCopyOption.REPLACE_EXISTING);
 	}
@@ -638,7 +452,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					continue;
 				}
 
-				value = Util.createRawValue(attr, configuration);
+				value = createRawValue(attr, configuration);
 			} else if (isName(column)) {
 				value = name;
 			} else if (isUid(column)) {
@@ -649,7 +463,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					continue;
 				}
 
-				value = Util.createRawValue(attr, configuration);
+				value = createRawValue(attr, configuration);
 			}
 
 			record[getHeader().get(column).getIndex()] = value;
@@ -703,40 +517,384 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	@Override
 	public void executeQuery(ObjectClass oc, Filter filter, ResultsHandler handler, OperationOptions oo) {
-		CSVFormat csv = Util.createCsvFormatReader(configuration);
-		try (Reader reader = Util.createReader(configuration)) {
+		CSVFormat csv = createCsvFormatReader(configuration);
+		try (Reader reader = createReader(configuration)) {
 
 			CSVParser parser = csv.parse(reader);
+			boolean shouldReiterate = false;
 			Iterator<CSVRecord> iterator = parser.iterator();
+
+			HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates = new HashMap<>();
 			while (iterator.hasNext()) {
 				CSVRecord record = iterator.next();
 				if (skipRecord(record)) {
 					continue;
 				}
 
-				ConnectorObject obj = createConnectorObject(record);
+				if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+					Object ob = createConnectorObjectOrCandidateObject(record, false);
+					if (ob instanceof ConnectorObjectCandidate) {
+						ConnectorObjectId cid = ((ConnectorObjectCandidate) ob).getId();
+						saturateCandidates(cid, candidates, (ConnectorObjectCandidate) ob);
 
-				String uid = extractUidFromFilter(filter);
+						if (!shouldReiterate) {
 
-				if (uid == null) {
-					if (filter == null || filter.accept(obj)) {
-						if (!handler.handle(obj)) {
+							shouldReiterate = appendToCandidateMap((ConnectorObjectCandidate) ob, candidates, true);
+						} else {
+
+							appendToCandidateMap((ConnectorObjectCandidate) ob, candidates, true);
+						}
+					}
+				} else {
+					ConnectorObject obj = createConnectorObject(record);
+					if (!handleQueriedObject(filter, obj, handler)) {
+						break;
+					}
+				}
+			}
+
+			if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+				if (shouldReiterate) {
+
+					reIterateCandidates(candidates);
+				}
+
+				retrieveAssociationData(candidates);
+
+				Set<ConnectorObjectCandidate> finalCandidateSet = new HashSet<>();
+				candidates.values().forEach(val -> finalCandidateSet.addAll(val));
+
+				for (ConnectorObjectCandidate candidate : finalCandidateSet) {
+
+					candidate.evaluateDependencies();
+					if (candidate.complete()) {
+						if (!handleQueriedObject(filter, candidate.getCandidateBuilder().build(), handler)) {
 							break;
 						}
 					}
-					continue;
-				}
-
-				if (!uidMatches(uid, obj.getUid().getUidValue(), configuration.isIgnoreIdentifierCase())) {
-					continue;
-				}
-
-				if (!handler.handle(obj)) {
-					break;
 				}
 			}
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during query execution");
+		}
+	}
+
+	private void saturateCandidates(ConnectorObjectId cid,
+									HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates,
+									ConnectorObjectCandidate ob) {
+
+		if (candidates.containsKey(cid)) {
+			Set<ConnectorObjectCandidate> candidatesSet = candidates.get(cid);
+			Iterator candidateSetIterator = candidatesSet.iterator();
+
+			while (candidateSetIterator.hasNext()) {
+				ConnectorObjectCandidate candidate = (ConnectorObjectCandidate) candidateSetIterator.next();
+				candidate.addCandidateUponWhichThisDepends(ob);
+			}
+		}
+
+	}
+
+	private boolean appendToCandidateMap(ConnectorObjectCandidate ob,
+										 HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates) {
+
+		return appendToCandidateMap(ob, candidates, false);
+	}
+
+	private boolean appendToCandidateMap(ConnectorObjectCandidate ob,
+										 HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates,
+										 boolean appendWithoutAssociatedObjects) {
+		boolean shouldReiterate = false;
+
+		Set<ConnectorObjectId> associatedObjectUIDs = (ob)
+				.getObjectIdsToBeProcessed();
+
+		if(associatedObjectUIDs.isEmpty() && appendWithoutAssociatedObjects) {
+
+			Set<ConnectorObjectId> values = new HashSet<>();
+			values.add(ob.getId());
+			associatedObjectUIDs = values;
+		}
+
+		for (ConnectorObjectId auid : associatedObjectUIDs) {
+			if(!shouldReiterate){
+
+				if(getObjectClass().equals(auid.getObjectClass())){
+					//TODO # A review
+					if(ob.getId()!=auid){
+
+					shouldReiterate = true;
+					}
+				}
+			}
+			if (candidates.containsKey(auid)) {
+				Set<ConnectorObjectCandidate> candidatesSet = candidates.get(auid);
+				candidatesSet.add(ob);
+			} else {
+
+				Set<ConnectorObjectCandidate> candidatesSet = new HashSet<>();
+				candidatesSet.add(ob);
+				candidates.put(auid, candidatesSet);
+			}
+		}
+
+		return shouldReiterate;
+	}
+
+	private void reIterateCandidates(HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidatesToProcess) {
+
+		reIterateCandidates(candidatesToProcess, null, null);
+	}
+
+	private void reIterateCandidates(HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidatesToProcess,
+									 HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> originalCandidates,
+									 Map<ConnectorObjectId, ConnectorObjectCandidate> processedAndReferencedCandidates) {
+
+		CSVFormat csv = createCsvFormatReader(configuration);
+
+		if (processedAndReferencedCandidates == null){
+
+		 processedAndReferencedCandidates = new HashMap<>();
+		}
+
+		HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> nonCompleteCandidates = new HashMap<>();
+
+
+		try (Reader reader = createReader(configuration)) {
+
+			CSVParser parser = csv.parse(reader);
+			Iterator<CSVRecord> iterator = parser.iterator();
+
+			while (iterator.hasNext()) {
+				CSVRecord record = iterator.next();
+				if (skipRecord(record)) {
+					continue;
+				}
+
+				ConnectorObjectCandidate ob = createConnectorObjectOrCandidateObject(record, false);
+
+				if (processedAndReferencedCandidates.containsKey(ob.getId())) {
+
+					ob = processedAndReferencedCandidates.get(ob.getId());
+				}
+
+				if (candidatesToProcess.containsKey(ob.getId())) {
+					Set<ConnectorObjectCandidate> candidatesSet = candidatesToProcess.get(ob.getId());
+					Iterator candidateSetIterator = candidatesSet.iterator();
+
+					while (candidateSetIterator.hasNext()) {
+						ConnectorObjectCandidate candidate = (ConnectorObjectCandidate) candidateSetIterator.next();
+
+						if(candidate.getId() == ob.getId()) {
+
+							continue;
+						}
+
+						if (!candidate.getAlreadyProcessedObjectIds().contains(ob.getId())) {
+
+							candidate.addCandidateUponWhichThisDepends(ob);
+
+						}
+
+						if (candidatesToProcess.containsKey(candidate.getId())) {
+
+							processedAndReferencedCandidates.put(candidate.getId(), candidate);
+						}
+					}
+				}
+				if (!ob.complete()) {
+
+					for (ConnectorObjectId objectId : ob.getObjectIdsToBeProcessed()) {
+						if (candidatesToProcess.containsKey(objectId)) {
+							Set<ConnectorObjectCandidate> candidateSet = candidatesToProcess.get(objectId);
+							if (candidateSet.contains(ob)) {
+								break;
+							}
+						}
+
+						if (originalCandidates!=null){
+							if (originalCandidates.containsKey(ob.getId()) ||
+									originalCandidates.containsKey(objectId)) {
+								continue;
+							}
+						}
+
+						if (nonCompleteCandidates.containsKey(objectId)) {
+
+							Set<ConnectorObjectCandidate> candidateSet = nonCompleteCandidates.get(objectId);
+							candidateSet.add(ob);
+						} else {
+
+							Set<ConnectorObjectCandidate> candidateSet = new HashSet<>();
+							candidateSet.add(ob);
+							nonCompleteCandidates.put(objectId, candidateSet);
+						}
+					}
+				}
+			}
+
+			if (!nonCompleteCandidates.isEmpty()) {
+
+				for (ConnectorObjectId id : candidatesToProcess.keySet()) {
+					if (nonCompleteCandidates.containsKey(id)) {
+						nonCompleteCandidates.remove(id);
+					}
+				}
+				if(!nonCompleteCandidates.isEmpty()){
+
+					reIterateCandidates(nonCompleteCandidates, candidatesToProcess, processedAndReferencedCandidates);
+				}
+			}
+
+		} catch (IOException e) {
+			handleGenericException(e, "Error during query execution, while re-iterating candidate objects");
+		}
+	}
+
+	private boolean handleQueriedObject(Filter filter, ConnectorObject obj, ResultsHandler handler) {
+
+		String uid = extractUidFromFilter(filter);
+
+		if (uid == null) {
+			if (filter == null || filter.accept(obj)) {
+				if (!handler.handle(obj)) {
+					return false;
+				}
+			}
+
+			return true;
+		}
+
+		if (!uidMatches(uid, obj.getUid().getUidValue(), configuration.isIgnoreIdentifierCase())) {
+
+			return true;
+		}
+
+		if (!handler.handle(obj)) {
+			return false;
+		}
+
+		return true;
+	}
+
+	private ConnectorObjectCandidate createConnectorObjectOrCandidateObject(CSVRecord record, boolean omitAssociations) {
+
+		return createConnectorObjectOrCandidateObject(record, omitAssociations, null, null);
+	}
+
+
+	private ConnectorObjectCandidate createConnectorObjectOrCandidateObject(CSVRecord record, boolean omitAssociations,
+														  SyncToken syncToken, SyncDeltaType syncDeltaType) {
+
+		String uid = "";
+		Set<ConnectorObjectId> associationDataObject = new HashSet<>();
+		Set<ConnectorObjectId> associationDataSubject = new HashSet<>();
+		Set<ObjectClass> relationToObjectClasses = new HashSet<>();
+
+		ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
+		builder.setObjectClass(getObjectClass());
+		Map<Integer, String> header = reverseHeaderMap();
+
+		if (header.size() != record.size()) {
+			throw new ConnectorException("Number of columns in header (" + header.size()
+					+ ") doesn't match number of columns for record (" + record.size()
+					+ "). File row number: " + record.getRecordNumber());
+		}
+
+		for (int i = 0; i < record.size(); i++) {
+			String name = header.get(i);
+			String value = record.get(i);
+
+			if (StringUtil.isEmpty(value)) {
+				continue;
+			}
+
+			if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs()) && !omitAssociations) {
+
+				String objectClassName = getObjectClassName();
+
+				Set<AssociationHolder> associationSet = associationHolders.get(objectClassName);
+				if (associationSet != null && !associationSet.isEmpty()) {
+					String analysedAttributeName;
+					for (AssociationHolder holder : associationSet) {
+						String objectObjectClassName = holder.getObjectObjectClassName();
+						String subjectObjectClassName = holder.getSubjectObjectClassName();
+
+						if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
+
+							analysedAttributeName = holder.getValueAttributeName();
+						} else {
+							if (!objectClassName.equalsIgnoreCase(subjectObjectClassName)) {
+
+								analysedAttributeName = holder.getValueAttributeName();
+							} else {
+
+								analysedAttributeName = holder.getAssociationAttributeName();
+							}
+						}
+
+						if (name.equalsIgnoreCase(analysedAttributeName)) {
+							if (objectClassName.equalsIgnoreCase(subjectObjectClassName)) {
+
+								if (analysedAttributeName.equals(configuration.getUniqueAttribute())) {
+
+									relationToObjectClasses.add("account".equals(objectObjectClassName) ?
+											ObjectClass.ACCOUNT : new ObjectClass(objectObjectClassName));
+
+									continue;
+								}
+							}
+
+							List<String> attrValues = createAttributeValues(value);
+							Iterator<String> iterator = attrValues.iterator();
+
+							while (iterator.hasNext()) {
+
+								if (subjectObjectClassName.equalsIgnoreCase(objectClassName)) {
+
+									associationDataObject.add(new ConnectorObjectId(iterator.next(),
+											"account".equals(objectObjectClassName) ?
+													ObjectClass.ACCOUNT : new ObjectClass(objectObjectClassName)));
+								} else {
+									associationDataSubject.add(new ConnectorObjectId(iterator.next(),
+											"account".equals(subjectObjectClassName) ?
+													ObjectClass.ACCOUNT : new ObjectClass(subjectObjectClassName)));
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if (name.equals(configuration.getUniqueAttribute())) {
+				builder.setUid(value);
+				uid = value;
+				if (!isUniqueAndNameAttributeEqual()) {
+					continue;
+				}
+			}
+
+			if (name.equals(configuration.getNameAttribute())) {
+				builder.setName(new Name(value));
+				continue;
+			}
+
+			if (name.equals(configuration.getPasswordAttribute())) {
+				builder.addAttribute(OperationalAttributes.PASSWORD_NAME, new GuardedString(value.toCharArray()));
+				continue;
+			}
+
+			builder.addAttribute(name, createAttributeValues(value));
+		}
+
+		ConnectorObjectId cid = new ConnectorObjectId(uid, getObjectClass(), relationToObjectClasses);
+
+		if (syncDeltaType != null) {
+			return new SyncDeltaObjectCandidate(cid,
+					builder, associationDataObject, associationDataSubject, syncToken, syncDeltaType);
+		} else {
+			return new ConnectorObjectCandidate(cid,
+					builder, associationDataObject, associationDataSubject);
 		}
 	}
 
@@ -782,8 +940,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private Uid resolveUsername(String username, GuardedString password, OperationOptions oo, boolean authenticate) {
 		validateAuthenticationInputs(username, password, authenticate);
 
-		CSVFormat csv = Util.createCsvFormatReader(configuration);
-		try (Reader reader = Util.createReader(configuration)) {
+		CSVFormat csv = createCsvFormatReader(configuration);
+		try (Reader reader = createReader(configuration)) {
 
 			ConnectorObject object = null;
 
@@ -795,7 +953,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					continue;
 				}
 
-				ConnectorObject obj = createConnectorObject(record);
+				ConnectorObject obj = createConnectorObject(record, false);
 
 				Name name = obj.getName();
 				if (name != null && username.equals(AttributeUtil.getStringValue(name))) {
@@ -855,9 +1013,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	@Override
 	public void sync(ObjectClass oc, SyncToken token, SyncResultsHandler handler, OperationOptions oo) {
-		File syncLockFile = Util.createSyncLockFile(configuration);
-		FileLock lock = Util.obtainTmpFileLock(syncLockFile);
-
+		File syncLockFile = createSyncLockFile(configuration);
+		FileLock lock = obtainTmpFileLock(syncLockFile);
 		try {
 			long tokenLongValue = getTokenValue(token);
 			LOG.info("Token {0}", tokenLongValue);
@@ -872,7 +1029,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 			doSync(tokenLongValue, handler);
 		} finally {
-			Util.closeQuietly(lock);
+			closeQuietly(lock);
 			syncLockFile.delete();
 		}
 	}
@@ -882,7 +1039,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		if (!oldCsv.exists()) {
 			// we'll try to find first sync file which is newer than token (there's a possibility
 			// that we loose some changes this way - same as for example ldap)
-			oldCsv = Util.findOldestSyncFile(token, configuration);
+			oldCsv = findOldestSyncFile(token, configuration);
 			if (oldCsv == null || oldCsv.equals(createSyncFileName(Long.parseLong(newToken), configuration))) {
 				// we didn't found any newer file, we should stop and handle this situation as if this
 				// is first time we're doing sync operation (like getLatestSyncToken())
@@ -912,12 +1069,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		LOG.ok("Comparing files. Old {0} (exists: {1}, size: {2}) with new {3} (exists: {4}, size: {5})",
 				oldCsv.getName(), oldCsv.exists(), oldCsv.length(), newCsv.getName(), newCsv.exists(), newCsv.length());
 
-		try (Reader reader = Util.createReader(newCsv, configuration)) {
+		try (Reader reader = createReader(newCsv, configuration)) {
 			Map<String, CSVRecord> oldData = loadOldSyncFile(oldCsv);
 
 			Set<String> oldUsedOids = new HashSet<>();
 
-			CSVFormat csv = Util.createCsvFormatReader(configuration);
+			CSVFormat csv = createCsvFormatReader(configuration);
 
 			CSVParser parser = csv.parse(reader);
 			Iterator<CSVRecord> iterator = parser.iterator();
@@ -925,6 +1082,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			int changesCount = 0;
 
 			boolean shouldContinue = true;
+			boolean shouldReiterate = false;
+			HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates = new HashMap<>();
+
 			while (iterator.hasNext()) {
 				CSVRecord record = iterator.next();
 				if (skipRecord(record)) {
@@ -937,15 +1097,73 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							+ record.getRecordNumber() + " in " + newCsv.getName());
 				}
 
-				SyncDelta delta = doSyncCreateOrUpdate(record, uid, oldData, oldUsedOids, newSyncToken, handler);
-				if (delta == null) {
-					continue;
-				}
+				if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
 
-				changesCount++;
-				shouldContinue = handler.handle(delta);
-				if (!shouldContinue) {
-					break;
+					SyncDeltaObjectCandidate syncDeltaObjectCandidate = fetchCandidateForSyncDelta(record, uid, oldData,
+							oldUsedOids, newSyncToken);
+
+					if (syncDeltaObjectCandidate == null) {
+						continue;
+					}
+
+					ConnectorObjectId cid = syncDeltaObjectCandidate.getId();
+					saturateCandidates(cid, candidates, syncDeltaObjectCandidate);
+
+					if (!shouldReiterate) {
+
+						shouldReiterate = appendToCandidateMap(syncDeltaObjectCandidate, candidates,
+								true);
+					} else {
+
+						appendToCandidateMap(syncDeltaObjectCandidate, candidates, true);
+					}
+
+				} else {
+					SyncDelta delta = doSyncCreateOrUpdate(record, uid, oldData, oldUsedOids, newSyncToken);
+
+					if (delta == null) {
+						continue;
+					}
+
+					changesCount++;
+					shouldContinue = handler.handle(delta);
+					if (!shouldContinue) {
+						break;
+					}
+				}
+			}
+
+			if(!candidates.isEmpty()){
+
+				if(shouldReiterate){
+
+					reIterateCandidates(candidates);
+				}
+				retrieveAssociationData(candidates);
+				Set<ConnectorObjectCandidate> finalCandidateSet = new HashSet<>();
+				candidates.values().forEach(val -> finalCandidateSet.addAll(val));
+
+				for (ConnectorObjectCandidate candidate : finalCandidateSet) {
+
+					candidate.evaluateDependencies();
+					if (candidate.complete()) {
+					SyncDeltaObjectCandidate cd = (SyncDeltaObjectCandidate) candidate;
+
+						SyncDeltaBuilder builder = new SyncDeltaBuilder();
+						builder.setDeltaType(cd.getSyncDeltaType());
+						builder.setObjectClass(getObjectClass());
+						builder.setToken(cd.getSyncToken());
+						builder.setObject(cd.getCandidateBuilder().build());
+
+						changesCount++;
+						shouldContinue = handler.handle(builder.build());
+						if (!shouldContinue) {
+							break;
+						}
+					} else {
+						LOG.ok("TODO remove ");
+						candidate.evaluateDependencies();
+					}
 				}
 			}
 
@@ -963,6 +1181,96 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 	}
 
+	private void evaluateAssociationData(CSVRecord oldRecord, CSVRecord newRecord) {
+
+		String ocName = getObjectClassName();
+		Set<AssociationHolder> associationHoldersPerOC = associationHolders.get(ocName);
+		Map<String, Set<String>> valueAttributes = new HashMap<>();
+
+		for (AssociationHolder holder : associationHoldersPerOC) {
+			if (ocName.equalsIgnoreCase(holder.getObjectObjectClassName())) {
+
+				String subjectOcName = holder.getSubjectObjectClassName();
+
+				if (valueAttributes.containsKey(subjectOcName)) {
+					Set<String> attrSet = valueAttributes.get(subjectOcName);
+					attrSet.add(holder.getValueAttributeName());
+					valueAttributes.put(subjectOcName, attrSet);
+				} else {
+
+					HashSet valueSet = new HashSet();
+					valueSet.add(holder.getValueAttributeName());
+					valueAttributes.put(subjectOcName, valueSet);
+				}
+			}
+		}
+
+		if(valueAttributes.isEmpty()){
+			return;
+		}
+
+		Map<Integer, String> header = reverseHeaderMap();
+		for (int i = 0; i < newRecord.size(); i++) {
+			String name = header.get(i);
+
+			for (String subjectOc : valueAttributes.keySet()) {
+				Set<String> valueAttrNames = valueAttributes.get(subjectOc);
+				if (valueAttrNames.contains(name)) {
+
+					String oldValue;
+					ArrayList<String> valuesOld = new ArrayList<>();
+
+					if (oldRecord != null) {
+						oldValue = oldRecord.get(i);
+						valuesOld = (ArrayList<String>) createAttributeValues(oldValue);
+						Collections.sort(valuesOld);
+					}
+
+					String newValue = newRecord.get(i);
+					ArrayList<String> valuesNew = (ArrayList<String>) createAttributeValues(newValue);
+					Collections.sort(valuesNew);
+
+					if (valuesOld.equals(valuesNew)) {
+						continue;
+					}
+
+					ArrayList<String> tmpList = new ArrayList<>();
+					tmpList.addAll(valuesNew);
+					tmpList.removeAll(valuesOld);
+
+					if (tmpList != null && !tmpList.isEmpty()) {
+
+						updateSyncHook(subjectOc, tmpList);
+					}
+
+					tmpList.clear();
+					tmpList.addAll(valuesOld);
+					tmpList.removeAll(valuesNew);
+
+					if (tmpList != null && !tmpList.isEmpty()) {
+
+						updateSyncHook(subjectOc, tmpList);
+					}
+				}
+			}
+		}
+	}
+
+	private void updateSyncHook(String objectClassName, List<String> values ) {
+
+		if (syncHook.containsKey(objectClassName)) {
+
+			HashSet<String> idValues = syncHook.get(objectClassName);
+			idValues.addAll(values);
+			syncHook.put(objectClassName, idValues);
+		} else {
+
+			HashSet<String> idValues = new HashSet<>();
+			idValues.addAll(values);
+			syncHook.put(objectClassName, idValues);
+		}
+	}
+
 	private Map<String, CSVRecord> loadOldSyncFile(File oldCsv) {
 		Map<String, Column> header = initHeader(oldCsv);
 		if (!this.getHeader().equals(header)) {
@@ -973,8 +1281,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		Map<String, CSVRecord> oldData = new HashMap<>();
 
-		CSVFormat csv = Util.createCsvFormatReader(configuration);
-		try (Reader reader = Util.createReader(oldCsv, configuration)) {
+		CSVFormat csv = createCsvFormatReader(configuration);
+		try (Reader reader = createReader(oldCsv, configuration)) {
 			CSVParser parser = csv.parse(reader);
 			Iterator<CSVRecord> iterator = parser.iterator();
 			while (iterator.hasNext()) {
@@ -1004,7 +1312,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private void cleanupOldSyncFiles() {
-		String[] tokenFiles = Util.listTokenFiles(configuration);
+		String[] tokenFiles = listTokenFiles(configuration);
 		Arrays.sort(tokenFiles);
 
 		int preserve = configuration.getPreserveOldSyncFiles();
@@ -1025,31 +1333,86 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 	}
 
-	private SyncDelta doSyncCreateOrUpdate(CSVRecord newRecord, String newRecordUid, Map<String, CSVRecord> oldData,
-										   Set<String> oldUsedOids, SyncToken newSyncToken, SyncResultsHandler handler) {
-		SyncDelta delta;
+	private SyncDeltaType isCreateOrUpdateDelta(CSVRecord newRecord, String newRecordUid, Map<String, CSVRecord> oldData,
+												Set<String> oldUsedOids, SyncToken newSyncToken){
 
 		CSVRecord oldRecord = oldData.get(newRecordUid);
 		if (oldRecord == null) {
-			// newRecord is new account
-			delta = buildSyncDelta(SyncDeltaType.CREATE, newSyncToken, newRecord);
+
+			return SyncDeltaType.CREATE;
 		} else {
+			boolean buildDelta = false;
 			oldUsedOids.add(newRecordUid);
 
 			// this will be an update if records aren't equal
-			List old = Util.copyOf(oldRecord.iterator());
-			List _new = Util.copyOf(newRecord.iterator());
-			if (old.equals(_new)) {
+			List old = copyOf(oldRecord.iterator());
+			List _new = copyOf(newRecord.iterator());
+
+			if(syncHook!=null && !syncHook.isEmpty()) {
+				if (syncHook.containsKey(getObjectClassName())) {
+
+					HashSet<String> objectsToSync = syncHook.get(getObjectClassName());
+					if (objectsToSync.contains(newRecordUid)) {
+
+						objectsToSync.remove(newRecordUid);
+						buildDelta = true;
+					}
+				}
+			}
+
+			if (old.equals(_new) && !buildDelta) {
 				// record are equal, no update
 				return null;
 			}
 
-			delta = buildSyncDelta(SyncDeltaType.UPDATE, newSyncToken, newRecord);
+			return SyncDeltaType.UPDATE;
 		}
+	}
 
-		LOG.ok("Created delta {0}", delta);
+	private SyncDeltaObjectCandidate fetchCandidateForSyncDelta(CSVRecord newRecord, String newRecordUid,
+																Map<String, CSVRecord> oldData, Set<String> oldUsedOids,
+																SyncToken newSyncToken){
 
-		return delta;
+		SyncDeltaType deltaType
+				= isCreateOrUpdateDelta(newRecord, newRecordUid, oldData, oldUsedOids, newSyncToken);
+
+		if(deltaType == null){
+			return null;
+
+		} else {
+			SyncDeltaObjectCandidate deltaCandidate = buildSyncDeltaCandidate(deltaType, newSyncToken, newRecord);
+
+			if (associationHolders!=null && !associationHolders.isEmpty()){
+
+				CSVRecord oldRecord = oldData.get(newRecordUid);
+				evaluateAssociationData(oldRecord, newRecord);
+			}
+
+			return deltaCandidate;
+		}
+	}
+
+	private SyncDelta doSyncCreateOrUpdate(CSVRecord newRecord, String newRecordUid, Map<String, CSVRecord> oldData,
+										   Set<String> oldUsedOids, SyncToken newSyncToken) {
+
+		SyncDeltaType deltaType
+				= isCreateOrUpdateDelta(newRecord, newRecordUid, oldData, oldUsedOids, newSyncToken);
+
+		if(deltaType == null){
+			return null;
+		} else {
+			SyncDelta delta = buildSyncDelta(deltaType, newSyncToken, newRecord);
+
+			if (associationHolders!=null && !associationHolders.isEmpty()){
+
+				CSVRecord oldRecord = oldData.get(newRecordUid);
+				evaluateAssociationData(oldRecord, newRecord);
+			}
+
+			LOG.ok("Created delta {0}", delta);
+
+			return delta;
+		}
 	}
 
 	private int doSyncDeleted(Map<String, CSVRecord> oldData, Set<String> oldUsedOids, SyncToken newSyncToken,
@@ -1077,16 +1440,22 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return changesCount;
 	}
 
-	private SyncDelta buildSyncDelta(SyncDeltaType type, SyncToken token, CSVRecord record) {
+	private SyncDelta buildSyncDelta(SyncDeltaType type, SyncToken token, CSVRecord record){
 		SyncDeltaBuilder builder = new SyncDeltaBuilder();
 		builder.setDeltaType(type);
-		builder.setObjectClass(ObjectClass.ACCOUNT);
+		builder.setObjectClass(getObjectClass());
 		builder.setToken(token);
 
 		ConnectorObject object = createConnectorObject(record);
 		builder.setObject(object);
 
 		return builder.build();
+	}
+
+	private SyncDeltaObjectCandidate buildSyncDeltaCandidate(SyncDeltaType type, SyncToken token, CSVRecord record) {
+
+			return (SyncDeltaObjectCandidate) createConnectorObjectOrCandidateObject(record, false,
+					token, type);
 	}
 
 	private long getTokenValue(SyncToken token) {
@@ -1206,54 +1575,214 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return reversed;
 	}
 
-	private ConnectorObject createConnectorObject(CSVRecord record) {
-		ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
+	private ConnectorObject createConnectorObject(CSVRecord record , boolean omitAssociations) {
 
-		Map<Integer, String> header = reverseHeaderMap();
+		ConnectorObjectCandidate cc =  createConnectorObjectOrCandidateObject(record,
+				omitAssociations);
 
-		if (header.size() != record.size()) {
-			throw new ConnectorException("Number of columns in header (" + header.size()
-					+ ") doesn't match number of columns for record (" + record.size()
-					+ "). File row number: " + record.getRecordNumber());
+		return cc.getCandidateBuilder().build();
+	}
+
+	public ConnectorObject createConnectorObject(CSVRecord record) {
+
+		return createConnectorObject(record, true);
+	}
+
+	private String getObjectClassName() {
+		ObjectClass objectClass = getObjectClass();
+
+		if (ObjectClass.ACCOUNT.equals(objectClass)) {
+
+			return "account";
+		} else if (ObjectClass.GROUP.equals(objectClass)) {
+
+			return "group";
+		} else {
+			return objectClass.getObjectClassValue();
+		}
+	}
+
+	private void retrieveAssociationData(HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>>  candidates) {
+// TODO # A divide
+		Set<AssociationHolder> associationSet = associationHolders.get(getObjectClassName());
+
+		if (associationSet == null) {
+
+			return;
 		}
 
-		for (int i = 0; i < record.size(); i++) {
-			String name = header.get(i);
-			String value = record.get(i);
+		Map<ObjectClass, Set<String>> valuesPerObjectClass = new HashMap<>();
+		String objectClass = getObjectClassName();
+		Map<ObjectClass, ObjectClassHandler> availableHandlers;
+		Map<ObjectClassHandler, Set<CSVRecord>> recordSet = new HashMap<>();
+		Map<String, Set<AssociationHolder>> objectClassAndAttrs = null;
 
-			if (StringUtil.isEmpty(value)) {
-				continue;
-			}
+		for (ConnectorObjectId id : candidates.keySet()) {
+			Set<ObjectClass> relatedObjectClasses = id.getRelatedObjectClasses();
 
-			if (name.equals(configuration.getUniqueAttribute())) {
-				builder.setUid(value);
+			if (relatedObjectClasses != null) {
+				for (ObjectClass relatedObjectClass : relatedObjectClasses) {
 
-				if (!isUniqueAndNameAttributeEqual()) {
-					continue;
+					if (valuesPerObjectClass.containsKey(relatedObjectClass)) {
+						Set<String> values = valuesPerObjectClass.get(relatedObjectClass);
+						values.add(id.getId());
+					} else {
+						Set<String> values = new HashSet<>();
+						values.add(id.getId());
+						valuesPerObjectClass.put(relatedObjectClass, values);
+					}
+				}
+			} else {
+
+				if (valuesPerObjectClass.containsKey(id.getObjectClass())) {
+					Set<String> values = valuesPerObjectClass.get(id.getObjectClass());
+					values.add(id.getId());
+				} else {
+					Set<String> values = new HashSet<>();
+					values.add(id.getId());
+					valuesPerObjectClass.put(id.getObjectClass(), values);
 				}
 			}
+		}
+		for (AssociationHolder holder : associationSet) {
 
-			if (name.equals(configuration.getNameAttribute())) {
-				builder.setName(new Name(value));
-				continue;
-			}
-
-			if (name.equals(configuration.getPasswordAttribute())) {
-				builder.addAttribute(OperationalAttributes.PASSWORD_NAME, new GuardedString(value.toCharArray()));
-				continue;
-			}
-
-			if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
-
-				//TODO #A
-				associationHolders = getAssociationHolders();
+			String objectObjectCLassName = holder.getObjectObjectClassName();
+			if (objectObjectCLassName.equalsIgnoreCase(objectClass)) {
 
 				continue;
 			}
-			builder.addAttribute(name, createAttributeValues(value));
+
+			if (objectClassAndAttrs != null) {
+
+				Set<AssociationHolder> holders = objectClassAndAttrs.get(objectObjectCLassName);
+				if (holders != null) {
+
+					holders.add(holder);
+				} else {
+
+					holders = new HashSet<>();
+					holders.add(holder);
+				}
+			} else {
+
+				objectClassAndAttrs = new HashMap<>();
+				Set<AssociationHolder> holders = new HashSet<>();
+				holders.add(holder);
+				objectClassAndAttrs.put(objectObjectCLassName, holders);
+			}
+		}
+		if (objectClassAndAttrs != null) {
+
+			availableHandlers = getHandlers();
+
+			for (String objectClassName : objectClassAndAttrs.keySet()) {
+
+				Set<AssociationHolder> holders = objectClassAndAttrs.get(objectClassName);
+				Map<String, Set<String>> attrsAndValues = new HashMap<>();
+				ObjectClass evaluatedObjectClass;
+
+				if ("account".equals(objectClassName)) {
+					evaluatedObjectClass = ObjectClass.ACCOUNT;
+				} else {
+					evaluatedObjectClass = new ObjectClass(objectClassName);
+				}
+
+				for (AssociationHolder associationHolder : holders) {
+
+					if (AssociationCharacter.REFERS_TO.equals(associationHolder.getCharacter())) {
+
+						attrsAndValues.put(associationHolder.getAssociationAttributeName(),
+								valuesPerObjectClass.get(evaluatedObjectClass));
+					} else {
+
+						attrsAndValues.put(associationHolder.getValueAttributeName(),
+								valuesPerObjectClass.get(evaluatedObjectClass));
+					}
+				}
+
+				ObjectClassHandler associatedObjectClassHandler =
+						availableHandlers.get(new ObjectClass(objectClassName));
+
+				Set<CSVRecord> records = associatedObjectClassHandler.fetchCSVRecords(attrsAndValues);
+
+				if (records != null && !records.isEmpty()) {
+					if (recordSet.containsKey(associatedObjectClassHandler)) {
+
+						Set<CSVRecord> oldRcords = recordSet.get(associatedObjectClassHandler);
+						oldRcords.addAll(records);
+					} else {
+						recordSet.put(associatedObjectClassHandler, records);
+					}
+				}
+			}
 		}
 
-		return builder.build();
+		if (recordSet != null && !recordSet.isEmpty()) {
+			for (ObjectClassHandler objectClassHandler : recordSet.keySet()) {
+
+				Set<CSVRecord> records = recordSet.get(objectClassHandler);
+				HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> retrievedCandidates = new HashMap<>();
+				boolean shouldReiterate = false;
+				for (CSVRecord record : records) {
+					ConnectorObjectCandidate oc =
+							objectClassHandler.createConnectorObjectOrCandidateObject(record,
+									false);
+					ConnectorObjectId cid = oc.getId();
+					objectClassHandler.saturateCandidates(cid, retrievedCandidates, oc);
+
+					if (!shouldReiterate) {
+
+						shouldReiterate = objectClassHandler.appendToCandidateMap(oc, retrievedCandidates,
+								true);
+					} else {
+
+						objectClassHandler.appendToCandidateMap(oc, retrievedCandidates,
+								true);
+					}
+				}
+
+				if (shouldReiterate) {
+
+					objectClassHandler.reIterateCandidates(retrievedCandidates);
+				}
+
+				objectClassHandler.retrieveAssociationData(retrievedCandidates);
+
+				Set<ConnectorObjectCandidate> finalCandidateSet = new HashSet<>();
+				retrievedCandidates.values().forEach(val -> finalCandidateSet.addAll(val));
+				for (ConnectorObjectCandidate candidate : finalCandidateSet) {
+
+					candidate.evaluateDependencies();
+					if (candidate.complete()) {
+						if (candidates.containsKey(candidate.getId())) {
+							Set<ConnectorObjectCandidate> candidateSet = candidates.get(candidate.getId());
+
+							for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
+
+								candidateFromSet.addCandidateUponWhichThisDepends(candidate);
+							}
+
+						} else if (!candidate.getSubjectIdsToBeProcessed().isEmpty()) {
+
+							Set<ConnectorObjectId> idSet = candidate.getSubjectIdsToBeProcessed();
+							for (ConnectorObjectId id : idSet) {
+
+								if (candidates.containsKey(id)) {
+									Set<ConnectorObjectCandidate> candidateSet = candidates.get(id);
+
+									for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
+
+										candidateFromSet.addCandidateUponWhichThisDepends(candidate);
+									}
+								}
+							}
+						}
+					} else {
+						//TODO # A what happens if this is false? Exception ?
+					}
+				}
+			}
+		}
 	}
 
 	private boolean isUniqueAndNameAttributeEqual() {
@@ -1285,7 +1814,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
 					   OperationOptions oo) {
 
-		Util.notNull(uid, "Uid must not be null");
+		notNull(uid, "Uid must not be null");
 
 		if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
 				&& attributes.isEmpty()) {
@@ -1296,20 +1825,20 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		attributes = normalize(attributes);
 
-		FileLock lock = Util.obtainTmpFileLock(configuration);
+		FileLock lock = obtainTmpFileLock(configuration);
 		Reader reader = null;
 		Writer writer = null;
 		try {
 			synchronized (CsvConnector.SYNCH_FILE_LOCK) {
-				reader = Util.createReader(configuration);
+				reader = createReader(configuration);
 				writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
 
 				boolean found = false;
 
-				CSVFormat csv = Util.createCsvFormat(configuration);
+				CSVFormat csv = createCsvFormat(configuration);
 				CSVParser parser = csv.parse(reader);
 
-				csv = Util.createCsvFormat(configuration);
+				csv = createCsvFormat(configuration);
 				CSVPrinter printer = csv.print(writer);
 
 				Iterator<CSVRecord> iterator = parser.iterator();
@@ -1356,7 +1885,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
 		} finally {
-			Util.cleanupResources(writer, reader, lock, configuration);
+			cleanupResources(writer, reader, lock, configuration);
 		}
 		return uid;
 	}
@@ -1442,7 +1971,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						index = getHeader().get(name).getIndex();
 					}
 
-					String value = Util.createRawValue(attribute, configuration);
+					String value = createRawValue(attribute, configuration);
 					result[index] = value;
 				}
 				break;
@@ -1466,18 +1995,72 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
 					List<Object> updated = Operation.ADD_ATTR_VALUE.equals(operation) ?
-							Util.addValues(current, attribute.getValue()) :
-							Util.removeValues(current, attribute.getValue());
+							addValues(current, attribute.getValue()) :
+							removeValues(current, attribute.getValue());
 
 					if (isUid(name) && updated.size() != 1) {
 						throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
 					}
 
-					String value = Util.createRawValue(updated, configuration);
+					String value = createRawValue(updated, configuration);
 					result[index] = value;
 				}
 		}
 
 		return Arrays.asList(result);
+	}
+
+	public Map<ObjectClass ,ObjectClassHandler> getHandlers() {
+		return handlers;
+	}
+
+	public void setHandlers(Map<ObjectClass ,ObjectClassHandler> handlers) {
+		this.handlers = handlers;
+	}
+
+	public Set<CSVRecord> fetchCSVRecords(Map<String, Set<String>> attributeAndValues) {
+		CSVFormat csv = createCsvFormatReader(configuration);
+
+		Set<CSVRecord> recordSet = new HashSet<>();
+		try (Reader reader = createReader(configuration)) {
+
+			CSVParser parser = csv.parse(reader);
+			Iterator<CSVRecord> iterator = parser.iterator();
+			while (iterator.hasNext()) {
+				CSVRecord record = iterator.next();
+				if (skipRecord(record)) {
+					continue;
+				}
+				Map<Integer, String> header = reverseHeaderMap();
+
+				for (int i = 0; i < record.size(); i++) {
+					String name = header.get(i);
+					String value = record.get(i);
+					ArrayList<String> values = (ArrayList<String>) createAttributeValues(value);
+
+					if (attributeAndValues.containsKey(name)) {
+
+						Set<String> searchedValues = attributeAndValues.get(name);
+						boolean isMatch = !Collections.disjoint(values, searchedValues);
+						if (isMatch){
+
+							recordSet.add(record);
+							break;
+						}
+					}
+				}
+			}
+		} catch (Exception ex) {
+			handleGenericException(ex, "Error during query execution");
+		}
+		return recordSet;
+	}
+
+	public void setAssociationHolders(Map<String, HashSet<AssociationHolder>> associationHolders) {
+		this.associationHolders = associationHolders;
+	}
+
+	public void setSyncHook(Map<String, HashSet<String>> syncHook) {
+		this.syncHook = syncHook;
 	}
 }

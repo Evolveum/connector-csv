@@ -14,6 +14,7 @@ import org.identityconnectors.framework.common.exceptions.ConfigurationException
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
 import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeUtil;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
@@ -40,6 +41,10 @@ public class Util {
     public static final String DEFAULT_COLUMN_NAME = "col";
 
     public static final String UTF8_BOM = "\uFEFF";
+
+    public static final String ASSOC_ATTR_GROUP ="group";
+
+    public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
 
     public static void closeQuietly(Closeable closeable) {
         if (closeable == null) {

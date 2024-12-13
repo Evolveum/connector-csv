@@ -5,10 +5,7 @@ import static org.testng.AssertJUnit.assertEquals;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.apache.commons.io.FileUtils;
 import org.identityconnectors.common.logging.Log;
@@ -320,5 +317,236 @@ public class SyncOpTest extends BaseTest {
         LOG.info("New token is {0}", newToken);
 
         return newToken;
+    }
+
+    @Test
+    public void sync_ALL_WithSimpleAccountAndGroupAssociationsTest() throws Exception {
+
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setNameAttribute("id");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values = Set.of(
+                "\"account\"+id -# \"group\"+members-test",
+                "\"account\"+id -# \"group\"+members-default",
+                "\"account\"+id -# \"group\"+members-admin"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groupsAccessParameters.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groupsAccessParameters.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-access.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-access.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
+
+        File oldSyncFile = new File("./target/groups-access.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "groups-access.csv.sync.1300734815289"), oldSyncFile);
+
+        File oldDataSyncFile = new File("./target/data.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "data.csv.sync.1300734815289"), oldDataSyncFile);
+
+        try {
+
+            final List<SyncDelta> deltas = new ArrayList<>();
+            connector.sync(ObjectClass.ALL, new SyncToken("1300734815289"), delta -> {
+                deltas.add(delta);
+                return true;
+            }, null);
+
+            Map<ObjectClass, Map<String, Set<Uid>>> mapOfReferencedObjectsBySubject = new HashMap<>();
+            mapOfReferencedObjectsBySubject.put(ObjectClass.ACCOUNT, Map.of("2", Set.of(new Uid("1"))));
+
+
+            for (SyncDelta delta : deltas) {
+                ConnectorObject o = delta.getObject();
+                Uid uid = o.getUid();
+                ObjectClass oc = o.getObjectClass();
+                String uidVal = uid.getUidValue();
+
+                if (mapOfReferencedObjectsBySubject.containsKey(oc)) {
+                    Map<String, Set<Uid>> objectsByObjectClass = mapOfReferencedObjectsBySubject.get(oc);
+                    if (objectsByObjectClass.containsKey(uidVal)) {
+                        Set<Uid> referencedUidList = objectsByObjectClass.get(uidVal);
+                        objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
+                                null);
+                    }
+                }
+            }
+
+            AssertJUnit.assertEquals(3, deltas.size());
+
+        } finally {
+            CsvTestUtil.deleteAllSyncFiles();
+        }
+    }
+    @Test
+    public void sync_ALL_WithComplexAccountAndGroupAssociationsTest() throws Exception {
+
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setNameAttribute("id");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values = Set.of(
+                "\"account\"+id -# \"access\"+subject_id",
+                "\"access\"+object_id #- \"group\"+id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groupsAndAccessObjectClass.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groupsAndAccessObjectClass.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-no-member.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-no-member.csv"), groupsCsv);
+
+        File accessCsv = new File("./target/access.csv");
+        accessCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/access.csv"), accessCsv);
+
+        ConnectorFacade connector = setupConnector("/schema-repeating-column.csv", config);
+
+        File oldSyncFile = new File("./target/access.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "access.csv.sync.1300734815289"), oldSyncFile);
+
+        File oldAccountDataSyncFile = new File("./target/data.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "data.csv.sync.1300734815289"), oldAccountDataSyncFile);
+
+        File oldgroupSyncFile = new File("./target/groups-no-member.csv.sync.1300734815289");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "groups-no-member.csv.sync.1300734815289"), oldgroupSyncFile);
+
+        try {
+
+            final List<SyncDelta> deltas = new ArrayList<>();
+            connector.sync(ObjectClass.ALL, new SyncToken("1300734815289"), delta -> {
+                deltas.add(delta);
+                return true;
+            }, null);
+
+            Map<ObjectClass, Map<String, Object>> mapOfReferencedObjectsBySubject = new HashMap<>();
+            mapOfReferencedObjectsBySubject.put(new ObjectClass("access"), Map.of("2", Set.of(new Uid("1"))));
+            mapOfReferencedObjectsBySubject.put(ObjectClass.ACCOUNT, Map.of("1", Map.of(new Uid("1"),
+                    Set.of(new Uid("1")))));
+            mapOfReferencedObjectsBySubject.put(ObjectClass.ACCOUNT, Map.of("2", Map.of(new Uid("2"),
+                    Set.of(new Uid("1")), new Uid("3"), Set.of(new Uid("1")))));
+
+            for (SyncDelta delta : deltas) {
+                ConnectorObject o = delta.getObject();
+                Uid uid = o.getUid();
+                ObjectClass oc = o.getObjectClass();
+                String uidVal = uid.getUidValue();
+
+                if (mapOfReferencedObjectsBySubject.containsKey(oc)) {
+
+                    Map<String, Object> objectsByObjectClassWithAssociationId =
+                            mapOfReferencedObjectsBySubject.get(oc);
+                    if (objectsByObjectClassWithAssociationId.containsKey(uidVal)) {
+                        Object referencedUidList = objectsByObjectClassWithAssociationId.get(uidVal);
+
+                        if (referencedUidList instanceof Map<?, ?>) {
+                            objectContainsReferenceToObject(o, new ObjectClass("access"), new ObjectClass("group"),
+                                    (Map<Uid, Set<Uid>>) referencedUidList, null);
+                        } else {
+                            objectContainsReferenceToObject(o, new ObjectClass("group"),
+                                    (Set<Uid>) referencedUidList, null);
+                        }
+                    }
+                }
+            }
+
+            AssertJUnit.assertEquals(3, deltas.size());
+
+        } finally {
+            CsvTestUtil.deleteAllSyncFiles();
+        }
+    }
+    @Test
+    public void sync_ALL_WithAccountsNativeAssociationsMemberOf() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setNameAttribute("id");
+        config.setMultivalueDelimiter(",");
+        config.setMultivalueAttributes("memberOf");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values = Set.of(
+                "\"account\"+memberOf -# \"group\"+id",
+                "\"group\"+memberOf -# \"group\"+id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groups-memberOf.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-memberOf.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/account-memberOf.csv", config);
+
+        File oldAccountDataSyncFile = new File("./target/data.csv.sync.1300734815299");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "data.csv.sync.1300734815299"), oldAccountDataSyncFile);
+
+        File oldgroupSyncFile = new File("./target/groups-memberOf.csv.sync.1300734815299");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "groups-memberOf.csv.sync.1300734815299"), oldgroupSyncFile);
+
+        try {
+            final List<SyncDelta> deltas = new ArrayList<>();
+            connector.sync(ObjectClass.ALL, new SyncToken("1300734815299"), delta -> {
+                deltas.add(delta);
+                return true;
+            }, null);
+
+            AssertJUnit.assertEquals(6, deltas.size());
+
+            SyncToken token = deltas.get(0).getToken();
+
+            Map<String, SyncDelta> deltaMap = createSyncDeltaTestMap(token);
+
+            Map<ObjectClass, Map<String, Set<Uid>>> mapOfReferencedObjectsBySubject = new HashMap<>();
+            mapOfReferencedObjectsBySubject.put(ObjectClass.ACCOUNT, Map.of("123", Set.of(new Uid("2"),
+                    new Uid("1"))));
+            mapOfReferencedObjectsBySubject.put(ObjectClass.ACCOUNT, Map.of("111", Set.of(new Uid("4"),
+                    new Uid("5"))));
+
+            mapOfReferencedObjectsBySubject.put(new ObjectClass("group"), Map.of("3", Set.of(new Uid("2"),
+                    new Uid("5"))));
+            mapOfReferencedObjectsBySubject.put(new ObjectClass("group"), Map.of("4",
+                    Set.of(new Uid("2"))));
+            mapOfReferencedObjectsBySubject.put(new ObjectClass("group"), Map.of("5",
+                    Set.of(new Uid("2"))));
+
+
+            for (SyncDelta delta : deltas) {
+                ConnectorObject o = delta.getObject();
+                Uid uid = o.getUid();
+                ObjectClass oc = o.getObjectClass();
+                String uidVal = uid.getUidValue();
+
+                if (mapOfReferencedObjectsBySubject.containsKey(oc)) {
+                    Map<String, Set<Uid>> objectsByObjectClass = mapOfReferencedObjectsBySubject.get(oc);
+                    if (objectsByObjectClass.containsKey(uidVal)) {
+                        Set<Uid> referencedUidList = objectsByObjectClass.get(uidVal);
+                        objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
+                                null);
+                    }
+                }
+            }
+        } finally {
+            CsvTestUtil.deleteAllSyncFiles();
+        }
     }
 }
