@@ -384,6 +384,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		Reader reader = null;
 		Writer writer = null;
 		try {
+			Set<ReferenceDataPayload> referenceDataPayload = new HashSet<>();
+
 			synchronized (CsvConnector.SYNCH_FILE_LOCK) {
 				reader = createReader(configuration);
 				writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
@@ -415,6 +417,24 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					printer.printRecord(record);
 				}
 
+
+				ReferenceDataDeliveryVector referenceDataDeliveryVector = null;
+
+				Attribute referenceAttribute = null;
+				if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+
+					referenceAttribute = getAttributeByName(ASSOC_ATTR_GROUP, attributes);
+
+					if (referenceAttribute != null) {
+						referenceDataDeliveryVector = determineReferenceDataDeliveryVector(referenceAttribute);
+					}
+				}
+
+				if(referenceDataDeliveryVector != null) {
+					referenceDataPayload = createReferenceDataFromAttributes(referenceDataDeliveryVector, attributes,
+							referenceAttribute);
+				}
+
 				printer.printRecord(createNewRecord(attributes));
 
 				writer.close();
@@ -422,6 +442,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				moveTmpToOrig();
 			}
+
+			updateReferences(Operation.ADD_ATTR_VALUE, referenceDataPayload);
+
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' create");
 		} finally {
@@ -429,6 +452,116 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		return uid;
+	}
+
+	private void updateReferences(Operation operation, Set<ReferenceDataPayload> referenceDataPayload ){
+		if(referenceDataPayload!=null && !referenceDataPayload.isEmpty()) {
+// TODO # A prototype
+			for (ReferenceDataPayload dataPayload : referenceDataPayload) {
+
+				ObjectClass objectClass = dataPayload.getReferenceDataDeliveryVector().getObjectClass();
+
+				if (!getObjectClass().equals(objectClass)) {
+					Map<ObjectClass, ObjectClassHandler> handlers = getHandlers();
+					ObjectClassHandler handler = handlers.get(objectClass);
+
+					handler.update(operation, objectClass, new Uid(dataPayload.getObjectId()),
+							Set.of(dataPayload.getAttribute()), null);
+				} else {
+
+					update(operation, objectClass, new Uid(dataPayload.getObjectId()),
+							Set.of(dataPayload.getAttribute()), null);
+				}
+			}
+		}
+
+	}
+
+	private Set<ReferenceDataPayload> createReferenceDataFromAttributes(
+			ReferenceDataDeliveryVector referenceDataDeliveryVector, Set<Attribute> attributes,
+			Attribute referenceAttribute) {
+
+		Set<ReferenceDataPayload> referenceDataPayload = new HashSet<>();
+		Iterator<Attribute> attributeIterator = attributes.iterator();
+
+		while(attributeIterator.hasNext()) {
+			Attribute attribute = attributeIterator.next();
+
+			if (ASSOC_ATTR_GROUP.equals(attribute.getName())) {
+				attributeIterator.remove();
+				break;
+			}
+
+		}
+
+		String valueAttributeName = referenceDataDeliveryVector.getIdentificatorAttributeName();
+
+		Set<String> referencedObjectIds = getReferenceData(valueAttributeName, referenceAttribute);
+
+		if (referenceDataDeliveryVector.originIsRecipient()) {
+
+			AttributeBuilder attributeBuilder = new AttributeBuilder()
+					.setName(referenceDataDeliveryVector.getAttributeName())
+					.addValue(referencedObjectIds);
+
+			attributes.add(attributeBuilder.build());
+
+		} else {
+			Attribute attribute = getAttributeByName(referenceDataDeliveryVector.getIdentificatorAttributeName(),
+					attributes);
+			for (String id : referencedObjectIds) {
+
+				AttributeBuilder attributeBuilder = new AttributeBuilder()
+						.setName(referenceDataDeliveryVector.getAttributeName())
+						.addValue(attribute.getValue());
+
+				referenceDataPayload.add(new ReferenceDataPayload(id, attributeBuilder.build(),
+						referenceDataDeliveryVector));
+			}
+		}
+		return referenceDataPayload;
+	}
+
+	private Set<String> getReferenceData(String valueAttributeName, Attribute referenceAttribute) {
+		Set<String> referenceData = new HashSet<>();
+		List<Object> references = referenceAttribute.getValue();
+
+		for (Object o : references) {
+
+			if (o instanceof ConnectorObjectReference) {
+				BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
+				Set<Attribute> attributeSet = bco.getAttributes();
+				Attribute attribute = attributeSet.stream().
+						filter(a -> a.getName().equals(valueAttributeName)).
+						findAny().
+						get();
+
+				List<Object> referenceValues = attribute.getValue();
+
+				for (Object object : referenceValues) {
+					if (object instanceof String) {
+
+						referenceData.add((String) object);
+					}
+				}
+			}
+		}
+		return referenceData;
+	}
+
+	private Attribute getAttributeByName(String name, Set<Attribute> attributes) {
+
+		try {
+			Attribute attribute = attributes.stream()
+					.filter(a -> name.equals(a.getName()))
+					.findFirst()
+					.get();
+			return attribute;
+
+		} catch (NoSuchElementException e) {
+
+			return null;
+		}
 	}
 
 	private void moveTmpToOrig() throws IOException {
@@ -452,7 +585,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private List<Object> createNewRecord(Set<Attribute> attributes) {
 		final Object[] record = new Object[getHeader().size()];
-
 		Attribute nameAttr = AttributeUtil.getNameFromAttributes(attributes);
 		Object name = nameAttr != null ? AttributeUtil.getSingleValue(nameAttr) : null;
 
@@ -473,6 +605,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			} else if (isUid(column)) {
 				value = uid;
 			} else {
+
 				Attribute attr = AttributeUtil.find(column, attributes);
 				if (attr == null) {
 					continue;
@@ -485,6 +618,68 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		return Arrays.asList(record);
+	}
+
+	private ReferenceDataDeliveryVector determineReferenceDataDeliveryVector(Attribute referenceAttribute) {
+
+		// TODO # A Review, based on the ReferenceDataDeliveryVector determine if the curent attr list should be
+		// augmented by the reference values or an update of another object is triggered
+
+		List<Object> objectList = referenceAttribute.getValue();
+		ObjectClass referencedOc = null;
+		if (objectList.size() > 0) {
+
+			Object o = objectList.get(0);
+
+			if (o instanceof ConnectorObjectReference) {
+				BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
+				referencedOc = bco.getObjectClass();
+			} else {
+
+				throw new ConnectorException("Reference attribute " + referenceAttribute.getName() + " is of not supported object type.");
+			}
+		}
+
+		String currentObjectClassName = getObjectClassName();
+
+		if (referencedOc != null) {
+
+			if (associationHolders.containsKey(currentObjectClassName)) {
+				HashSet<AssociationHolder> holders = associationHolders.get(currentObjectClassName);
+
+				String referenceObjectClassName = referencedOc.getObjectClassValue();
+				for (AssociationHolder holder : holders) {
+					Boolean isRecipient = referenceObjectClassName.equals(holder.getSubjectObjectClassName());
+					String objectObjectClassName = holder.getObjectObjectClassName();
+					if (objectObjectClassName.equals(referencedOc.getObjectClassValue())) {
+
+						String referenceAttrName = holder.getValueAttributeName();
+						String identificatorAttributeName = holder.getAssociationAttributeName();
+
+						String uniqueAttrName = configuration.getUniqueAttribute();
+						if (!getObjectClassName().equals(objectObjectClassName)) {
+
+							Map<ObjectClass, ObjectClassHandler> handlerMap = getHandlers();
+							ObjectClassHandler handler = handlerMap.get(new ObjectClass(objectObjectClassName));
+							uniqueAttrName = handler.configuration.getUniqueAttribute();
+						}
+
+						if (uniqueAttrName.equals(referenceAttrName)) {
+							referenceAttrName = holder.getAssociationAttributeName();
+//							identificatorAttributeName = holder.getValueAttributeName();
+							identificatorAttributeName = Uid.NAME;
+							isRecipient = true;
+						}
+// TODO # A review
+						return new ReferenceDataDeliveryVector(referencedOc, isRecipient , referenceAttrName, identificatorAttributeName);
+					}
+				}
+			}
+		} else {
+
+			throw new ConnectorException("The value of reference attribute " + referenceAttribute.getName() + " does not contain an object class.");
+		}
+		return null;
 	}
 
 	private String findUidValue(Set<Attribute> attributes) {
@@ -685,7 +880,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				if (skipRecord(record)) {
 					continue;
 				}
-
 				ConnectorObjectCandidate ob = createConnectorObjectOrCandidateObject(record, false);
 
 				if (processedAndReferencedCandidates.containsKey(ob.getId())) {
@@ -757,7 +951,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				}
 				if(!nonCompleteCandidates.isEmpty()){
 
-					reIterateCandidates(nonCompleteCandidates, candidatesToProcess, processedAndReferencedCandidates);
+					reIterateCandidates(nonCompleteCandidates, candidatesToProcess,
+							processedAndReferencedCandidates);
 				}
 			}
 
@@ -819,6 +1014,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		for (int i = 0; i < record.size(); i++) {
 			String name = header.get(i);
 			String value = record.get(i);
+			boolean addAttributeToBuilder = true;
 
 			if (StringUtil.isEmpty(value)) {
 				continue;
@@ -876,6 +1072,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 													ObjectClass.ACCOUNT : new ObjectClass(subjectObjectClassName)));
 								}
 							}
+							addAttributeToBuilder = false;
 						}
 					}
 				}
@@ -904,7 +1101,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				continue;
 			}
 
-			builder.addAttribute(name, createAttributeValues(value));
+			if(addAttributeToBuilder) {
+
+				builder.addAttribute(name, createAttributeValues(value));
+			}
 		}
 
 		ConnectorObjectId cid = new ConnectorObjectId(uid, getObjectClass(), relationToObjectClasses);
@@ -1618,6 +1818,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			return objectClass.getObjectClassValue();
 		}
 	}
+//	private void retrieveAssociationData(HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>>  candidates) {
+//
+//		retrieveAssociationData(candidates, 0);
+//	}
 
 	private void retrieveAssociationData(HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>>  candidates) {
 // TODO # A divide
@@ -1741,9 +1945,19 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> retrievedCandidates = new HashMap<>();
 				boolean shouldReiterate = false;
 				for (CSVRecord record : records) {
-					ConnectorObjectCandidate oc =
-							objectClassHandler.createConnectorObjectOrCandidateObject(record,
-									false);
+					ConnectorObjectCandidate oc;
+
+//					if(immersion<=configuration.getMaxImmersion()){
+
+						oc = objectClassHandler.createConnectorObjectOrCandidateObject(record,
+								false);
+//					} else {
+//
+//						oc = objectClassHandler.createConnectorObjectOrCandidateObject(record,
+//								true);
+//					}
+
+
 					ConnectorObjectId cid = oc.getId();
 					objectClassHandler.saturateCandidates(cid, retrievedCandidates, oc);
 
@@ -1868,6 +2082,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		Reader reader = null;
 		Writer writer = null;
 		try {
+			Set<ReferenceDataPayload> referenceDataPayload = new HashSet<>();
+
 			synchronized (CsvConnector.SYNCH_FILE_LOCK) {
 				reader = createReader(configuration);
 				writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
@@ -1902,6 +2118,23 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					found = true;
 
 					if (!Operation.DELETE.equals(operation)) {
+						ReferenceDataDeliveryVector referenceDataDeliveryVector = null;
+
+						Attribute referenceAttribute = null;
+
+						if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+
+							referenceAttribute = getAttributeByName(ASSOC_ATTR_GROUP, attributes);
+
+							if (referenceAttribute != null) {
+								referenceDataDeliveryVector = determineReferenceDataDeliveryVector(referenceAttribute);
+							}
+							if(referenceDataDeliveryVector != null) {
+								referenceDataPayload = createReferenceDataFromAttributes(referenceDataDeliveryVector, attributes,
+										referenceAttribute);
+							}
+						}
+
 						List<Object> updated = updateObject(operation, data, attributes);
 
 						int uidIndex = this.getHeader().get(configuration.getUniqueAttribute()).getIndex();
@@ -1921,6 +2154,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				moveTmpToOrig();
 			}
+			updateReferences(operation, referenceDataPayload);
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
 		} finally {
@@ -1975,6 +2209,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             }
 
 			if (!columns.contains(attrName)) {
+				///TODO # A what if csv has native attribute called group?
+				if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+					if (ASSOC_ATTR_GROUP.equals(attribute.getName())) {
+						continue;
+					}
+				}
 				throw new ConnectorException("Unknown attribute " + attrName);
 			}
 

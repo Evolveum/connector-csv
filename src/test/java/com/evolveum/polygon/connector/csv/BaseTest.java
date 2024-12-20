@@ -7,13 +7,11 @@ import org.identityconnectors.framework.api.ConnectorFacadeFactory;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.test.common.TestHelpers;
 import org.testng.AssertJUnit;
+import org.w3c.dom.Attr;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 import static org.testng.AssertJUnit.assertEquals;
@@ -32,6 +30,8 @@ public abstract class BaseTest {
     public static final String ATTR_FIRST_NAME = "firstName";
     public static final String ATTR_LAST_NAME = "lastName";
     public static final String ATTR_PASSWORD = "password";
+    public static final String ATTR_REFERENCE_GROUP = "group";
+    public static final String ATTR_MEMBER_OF = "memberOf";
 
     protected CsvConfiguration createConfiguration() {
         return createConfigurationNameEqualsUid();
@@ -99,8 +99,41 @@ public abstract class BaseTest {
             Attribute realAttr = object.getAttributeByName(name);
             assertNotNull(realAttr);
 
-            assertEquals(expValues, realAttr.getValue());
+            List<String> expReferenceValues = getValuesFromReferenceAttribute(expValues);
+            List<String> realReferenceValues = getValuesFromReferenceAttribute(realAttr.getValue());
+
+            if (expReferenceValues != null && realReferenceValues != null) {
+                assertEquals(expReferenceValues, realReferenceValues);
+            } else {
+                assertEquals(expValues, realAttr.getValue());
+            }
         }
+    }
+
+   private List<String> getValuesFromReferenceAttribute(List<Object> values){
+
+        List<String> referenceValues = new ArrayList<>();
+
+        for (Object value : values) {
+
+            if (value instanceof ConnectorObjectReference) {
+                BaseConnectorObject bco = ((ConnectorObjectReference) value).getValue();
+                Attribute attribute = bco.getAttributeByName(Uid.NAME);
+                List<Object> idValues = attribute.getValue();
+
+                for (Object o : idValues) {
+                    if (o instanceof Uid) {
+                        String idVal = ((Uid) o).getUidValue();
+                        referenceValues.add(idVal);
+                    }
+
+                }
+            } else {
+                return null;
+            }
+        }
+
+        return referenceValues;
     }
 
     protected Attribute createAttribute(String name, Object... values) {

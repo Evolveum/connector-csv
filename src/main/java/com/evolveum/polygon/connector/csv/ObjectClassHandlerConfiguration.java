@@ -63,6 +63,8 @@ public class ObjectClassHandlerConfiguration {
 
     private DateFormat lastLoginDateFormatInstance;
 
+    private Integer maxImmersion= 2;
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -345,6 +347,13 @@ public class ObjectClassHandlerConfiguration {
         this.managedAssociationPairs = managedAssociationPairs;
     }
 
+    public Integer getMaxImmersion() {
+        return maxImmersion;
+    }
+
+    public void setMaxImmersion(Integer maximumImmersion) {
+        this.maxImmersion = maximumImmersion;
+    }
 
     public void validate() {
         LOG.ok("Validating configuration for {0}", objectClass);

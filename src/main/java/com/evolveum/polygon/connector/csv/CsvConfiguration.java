@@ -222,6 +222,16 @@ public class CsvConfiguration extends AbstractConfiguration {
         return config.getLastLoginDateFormat();
     }
 
+//    @ConfigurationProperty(
+//            displayMessageKey = "UI_MAX_IMMERSION",
+//            helpMessageKey = "UI_MAX_IMMERSION_HELP")
+//    public Integer getMaxImmersion() {
+//        return config.getMaxImmersion();
+//    }
+//    public void setMaxImmersion(Integer maxImmersion){
+//        config.setMaxImmersion(maxImmersion);
+//    }
+
     public void setLastLoginDateAttribute(String lastLoginDateAttribute) {
         config.setLastLoginDateAttribute(lastLoginDateAttribute);
     }

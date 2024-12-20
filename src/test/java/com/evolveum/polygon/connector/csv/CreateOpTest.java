@@ -1,6 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
 import com.evolveum.polygon.connector.csv.util.CsvTestUtil;
+import org.apache.commons.io.FileUtils;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
@@ -27,6 +28,7 @@ public class CreateOpTest extends BaseTest {
     private static final String NEW_FIRST_NAME = "viliam";
     private static final String NEW_LAST_NAME = "repan";
     private static final String NEW_PASSWORD = "asdf123";
+    private static final String NEW_REFERENCE_ID = "1";
 
     @Test(expectedExceptions = ConnectorException.class)
     public void readOnlyMode() throws Exception {
@@ -259,5 +261,85 @@ public class CreateOpTest extends BaseTest {
 
         Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), NEW_UID);
         assertEquals(expectedRecord, realRecord);
+    }
+
+
+    @Test
+    public void createComplexAccountWithReferenceSameTable() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        config.setMultivalueAttributes("memberOf");
+
+        Set<String> values =Set.of(
+                "\"account\"+memberOf -# \"group\"+id",
+                "\"group\"+memberOf -# \"group\"+id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+
+        File groupsProperties = new File("./target/groups-memberOf.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.properties"), groupsProperties);
+
+        File groupsCsv = new File("./target/groups-memberOf.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/create-memberOf.csv", config);
+
+        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
+                NEW_REFERENCE_ID, null, new ObjectClass("group")));
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(ATTR_UID, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        attributes.add(createAttribute(ATTR_REFERENCE_GROUP, reference));
+        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+        assertNotNull(uid);
+        assertEquals(NEW_UID, uid.getUidValue());
+
+        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+        assertNotNull(newObject);
+        attributes = new HashSet<>();
+        attributes.add(new Name(NEW_UID));
+        attributes.add(createAttribute(Uid.NAME, NEW_UID));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, NEW_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
+        attributes.add(createAttribute(ATTR_REFERENCE_GROUP, reference));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, newObject);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, NEW_UID);
+        expectedRecord.put(ATTR_FIRST_NAME, NEW_FIRST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, NEW_PASSWORD);
+        expectedRecord.put(ATTR_LAST_NAME, NEW_LAST_NAME);
+        expectedRecord.put(ATTR_MEMBER_OF, NEW_REFERENCE_ID);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), NEW_UID);
+        assertEquals(expectedRecord, realRecord);
+    }
+
+
+    protected ConnectorObject buildConnectorObject(String name, String uid, Set<Attribute> attributes, ObjectClass objectClass) {
+        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+
+        cob.addAttribute((new AttributeBuilder().setName(Name.NAME).addValue(name)).build());
+        cob.addAttribute((new AttributeBuilder().setName(Uid.NAME).addValue(uid)).build());
+
+        if(attributes!=null) {
+            for (Attribute attribute : attributes) {
+                cob.addAttribute(attribute);
+            }
+        }
+
+        cob.setObjectClass(objectClass);
+
+        return cob.build();
     }
 }
