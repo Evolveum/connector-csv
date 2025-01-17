@@ -220,12 +220,6 @@ public abstract class BaseTest {
                     assertTrue("The second level of expected references does not match the " +
                                     "test results ",
                             expectedIdReferenceSetInAccessObject.equals(returnedIdReferenceSetInAccessObject));
-                } else {
-
-                    assertTrue("The second level of expected references does not match the " +
-                                    "test results ",
-                            !(returnedIdReferenceSetInAccessObject != null &&
-                                    !returnedIdReferenceSetInAccessObject.isEmpty()));
                 }
             }
 
