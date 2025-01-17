@@ -1,5 +1,7 @@
 package com.evolveum.polygon.connector.csv;
 
+import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
+import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertEquals;
 
@@ -375,7 +377,7 @@ public class SyncOpTest extends BaseTest {
                     if (objectsByObjectClass.containsKey(uidVal)) {
                         Set<Uid> referencedUidList = objectsByObjectClass.get(uidVal);
                         objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
-                                null);
+                                null, ASSOC_ATTR_GROUP);
                     }
                 }
             }
@@ -455,16 +457,16 @@ public class SyncOpTest extends BaseTest {
 
                         if (referencedUidList instanceof Map<?, ?>) {
                             objectContainsReferenceToObject(o, new ObjectClass("access"), new ObjectClass("group"),
-                                    (Map<Uid, Set<Uid>>) referencedUidList, null);
+                                    (Map<Uid, Set<Uid>>) referencedUidList, null, ASSOC_ATTR_ACCESS);
                         } else {
                             objectContainsReferenceToObject(o, new ObjectClass("group"),
-                                    (Set<Uid>) referencedUidList, null);
+                                    (Set<Uid>) referencedUidList, null, ASSOC_ATTR_GROUP);
                         }
                     }
                 }
             }
 
-            AssertJUnit.assertEquals(3, deltas.size());
+            AssertJUnit.assertEquals(4, deltas.size());
 
         } finally {
             CsvTestUtil.deleteAllSyncFiles();
@@ -541,7 +543,7 @@ public class SyncOpTest extends BaseTest {
                     if (objectsByObjectClass.containsKey(uidVal)) {
                         Set<Uid> referencedUidList = objectsByObjectClass.get(uidVal);
                         objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
-                                null);
+                                null, ASSOC_ATTR_GROUP);
                     }
                 }
             }

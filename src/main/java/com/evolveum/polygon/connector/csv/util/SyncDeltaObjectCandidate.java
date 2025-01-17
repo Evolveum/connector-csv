@@ -13,9 +13,9 @@ public class SyncDeltaObjectCandidate extends ConnectorObjectCandidate {
     public SyncDeltaObjectCandidate(ConnectorObjectId id, ConnectorObjectBuilder candidateBuilder,
                                     Set<ConnectorObjectId> associatedObjectIds,
                                     Set<ConnectorObjectId> subjectIdsToBeProcessed, SyncToken syncToken,
-                                    SyncDeltaType syncDeltaType) {
+                                    SyncDeltaType syncDeltaType, String referenceName) {
 
-        super(id, candidateBuilder, associatedObjectIds, subjectIdsToBeProcessed);
+        super(id, candidateBuilder, associatedObjectIds, subjectIdsToBeProcessed, referenceName);
         this.syncToken = syncToken;
         this.syncDeltaType = syncDeltaType;
     }

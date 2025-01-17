@@ -8,8 +8,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
-
 public class ConnectorObjectCandidate {
 
     private ConnectorObjectId id;
@@ -19,15 +17,17 @@ public class ConnectorObjectCandidate {
     private Set<ConnectorObjectId> alreadyProcessedObjectIds = new HashSet<>();
     private Set<ConnectorObjectId> objectIdsToBeProcessed;
     private Set<ConnectorObjectId> subjectIdsToBeProcessed;
+    private String referenceName;
     private boolean isComplete = false;
 
 
     public ConnectorObjectCandidate(ConnectorObjectId id, ConnectorObjectBuilder candidateBuilder, Set<ConnectorObjectId> associatedObjectIds,
-                                    Set<ConnectorObjectId> subjectIdsToBeProcessed) {
+                                    Set<ConnectorObjectId> subjectIdsToBeProcessed, String referenceName) {
         this.id = id;
         this.candidateBuilder = candidateBuilder;
         this.objectIdsToBeProcessed = associatedObjectIds;
         this.subjectIdsToBeProcessed = subjectIdsToBeProcessed;
+        this.referenceName = referenceName;
     }
 
 
@@ -66,7 +66,7 @@ public class ConnectorObjectCandidate {
         if (objectIdsToBeProcessed.isEmpty()) {
 
             if (!referencedObjects.isEmpty()) {
-                candidateBuilder.addAttribute(AttributeBuilder.build(ASSOC_ATTR_GROUP, referencedObjects));
+                candidateBuilder.addAttribute(AttributeBuilder.build(referenceName, referencedObjects));
             }
             isComplete = true;
             return true;

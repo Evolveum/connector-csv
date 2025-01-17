@@ -422,27 +422,53 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
     }
 
     private void generateAssociationHolders() {
+
         String[] associationPairs = configuration.getManagedAssociationPairs();
+        Set<String[]> obtainArrays = new HashSet<>();
+        Set<String[]> refersArrays = null;
+        boolean isAccess = false;
+
         for (String associationPair : associationPairs) {
 
             String[] pairArray;
             if (associationPair.contains(REFERS_TO.value)) {
 
                 pairArray = associationPair.split(REFERS_TO.value);
-                constructAssociationHolder(pairArray, REFERS_TO);
+                if (refersArrays == null) {
+                    refersArrays = new HashSet<>();
+                }
+
+                refersArrays.add(pairArray);
+//                constructAssociationHolder(pairArray, REFERS_TO);
             } else if (associationPair.contains(OBTAINS.value)) {
 
                 pairArray = associationPair.split(OBTAINS.value);
-                constructAssociationHolder(pairArray, OBTAINS);
+                obtainArrays.add(pairArray);
+//                constructAssociationHolder(pairArray, OBTAINS);
             } else {
 
                 throw new InvalidAttributeValueException("Association pair syntax contains none of the permitted " +
                         "delimiters \"" + REFERS_TO + "\", \"" + OBTAINS + " \"");
             }
         }
+
+
+        if (refersArrays != null) {
+
+            isAccess = true;
+            for (String[] refArray : refersArrays) {
+
+                constructAssociationHolder(refArray, REFERS_TO, false);
+            }
+        }
+
+        for (String[] obtainsArray : obtainArrays) {
+
+            constructAssociationHolder(obtainsArray, OBTAINS, isAccess);
+        }
     }
 
-    private void constructAssociationHolder(String[] pairArray, AssociationCharacter character) {
+    private void constructAssociationHolder(String[] pairArray, AssociationCharacter character, boolean access) {
         if (associationHolders == null) {
             associationHolders = new HashMap<>();
         }
@@ -505,13 +531,14 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                     if (OBTAINS.equals(character)) {
 
                         associationHolder.setCharacter(OBTAINS);
+                        associationHolder.setAccess(access);
                         associationHolder.setValueAttributeName(objectClassAndMemberAttributes[1].trim());
+
                     } else if (REFERS_TO.equals(character)) {
 
                         associationHolder.setCharacter(REFERS_TO);
                         associationHolder.setAssociationAttributeName(objectClassAndMemberAttributes[1].trim());
                     }
-
                 }
             }
         } else {
@@ -562,8 +589,6 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                 associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
             }
         }
-
-
     }
 
     private Map<String, HashSet<AssociationHolder>> getAssociationHolders() {

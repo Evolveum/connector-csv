@@ -2,7 +2,7 @@ package com.evolveum.polygon.connector.csv;
 
 import com.evolveum.polygon.connector.csv.util.ListResultHandler;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.lang3.ArrayUtils;
+
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -13,9 +13,8 @@ import org.testng.annotations.Test;
 
 import java.io.File;
 import java.util.*;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
+import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
 import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 
 /**
@@ -78,7 +77,8 @@ public class SearchOpTest extends BaseTest {
 
                 String uidVal = uid.getUidValue();
                 Set<Uid> referencedUidList = listOfReferencedObjectsBySubject.get(uidVal);
-                objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList, null);
+                objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
+                        null, ASSOC_ATTR_GROUP);
             }
         }
     }
@@ -130,7 +130,7 @@ public class SearchOpTest extends BaseTest {
                 String uidVal = uid.getUidValue();
                 Set<Uid> referencedUidList = listOfReferencedObjectsBySubject.get(uidVal);
                 objectContainsReferenceToObject(o, new ObjectClass("group"),
-                        referencedUidList, null);
+                        referencedUidList, null, ASSOC_ATTR_GROUP);
             }
 
         }
@@ -153,7 +153,8 @@ public class SearchOpTest extends BaseTest {
 
                 String uidVal = uid.getUidValue();
                 Set<Uid> referencedUidSet = listOfReferencedObjectsBySubject.get(uidVal);
-                objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidSet, null);
+                objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidSet,
+                        null, ASSOC_ATTR_GROUP);
             }
         }
         AssertJUnit.assertEquals(4, accountObjects.size());
@@ -193,7 +194,7 @@ public class SearchOpTest extends BaseTest {
         connector.search(new ObjectClass("group"), null, groupHandler, null);
 
         List<ConnectorObject> groupObjects = groupHandler.getObjects();
-        AssertJUnit.assertEquals(1, groupObjects.size());
+        AssertJUnit.assertEquals(2, groupObjects.size());
 
         ListResultHandler accountHandler = new ListResultHandler();
         connector.search(ObjectClass.ACCOUNT, null, accountHandler, null);
@@ -213,7 +214,7 @@ public class SearchOpTest extends BaseTest {
                 String uidVal = uid.getUidValue();
                 Map<Uid, Set<Uid>> referencedUidMap = listOfReferencedObjectsBySubject.get(uidVal);
                 objectContainsReferenceToObject(o, new ObjectClass("access"),
-                        new ObjectClass("group"), referencedUidMap, null);
+                        new ObjectClass("group"), referencedUidMap, null, ASSOC_ATTR_ACCESS);
             }
         }
         AssertJUnit.assertEquals(2, accountObjects.size());

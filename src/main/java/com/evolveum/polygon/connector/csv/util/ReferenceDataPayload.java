@@ -1,30 +1,27 @@
 package com.evolveum.polygon.connector.csv.util;
 
 import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClass;
+
+import java.util.Set;
 
 public class ReferenceDataPayload {
 
-    private Attribute attribute;
-    private String objectId;
-    private ReferenceDataDeliveryVector referenceDataDeliveryVector;
+    private Set<Attribute> attributes;
+    private ConnectorObjectId connectorObjectId;
 
-    public ReferenceDataPayload(String objectId, Attribute attribute,
-                                ReferenceDataDeliveryVector referenceDataDeliveryVector) {
-        this.objectId = objectId;
-        this.attribute = attribute;
-        this.referenceDataDeliveryVector = referenceDataDeliveryVector;
+    public ReferenceDataPayload(ConnectorObjectId connectorObjectId, Set<Attribute> attributes) {
+        this.connectorObjectId = connectorObjectId;
+        this.attributes = attributes;
+
     }
 
-    public Attribute getAttribute() {
-        return attribute;
+    public Set<Attribute> getAttributes() {
+        return attributes;
     }
 
-    public ReferenceDataDeliveryVector getReferenceDataDeliveryVector() {
-        return referenceDataDeliveryVector;
-    }
-
-    public String getObjectId() {
-        return objectId;
+    public ConnectorObjectId getConnectorObjectId() {
+        return connectorObjectId;
     }
 }

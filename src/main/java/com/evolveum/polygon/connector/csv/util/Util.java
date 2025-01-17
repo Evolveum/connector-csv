@@ -44,6 +44,7 @@ public class Util {
     public static final String UTF8_BOM = "\uFEFF";
 
     public static final String ASSOC_ATTR_GROUP ="group";
+    public static final String ASSOC_ATTR_ACCESS ="access";
 
     public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
 

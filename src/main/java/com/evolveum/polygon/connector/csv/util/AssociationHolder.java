@@ -8,6 +8,7 @@ public class AssociationHolder {
     private String valueAttributeName;
     private String subjectObjectClassName;
     private String objectObjectClassName;
+    private boolean isAccess = false;
     private AssociationCharacter character;
 
     public String getAssociationAttributeName() {
@@ -50,16 +51,24 @@ public class AssociationHolder {
         this.character = character;
     }
 
+    public void setAccess(boolean isAccess) {
+        this.isAccess = isAccess;
+    }
+
+    public boolean isAccess() {
+        return isAccess;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AssociationHolder holder = (AssociationHolder) o;
-        return Objects.equals(getAssociationAttributeName(), holder.getAssociationAttributeName()) && Objects.equals(getValueAttributeName(), holder.getValueAttributeName()) && Objects.equals(getSubjectObjectClassName(), holder.getSubjectObjectClassName()) && Objects.equals(getObjectObjectClassName(), holder.getObjectObjectClassName()) && getCharacter() == holder.getCharacter();
+        return isAccess() == holder.isAccess() && Objects.equals(getAssociationAttributeName(), holder.getAssociationAttributeName()) && Objects.equals(getValueAttributeName(), holder.getValueAttributeName()) && Objects.equals(getSubjectObjectClassName(), holder.getSubjectObjectClassName()) && Objects.equals(getObjectObjectClassName(), holder.getObjectObjectClassName()) && getCharacter() == holder.getCharacter();
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getAssociationAttributeName(), getValueAttributeName(), getSubjectObjectClassName(), getObjectObjectClassName(), getCharacter());
+        return Objects.hash(getAssociationAttributeName(), getValueAttributeName(), getSubjectObjectClassName(), getObjectObjectClassName(), isAccess(), getCharacter());
     }
 }

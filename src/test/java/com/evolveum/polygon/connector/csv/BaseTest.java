@@ -7,15 +7,14 @@ import org.identityconnectors.framework.api.ConnectorFacadeFactory;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.test.common.TestHelpers;
 import org.testng.AssertJUnit;
-import org.w3c.dom.Attr;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
 import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
-import static org.testng.AssertJUnit.assertEquals;
-import static org.testng.AssertJUnit.assertNotNull;
+import static org.testng.AssertJUnit.*;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -30,8 +29,23 @@ public abstract class BaseTest {
     public static final String ATTR_FIRST_NAME = "firstName";
     public static final String ATTR_LAST_NAME = "lastName";
     public static final String ATTR_PASSWORD = "password";
-    public static final String ATTR_REFERENCE_GROUP = "group";
     public static final String ATTR_MEMBER_OF = "memberOf";
+
+    public static final String ATTR_ID = "id";
+    public static final String ATTR_NAME = "name";
+    public static final String ATTR_TITLE = "title";
+    public static final String ATTR_EMPL = "empl";
+    public static final String ATTR_DESCRIPTION = "description";
+    public static final String ATTR_MEMBERS_TEST = "members-test";
+    public static final String ATTR_MEMBERS_DEFAULT = "members-default";
+    public static final String ATTR_MEMBERS_ADMIN = "members-admin";
+
+    public static final String ATTR_LEVEL = "level";
+    public static final String ATTR_SUBJECT_ID = "subject_id";
+    public static final String ATTR_OBJECT_ID = "object_id";
+
+    public static final String NEW_REFERENCE_ID = "1";
+    public static final String NEW_USER_UID = "3";
 
     protected CsvConfiguration createConfiguration() {
         return createConfigurationNameEqualsUid();
@@ -44,6 +58,15 @@ public abstract class BaseTest {
         config.setTmpFolder(null);
         config.setUniqueAttribute(ATTR_UID);
         config.setPasswordAttribute(ATTR_PASSWORD);
+        return config;
+    }
+
+    protected CsvConfiguration createConfigurationReferencedObjectClass(String filepath, String uniqueAttributeName) {
+        CsvConfiguration config = new CsvConfiguration();
+
+        config.setFilePath(new File(filepath));
+        config.setTmpFolder(null);
+        config.setUniqueAttribute(uniqueAttributeName);
         return config;
     }
 
@@ -88,7 +111,7 @@ public abstract class BaseTest {
         config.validate();
     }
 
-    protected void assertConnectorObject(Set<Attribute> expected, ConnectorObject object) {
+    protected void assertConnectorObject(Set<Attribute> expected, BaseConnectorObject object) {
         Set<Attribute> real = object.getAttributes();
         assertEquals(expected.size(), real.size());
 
@@ -99,18 +122,20 @@ public abstract class BaseTest {
             Attribute realAttr = object.getAttributeByName(name);
             assertNotNull(realAttr);
 
-            List<String> expReferenceValues = getValuesFromReferenceAttribute(expValues);
-            List<String> realReferenceValues = getValuesFromReferenceAttribute(realAttr.getValue());
+            List<String> expReferenceValues = getIdValuesFromReferenceAttribute(expValues);
+            List<String> realReferenceValues = getIdValuesFromReferenceAttribute(realAttr.getValue());
 
             if (expReferenceValues != null && realReferenceValues != null) {
                 assertEquals(expReferenceValues, realReferenceValues);
             } else {
-                assertEquals(expValues, realAttr.getValue());
+                assertEquals(expValues.size(), realAttr.getValue().size());
+                assertTrue(expValues.containsAll(realAttr.getValue()));
+                assertTrue(realAttr.getValue().containsAll(expValues));
             }
         }
     }
 
-   private List<String> getValuesFromReferenceAttribute(List<Object> values){
+   private List<String> getIdValuesFromReferenceAttribute(List<Object> values){
 
         List<String> referenceValues = new ArrayList<>();
 
@@ -142,7 +167,7 @@ public abstract class BaseTest {
 
     public void objectContainsReferenceToObject(ConnectorObject connectorObject,
                                                 ObjectClass objectClassOfReferencedObject, Set<Uid> uidOfReferencedObject,
-                                                String accessAttributeName ) {
+                                                String accessAttributeName, String referenceAttributeName ) {
 
         Map<Uid, Set<Uid>> uidsOfAccessAndReferencedObject = new HashMap<>();
 
@@ -151,20 +176,20 @@ public abstract class BaseTest {
         }
 
         objectContainsReferenceToObject(connectorObject, null, objectClassOfReferencedObject,
-                uidsOfAccessAndReferencedObject, accessAttributeName);
+                uidsOfAccessAndReferencedObject, accessAttributeName, referenceAttributeName);
     }
 
     public void objectContainsReferenceToObject(ConnectorObject connectorObject,
                                                 ObjectClass objectClassOfRelationObject,
                                                 ObjectClass objectClassOfReferencedObject,
                                                 Map<Uid, Set<Uid>> uidsOfAccessAndReferencedObject,
-                                                String accessAttributeName) {
+                                                String accessAttributeName, String referenceAttrName) {
 
         Set<Attribute> connectorObjectAttributeSet = connectorObject.getAttributes();
         Map<Uid, Set<Uid>> foundReferenceUidList = new HashMap<>();
 
         for (Attribute attribute : connectorObjectAttributeSet) {
-            if (ASSOC_ATTR_GROUP.equals(attribute.getName())) {
+            if (referenceAttrName.equals(attribute.getName())) {
                 List<Object> referenceList = attribute.getValue();
 
                 for (Object connectorObjectReference : referenceList) {
@@ -183,7 +208,7 @@ public abstract class BaseTest {
             Set<Uid> expectedSet = uidsOfAccessAndReferencedObject.keySet();
             Set<Uid> resultSet = foundReferenceUidList.keySet();
 
-            AssertJUnit.assertTrue("Returned object references do not match the expected result."
+            assertTrue("Returned object references do not match the expected result."
                     , expectedSet.equals(resultSet));
 
             for (Uid uid : uidsOfAccessAndReferencedObject.keySet()) {
@@ -192,18 +217,21 @@ public abstract class BaseTest {
 
                 if (expectedIdReferenceSetInAccessObject != null && !expectedIdReferenceSetInAccessObject.isEmpty()) {
 
-                    AssertJUnit.assertTrue("The second level of expected references does not match the " +
+                    assertTrue("The second level of expected references does not match the " +
                                     "test results ",
                             expectedIdReferenceSetInAccessObject.equals(returnedIdReferenceSetInAccessObject));
                 } else {
 
-                    //TODO check if returnedIdReferenceSetInAccessObject should be null || empty ?
+                    assertTrue("The second level of expected references does not match the " +
+                                    "test results ",
+                            !(returnedIdReferenceSetInAccessObject != null &&
+                                    !returnedIdReferenceSetInAccessObject.isEmpty()));
                 }
             }
 
         } else {
 
-            AssertJUnit.assertTrue("Object reference attributes present, where it shouldn't.",
+            assertTrue("Object reference attributes present, where it shouldn't.",
                     foundReferenceUidList.isEmpty());
         }
     }
@@ -223,12 +251,12 @@ public abstract class BaseTest {
 
         if (objectClassOfRelationObject != null) {
 
-            AssertJUnit.assertTrue("Expected object class '" + objectClassOfRelationObject.getObjectClassValue() +
+            assertTrue("Expected object class '" + objectClassOfRelationObject.getObjectClassValue() +
                             "' did not match the result '" + baseConnectorObject.getObjectClass().getObjectClassValue() + "'.",
                     objectClassOfRelationObject.equals(baseConnectorObject.getObjectClass()));
         } else {
 
-            AssertJUnit.assertTrue("Expected object class '" + objectClassOfReferencedObject.getObjectClassValue() +
+            assertTrue("Expected object class '" + objectClassOfReferencedObject.getObjectClassValue() +
                             "' did not match the result '" + baseConnectorObject.getObjectClass().getObjectClassValue() + "'.",
                     objectClassOfReferencedObject.equals(baseConnectorObject.getObjectClass()));
         }
@@ -250,7 +278,8 @@ public abstract class BaseTest {
                     idValue = new Uid((String) valueList.get(0));
                 }
 
-            } else if (ASSOC_ATTR_GROUP.equals(attributeInSet.getName())) {
+            } else if (ASSOC_ATTR_GROUP.equals(attributeInSet.getName()) ||
+                    ASSOC_ATTR_ACCESS.equals(attributeInSet.getName())) {
 
                 List<Object> referenceList = attributeInSet.getValue();
 
@@ -266,5 +295,58 @@ public abstract class BaseTest {
         }
         //  MAP referecedIds used only as a set of UID
         foundReferenceUidList.put(idValue, referecedIds.keySet());
+    }
+
+    protected ConnectorObject buildConnectorObject(String name, String uid, Set<Attribute> attributes, ObjectClass objectClass) {
+        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+
+        cob.addAttribute((new AttributeBuilder().setName(Name.NAME).addValue(name)).build());
+        cob.addAttribute((new AttributeBuilder().setName(Uid.NAME).addValue(uid)).build());
+
+        if(attributes!=null) {
+            for (Attribute attribute : attributes) {
+                cob.addAttribute(attribute);
+            }
+        }
+
+        cob.setObjectClass(objectClass);
+
+        return cob.build();
+    }
+
+    protected BaseConnectorObject assertReferenceAndReturnReferenceObject(Set<Attribute> referenceAttributes,
+                                                                          Attribute refAttr) {
+        return assertReferenceAndReturnReferenceObject(referenceAttributes, refAttr, null);
+    }
+
+    protected BaseConnectorObject assertReferenceAndReturnReferenceObject(Set<Attribute> referenceAttributes,
+                                                                        Attribute refAttr, Uid uid) {
+        assertNotNull(refAttr);
+        List<Object> valueList = refAttr.getValue();
+        Object cor = null;
+        if (!valueList.isEmpty() && valueList.size() == 1) {
+            cor = valueList.get(0);
+
+        } else if (uid != null) {
+
+            for (Object connectorObjectReference : valueList) {
+                BaseConnectorObject baseConnectorObject =
+                        ((ConnectorObjectReference) connectorObjectReference).getValue();
+                if (uid.equals(baseConnectorObject.getAttributeByName(Uid.NAME))) {
+                    cor = connectorObjectReference;
+                    break;
+                }
+            }
+        }
+
+        if (cor instanceof ConnectorObjectReference) {
+            BaseConnectorObject bco = ((ConnectorObjectReference) cor).getValue();
+            assertConnectorObject(referenceAttributes, bco);
+
+            return bco;
+        }
+
+
+        return null;
     }
 }
