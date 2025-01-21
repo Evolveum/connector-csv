@@ -18,7 +18,6 @@ import org.identityconnectors.framework.spi.operations.*;
 import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.logging.Handler;
 
 import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.OBTAINS;
 import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.REFERS_TO;
@@ -439,12 +438,12 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                 }
 
                 refersArrays.add(pairArray);
-//                constructAssociationHolder(pairArray, REFERS_TO);
+
             } else if (associationPair.contains(OBTAINS.value)) {
 
                 pairArray = associationPair.split(OBTAINS.value);
                 obtainArrays.add(pairArray);
-//                constructAssociationHolder(pairArray, OBTAINS);
+
             } else {
 
                 throw new InvalidAttributeValueException("Association pair syntax contains none of the permitted " +
@@ -458,21 +457,68 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
             isAccess = true;
             for (String[] refArray : refersArrays) {
 
-                constructAssociationHolder(refArray, REFERS_TO, false);
+                constructAssociationHolders(refArray, REFERS_TO, false);
             }
         }
 
         for (String[] obtainsArray : obtainArrays) {
 
-            constructAssociationHolder(obtainsArray, OBTAINS, isAccess);
+            constructAssociationHolders(obtainsArray, OBTAINS, isAccess);
         }
     }
 
-    private void constructAssociationHolder(String[] pairArray, AssociationCharacter character, boolean access) {
+    private void constructAssociationHolders(String[] pairArray, AssociationCharacter character, boolean access) {
         if (associationHolders == null) {
             associationHolders = new HashMap<>();
         }
 
+        AssociationHolder associationHolder = constructAssociationHolder(pairArray, character ,access);
+
+        if (associationHolders != null && !associationHolders.isEmpty()) {
+
+            List<String> ocNames;
+
+            if (OBTAINS.equals(character)) {
+
+                ocNames = List.of(associationHolder.getSubjectObjectClassName(), associationHolder.getObjectObjectClassName());
+            } else {
+
+                ocNames = List.of(associationHolder.getSubjectObjectClassName());
+            }
+
+
+            for (String ocName : ocNames) {
+
+                if (!associationHolders.containsKey(ocName)) {
+
+                    HashSet associationHolderSet = new HashSet<>();
+                    associationHolderSet.add(associationHolder);
+                    associationHolders.put(ocName, associationHolderSet);
+                } else {
+
+                    HashSet holders = associationHolders.get(ocName);
+                    holders.add(associationHolder);
+                    associationHolders.put(ocName, holders);
+                }
+            }
+
+        } else {
+            HashSet hashSet = new HashSet();
+            hashSet.add(associationHolder);
+
+            if (OBTAINS.equals(character)) {
+
+                associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
+                associationHolders.put(associationHolder.getObjectObjectClassName(), (HashSet<AssociationHolder>) hashSet.clone());
+            } else {
+
+                associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
+            }
+        }
+    }
+
+    private AssociationHolder constructAssociationHolder(String[] pairArray, AssociationCharacter character,
+                                                         boolean access) {
         AssociationHolder associationHolder = new AssociationHolder();
         if (pairArray.length == 2) {
 
@@ -548,47 +594,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                     + "\" or \"" + OBTAINS + " \"");
         }
 
-        if (associationHolders != null && !associationHolders.isEmpty()) {
-
-            List<String> ocNames;
-
-            if (OBTAINS.equals(character)) {
-
-                ocNames = List.of(associationHolder.getSubjectObjectClassName(), associationHolder.getObjectObjectClassName());
-            } else {
-
-                ocNames = List.of(associationHolder.getSubjectObjectClassName());
-            }
-
-
-            for (String ocName : ocNames) {
-
-                if (!associationHolders.containsKey(ocName)) {
-
-                    HashSet associationHolderSet = new HashSet<>();
-                    associationHolderSet.add(associationHolder);
-                    associationHolders.put(ocName, associationHolderSet);
-                } else {
-
-                    HashSet holders = associationHolders.get(ocName);
-                    holders.add(associationHolder);
-                    associationHolders.put(ocName, holders);
-                }
-            }
-
-        } else {
-            HashSet hashSet = new HashSet();
-            hashSet.add(associationHolder);
-
-            if (OBTAINS.equals(character)) {
-
-                associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
-                associationHolders.put(associationHolder.getObjectObjectClassName(), (HashSet<AssociationHolder>) hashSet.clone());
-            } else {
-
-                associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
-            }
-        }
+        return associationHolder;
     }
 
     private Map<String, HashSet<AssociationHolder>> getAssociationHolders() {

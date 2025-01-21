@@ -40,12 +40,14 @@ public class UpdateOpTest extends BaseTest {
     public static final String USER_MEMBER_FIRST_NAME = "john";
     public static final String USER_MEMBER_PASSWORD = "qwe123";
 
-    public static final String GROUP_MEMBER_UID = "2";
+    public static final String GROUP_MEMBER_UID_NEW = "2";
     public static final String GROUP_MEMBER_UPDATED_UID = "4";
     public static final String GROUP_MEMBER_UPDATED_DESCRIPTION = "accounting";
     public static final String GROUP_MEMBER_UPDATED_MEMBER_OF = "1";
 
     public static final String CHANGED_VALUE = "repantest";
+
+    public static final String ACCESS_MEMBER_NEW_UID = "4";
 
     @Test(expectedExceptions = ConnectorException.class)
     public void badObjectClass() throws Exception {
@@ -289,8 +291,8 @@ public class UpdateOpTest extends BaseTest {
 
         Uid expected = new Uid(USER_MEMBER_UID);
 
-        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(GROUP_MEMBER_UID,
-                GROUP_MEMBER_UID, null, new ObjectClass("group")));
+        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(GROUP_MEMBER_UID_NEW,
+                GROUP_MEMBER_UID_NEW, null, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
@@ -315,7 +317,7 @@ public class UpdateOpTest extends BaseTest {
         expectedRecord.put(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME);
         expectedRecord.put(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME );
         expectedRecord.put(ATTR_PASSWORD, USER_MEMBER_PASSWORD);
-        expectedRecord.put(ATTR_MEMBER_OF, GROUP_MEMBER_UID);
+        expectedRecord.put(ATTR_MEMBER_OF, GROUP_MEMBER_UID_NEW);
 
         Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_UID);
         assertEquals(expectedRecord, realRecord);

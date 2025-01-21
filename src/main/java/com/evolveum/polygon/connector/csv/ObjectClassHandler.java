@@ -43,7 +43,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		configuration.validateAttributeNames();
 	}
 
-	private enum Operation {
+	protected enum Operation {
 
 		DELETE, UPDATE, ADD_ATTR_VALUE, REMOVE_ATTR_VALUE;
 	}
@@ -388,20 +388,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		FileLock lock = obtainTmpFileLock(configuration);
 		Reader reader = null;
 		Writer writer = null;
-		boolean isAccess = false;
-
-		if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
-			HashSet<AssociationHolder> holders = associationHolders.get(getObjectClassName());
-
-			for(AssociationHolder holder : holders){
-				if (holder.getSubjectObjectClassName().equals(getObjectClassName())){
-					if (holder.isAccess()){
-						isAccess = true;
-						break;
-					}
-				}
-			}
-		}
+		boolean holderOfComplexRefObject = mayContainComplexReferenceObject();
 
 		try {
 			Set<ReferenceDataPayload> referenceDataPayload = new HashSet<>();
@@ -443,7 +430,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				Attribute referenceAttribute = null;
 				if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
 
-					referenceAttribute = getAttributeByName(isAccess ? ASSOC_ATTR_ACCESS : ASSOC_ATTR_GROUP
+					referenceAttribute = getAttributeByName(holderOfComplexRefObject ? ASSOC_ATTR_ACCESS : ASSOC_ATTR_GROUP
 							, attributes);
 
 					if (referenceAttribute != null) {
@@ -466,7 +453,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 
 			if(referenceDataPayload!=null){
-			updateReferences(Operation.ADD_ATTR_VALUE, referenceDataPayload);
+			updateReferences(Operation.ADD_ATTR_VALUE, referenceDataPayload, false);
 			}
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' create");
@@ -477,7 +464,24 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return uid;
 	}
 
-	private void updateReferences(Operation operation, Set<ReferenceDataPayload> referenceDataPayload ) {
+	private boolean mayContainComplexReferenceObject() {
+
+		if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+			HashSet<AssociationHolder> holders = associationHolders.get(getObjectClassName());
+
+			for(AssociationHolder holder : holders){
+				if (holder.getSubjectObjectClassName().equals(getObjectClassName())){
+					if (holder.isAccess()){
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	}
+
+	private void updateReferences(Operation operation, Set<ReferenceDataPayload> referenceDataPayload, boolean isAccess ) {
 		if (referenceDataPayload != null && !referenceDataPayload.isEmpty()) {
 			for (ReferenceDataPayload dataPayload : referenceDataPayload) {
 
@@ -489,7 +493,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					ObjectClassHandler handler = handlers.get(objectClass);
 
 					handler.update(operation, objectClass, new Uid(objectId),
-							dataPayload.getAttributes(), null);
+							dataPayload.getAttributes(), null, isAccess);
 				} else {
 
 					update(operation, objectClass, new Uid(objectId),
@@ -502,12 +506,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private Set<ReferenceDataPayload> createReferenceDataFromAttributes(
 			Set<ReferenceDataDeliveryVector> referenceDataDeliveryVectors, Set<Attribute> attributes,
 			Attribute referenceAttribute) {
-		return createReferenceDataFromAttributes(referenceDataDeliveryVectors, attributes, referenceAttribute, null);
+		return createReferenceDataFromAttributes(referenceDataDeliveryVectors, attributes, referenceAttribute,
+				null, null);
 	}
 
 	private Set<ReferenceDataPayload> createReferenceDataFromAttributes(
 			Set<ReferenceDataDeliveryVector> referenceDataDeliveryVectors, Set<Attribute> attributes,
-			Attribute referenceAttribute, Uid uid) {
+			Attribute referenceAttribute, Operation operation, Uid uid) {
 
 		Map<ConnectorObjectId, ReferenceDataPayload> referenceDataPayloadMap = new HashMap<>();
 		Iterator<Attribute> attributeIterator = attributes.iterator();
@@ -530,7 +535,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				processOriginAsReferenceDataVector(referenceDataDeliveryVector, referencedObjectdata.keySet(),
 						attributes);
 
-			} else if (referenceDataDeliveryVector.isAccess()) {
+			} else if (referenceDataDeliveryVector.isAccess() && operation != Operation.REMOVE_ATTR_VALUE) {
+
 				processAccessAsReferenceDataVector(referenceDataDeliveryVector.getObjectClass(),
 						referencedObjectdata, referenceDataPayloadMap);
 
@@ -2204,8 +2210,18 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
 					   OperationOptions oo) {
+		return update(operation, objectClass, uid, attributes, oo, false);
+	}
+
+	private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
+					   OperationOptions oo, boolean isAccessReference) {
 
 		notNull(uid, "Uid must not be null");
+
+		boolean areReferencesManaged = !ArrayUtils.isEmpty(configuration.getManagedAssociationPairs());
+		boolean holderOfComplexRefObject = false;
+
+		if(areReferencesManaged){holderOfComplexRefObject = mayContainComplexReferenceObject();}
 
 		if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
 				&& attributes.isEmpty()) {
@@ -2219,6 +2235,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		FileLock lock = obtainTmpFileLock(configuration);
 		Reader reader = null;
 		Writer writer = null;
+
+		boolean createNewReference = false;
 		try {
 			Set<ReferenceDataPayload> referenceDataPayload = new HashSet<>();
 
@@ -2235,21 +2253,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				CSVPrinter printer = csv.print(writer);
 
 				Iterator<CSVRecord> iterator = parser.iterator();
-
-				boolean isAccess = false;
-
-				if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
-					HashSet<AssociationHolder> holders = associationHolders.get(getObjectClassName());
-
-					for(AssociationHolder holder : holders){
-						if (holder.getSubjectObjectClassName().equals(getObjectClassName())){
-							if (holder.isAccess()){
-								isAccess = true;
-								break;
-							}
-						}
-					}
-				}
 
 				while (iterator.hasNext()) {
 					CSVRecord record = iterator.next();
@@ -2274,11 +2277,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					if (!Operation.DELETE.equals(operation)) {
 						Set<ReferenceDataDeliveryVector> referenceDataDeliveryVector = null;
 
-						Attribute referenceAttribute = null;
+						Attribute referenceAttribute;
 
-						if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+						if(areReferencesManaged) {
 
-							referenceAttribute = getAttributeByName(isAccess ? ASSOC_ATTR_ACCESS : ASSOC_ATTR_GROUP,
+							referenceAttribute = getAttributeByName(holderOfComplexRefObject ? ASSOC_ATTR_ACCESS : ASSOC_ATTR_GROUP,
 									attributes);
 
 							if (referenceAttribute != null) {
@@ -2289,7 +2292,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							if(referenceDataDeliveryVector != null) {
 
 								referenceDataPayload = createReferenceDataFromAttributes(referenceDataDeliveryVector, attributes,
-										referenceAttribute, uid);
+										referenceAttribute, operation, uid);
 							}
 						}
 
@@ -2307,17 +2310,37 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				reader.close();
 
 				if (!found) {
-					throw new UnknownUidException("Account '" + uid + "' not found");
+
+					if (areReferencesManaged) {
+						if (isAccessReference) {
+							// TODO # A Should we create missing accesses?
+
+							createNewReference = true;
+						}
+					}
+
+					if (!createNewReference){
+
+						throw new UnknownUidException("Account '" + uid + "' not found");
+					}
 				}
 
 				moveTmpToOrig();
 			}
-			updateReferences(operation, referenceDataPayload);
+			if(referenceDataPayload != null && !referenceDataPayload.isEmpty()){
+
+			updateReferences(operation, referenceDataPayload, holderOfComplexRefObject);
+			}
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' " + operation.name());
 		} finally {
 			cleanupResources(writer, reader, lock, configuration);
 		}
+
+		if(createNewReference) {
+			create(objectClass, attributes, null);
+		}
+
 		return uid;
 	}
 
