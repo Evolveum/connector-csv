@@ -2,6 +2,8 @@ package com.evolveum.polygon.connector.csv.util;
 
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
+import java.util.Objects;
+
 public class ReferenceDataDeliveryVector {
     private ObjectClass objectClass;
     private Boolean originIsRecipient;
@@ -41,5 +43,18 @@ public class ReferenceDataDeliveryVector {
 
     public boolean isAccess() {
         return isAccess;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ReferenceDataDeliveryVector that = (ReferenceDataDeliveryVector) o;
+        return isAccess() == that.isAccess() && Objects.equals(getObjectClass(), that.getObjectClass()) && Objects.equals(originIsRecipient, that.originIsRecipient) && Objects.equals(getAttributeName(), that.getAttributeName()) && Objects.equals(identificatorAttributeName, that.identificatorAttributeName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getObjectClass(), originIsRecipient, getAttributeName(), identificatorAttributeName, isAccess());
     }
 }

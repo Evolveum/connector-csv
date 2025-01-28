@@ -2,6 +2,7 @@ package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.CsvConfiguration;
 import com.evolveum.polygon.connector.csv.CsvConnector;
+import com.evolveum.polygon.connector.csv.ObjectClassHandler;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
@@ -13,9 +14,7 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeUtil;
-import org.identityconnectors.framework.common.objects.PredefinedAttributes;
+import org.identityconnectors.framework.common.objects.*;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
@@ -47,6 +46,7 @@ public class Util {
     public static final String ASSOC_ATTR_ACCESS ="access";
 
     public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
+    public static final String R_I_R_OBJECT = AttributeUtil.createSpecialName("OBJECT");
 
     public static void closeQuietly(Closeable closeable) {
         if (closeable == null) {
@@ -476,4 +476,82 @@ public class Util {
 
         return Collections.unmodifiableList(list);
     }
+
+    public static String getObjectClassName(ObjectClass objectClass) {
+        if (ObjectClass.ACCOUNT.equals(objectClass)) {
+
+            return "account";
+        } else if (ObjectClass.GROUP.equals(objectClass)) {
+
+            return "group";
+        } else {
+            return objectClass.getObjectClassValue();
+        }
+    }
+
+    public static ObjectClass getObjectClass(String objectClassName) {
+
+        if ("account".equals(objectClassName)) {
+
+            return ObjectClass.ACCOUNT;
+//        } else if ("group".equals(objectClassName)) {
+//
+//            return ObjectClass.GROUP;
+        } else {
+            return new ObjectClass(objectClassName);
+        }
+    }
+
+    public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
+                                                                           AssociationHolder holder,
+                                                                           String uniqueAttrName, String objectClassName,
+                                                                           Map<ObjectClass, ObjectClassHandler> handlerMap,
+                                                                           Set<String> referenceAttributeNames){
+        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName ,objectClassName ,
+                handlerMap, referenceAttributeNames, null);
+    }
+
+        public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
+                                                                           AssociationHolder holder,
+                                                                           String uniqueAttrName, String objectClassName,
+                                                                           Map<ObjectClass, ObjectClassHandler> handlerMap,
+                                                                           Set<String> referenceAttributeNames,
+                                                                               Boolean isPartOfAccess) {
+
+            String referenceAttrName = holder.getValueAttributeName();
+            String identificatorAttributeName = holder.getAssociationAttributeName();
+            String objectObjectClassName = holder.getObjectObjectClassName();
+            Boolean isRecipient = objectObjectClassName.equals(holder.getSubjectObjectClassName());
+
+            if (!objectClassName.equals(objectObjectClassName)) {
+                ObjectClassHandler handler = handlerMap.get(Util.getObjectClass(objectObjectClassName));
+                uniqueAttrName = handler.getConfiguration().getUniqueAttribute();
+            }
+
+            if (uniqueAttrName.equals(referenceAttrName)) {
+                referenceAttrName = holder.getAssociationAttributeName();
+                identificatorAttributeName = Uid.NAME;
+                isRecipient = true;
+            }
+
+            if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
+                isRecipient = true;
+            }
+
+            boolean vectorIsAccess = isPartOfAccess != null ? isPartOfAccess : holder.isAccess();
+
+            if (referenceAttributeNames != null && !referenceAttributeNames.isEmpty()) {
+
+                if (referenceAttributeNames.contains(referenceAttrName)) {
+
+                    return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
+                            , referenceAttrName, identificatorAttributeName, vectorIsAccess);
+                }
+            } else {
+                return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
+                        , referenceAttrName, identificatorAttributeName, vectorIsAccess);
+            }
+
+            return null;
+        }
 }

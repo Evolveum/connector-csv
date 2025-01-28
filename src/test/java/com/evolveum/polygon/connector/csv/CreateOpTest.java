@@ -452,7 +452,7 @@ public class CreateOpTest extends BaseTest {
             if (ASSOC_ATTR_GROUP.equals(attr.getName())) {
                 List<Object> valueList = attr.getValue();
 
-                if (!valueList.isEmpty() && valueList.size() == 1) {
+                if (valueList!=null && !valueList.isEmpty() && valueList.size() == 1) {
                     Object cor = valueList.get(0);
                     if (cor instanceof ConnectorObjectReference) {
                         BaseConnectorObject bco = ((ConnectorObjectReference) cor).getValue();

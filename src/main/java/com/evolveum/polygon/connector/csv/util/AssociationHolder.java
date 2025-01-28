@@ -9,6 +9,7 @@ public class AssociationHolder {
     private String subjectObjectClassName;
     private String objectObjectClassName;
     private boolean isAccess = false;
+    private boolean omitFromSchema = false;
     private AssociationCharacter character;
 
     public String getAssociationAttributeName() {
@@ -59,16 +60,12 @@ public class AssociationHolder {
         return isAccess;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AssociationHolder holder = (AssociationHolder) o;
-        return isAccess() == holder.isAccess() && Objects.equals(getAssociationAttributeName(), holder.getAssociationAttributeName()) && Objects.equals(getValueAttributeName(), holder.getValueAttributeName()) && Objects.equals(getSubjectObjectClassName(), holder.getSubjectObjectClassName()) && Objects.equals(getObjectObjectClassName(), holder.getObjectObjectClassName()) && getCharacter() == holder.getCharacter();
+    public boolean isOmitFromSchema() {
+        return omitFromSchema;
     }
 
-    @Override
-    public int hashCode() {
-        return Objects.hash(getAssociationAttributeName(), getValueAttributeName(), getSubjectObjectClassName(), getObjectObjectClassName(), isAccess(), getCharacter());
+    public void setOmitFromSchema(boolean omitFromSchema) {
+        this.omitFromSchema = omitFromSchema;
     }
+
 }

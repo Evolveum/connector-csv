@@ -6,7 +6,6 @@ import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.api.ConnectorFacadeFactory;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.test.common.TestHelpers;
-import org.testng.AssertJUnit;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,6 +45,26 @@ public abstract class BaseTest {
 
     public static final String NEW_REFERENCE_ID = "1";
     public static final String NEW_USER_UID = "3";
+
+    public static final String USER_MEMBER_ID = "123";
+    public static final String USER_MEMBER_LAST_NAME = "doe";
+    public static final String USER_MEMBER_FIRST_NAME = "john";
+    public static final String USER_MEMBER_PASSWORD = "qwe123";
+
+    public static final String USER_BASIC_ID = "1";
+    public static final String USER_BASIC_NAME = "john";
+    public static final String USER_BASIC_EMPL = "123";
+    public static final String USER_BASIC_TITLE = "engineer";
+
+    public static final String GROUP_NO_MEMBER_ID = "1";
+    public static final String GROUP_NO_MEMBER_NAME = "users";
+    public static final String GROUP_NO_MEMBER_DESC = "";
+
+    public static final String ACCESS_BASIC_ID = "1";
+    public static final String ACCESS_BASIC_LEVEL = "test";
+    public static final String ACCESS_BASIC_DESCRIPTION = "test accounts";
+    public static final String ACCESS_BASIC_SUBJECT_ID = "1";
+    public static final String ACCESS_BASIC_OBJECT_ID = "1";
 
     protected CsvConfiguration createConfiguration() {
         return createConfigurationNameEqualsUid();

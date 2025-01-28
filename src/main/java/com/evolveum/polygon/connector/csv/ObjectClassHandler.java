@@ -11,9 +11,7 @@ import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.*;
 import org.identityconnectors.framework.common.objects.*;
-import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
-import org.identityconnectors.framework.common.objects.filter.Filter;
-import org.identityconnectors.framework.common.objects.filter.FilterTranslator;
+import org.identityconnectors.framework.common.objects.filter.*;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 import org.identityconnectors.framework.spi.operations.*;
 
@@ -42,12 +40,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	public void validate() {
 		configuration.validateAttributeNames();
 	}
-
-	protected enum Operation {
-
-		DELETE, UPDATE, ADD_ATTR_VALUE, REMOVE_ATTR_VALUE;
-	}
-
 	private static final Log LOG = Log.getLog(ObjectClassHandler.class);
 
 
@@ -120,7 +112,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				}
 
 
-                if (name.startsWith(Util.UTF8_BOM)) {
+                if (name.startsWith(UTF8_BOM)) {
 
 					name = name.substring(1);
 				}
@@ -200,14 +192,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private List<AttributeInfo> createAttributeInfo(Map<String, Column> columns) {
-		List<String> multivalueAttributes = new ArrayList<>();
-
-
-		if (StringUtil.isNotEmpty(configuration.getMultivalueAttributes())) {
-			String[] array = configuration.getMultivalueAttributes().split(configuration.getMultivalueDelimiter());
-			multivalueAttributes = Arrays.asList(array);
-		}
-
+		List<String> multivalueAttributes = getMultivaluedAttributes();
 		List<AttributeInfo> infos = new ArrayList<>();
 
 		if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
@@ -228,6 +213,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			if (holders != null && !holders.isEmpty()) {
 
 				for (AssociationHolder holder : holders) {
+					if(holder.isOmitFromSchema()){
+						continue;
+					}
 
 					StringBuilder subTypeBuilder = new StringBuilder();
 					String associationAttr = holder.getAssociationAttributeName();
@@ -434,7 +422,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							, attributes);
 
 					if (referenceAttribute != null) {
-						referenceDataDeliveryVector = determineReferenceDataDeliveryVector(referenceAttribute,
+						referenceDataDeliveryVector = determineReferenceObjectDataDeliveryVectors(referenceAttribute,
 								uidValue);
 					}
 				}
@@ -468,6 +456,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
 			HashSet<AssociationHolder> holders = associationHolders.get(getObjectClassName());
+
+			if(holders == null){
+
+				return false;
+			}
 
 			for(AssociationHolder holder : holders){
 				if (holder.getSubjectObjectClassName().equals(getObjectClassName())){
@@ -735,22 +728,20 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return Arrays.asList(record);
 	}
 
-	private Set<ReferenceDataDeliveryVector> determineReferenceDataDeliveryVector(Attribute referenceAttribute,
-																			 String identifierValue) {
+	private Set<ReferenceDataDeliveryVector> determineReferenceObjectDataDeliveryVectors(Attribute referenceAttribute,
+																						 String identifierValue) {
 		Set<ReferenceDataDeliveryVector> setOfVectors = new HashSet<>();
 		List<Object> objectList = referenceAttribute.getValue();
 		Set<String> attributeNames;
 		ObjectClass referencedOc = null;
 
-		if (objectList.size() > 0) {
-
+		if (objectList !=null && objectList.size() > 0) {
 			Object o = objectList.get(0);
 
 			if (o instanceof ConnectorObjectReference) {
 				BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
 				referencedOc = bco.getObjectClass();
 				attributeNames = new HashSet<>();
-
 				bco.getAttributes().stream().forEach(a -> {
 
 					if (a.getValue().contains(identifierValue)) {
@@ -760,65 +751,32 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				});
 
 			} else {
-
 				throw new ConnectorException("Reference attribute " + referenceAttribute.getName() +
 						" is of not supported object type.");
 			}
 		} else {
-
 			attributeNames = null;
 		}
 
 		String currentObjectClassName = getObjectClassName();
 
 		if (referencedOc != null) {
-
 			if (associationHolders.containsKey(currentObjectClassName)) {
 				HashSet<AssociationHolder> holders = associationHolders.get(currentObjectClassName);
 
-				String referenceObjectClassName = referencedOc.getObjectClassValue();
 				for (AssociationHolder holder : holders) {
-					Boolean isRecipient = referenceObjectClassName.equals(holder.getSubjectObjectClassName());
 					String objectObjectClassName = holder.getObjectObjectClassName();
 					if (objectObjectClassName.equals(referencedOc.getObjectClassValue())) {
 
-						String referenceAttrName = holder.getValueAttributeName();
-						String identificatorAttributeName = holder.getAssociationAttributeName();
+						ReferenceDataDeliveryVector referenceDataDeliveryVector = constructReferenceDataVector(
+								referencedOc, holder, configuration.getUniqueAttribute(), currentObjectClassName,
+								getHandlers(), attributeNames);
 
-						String uniqueAttrName = configuration.getUniqueAttribute();
-						if (!getObjectClassName().equals(objectObjectClassName)) {
-
-							Map<ObjectClass, ObjectClassHandler> handlerMap = getHandlers();
-							ObjectClassHandler handler = handlerMap.get(new ObjectClass(objectObjectClassName));
-							uniqueAttrName = handler.configuration.getUniqueAttribute();
-						}
-
-						if (uniqueAttrName.equals(referenceAttrName)) {
-							referenceAttrName = holder.getAssociationAttributeName();
-							identificatorAttributeName = Uid.NAME;
-							isRecipient = true;
-						}
-
-						if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
-							isRecipient = true;
-						}
-						if (attributeNames != null && !attributeNames.isEmpty()) {
-
-							if (attributeNames.contains(referenceAttrName)) {
-
-								setOfVectors.add(new ReferenceDataDeliveryVector(referencedOc, isRecipient
-										, referenceAttrName, identificatorAttributeName, holder.isAccess()));
-							}
-						} else {
-							setOfVectors.add(new ReferenceDataDeliveryVector(referencedOc, isRecipient
-									, referenceAttrName, identificatorAttributeName, holder.isAccess()));
-						}
-
+						if(referenceDataDeliveryVector != null){setOfVectors.add(referenceDataDeliveryVector);}
 					}
 				}
 			}
 		} else {
-
 			throw new ConnectorException("The value of reference attribute " + referenceAttribute.getName() +
 					" does not contain an object class.");
 		}
@@ -1194,8 +1152,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 								if (analysedAttributeName.equals(configuration.getUniqueAttribute())) {
 
-									relationToObjectClasses.add("account".equals(objectObjectClassName) ?
-											ObjectClass.ACCOUNT : new ObjectClass(objectObjectClassName));
+									relationToObjectClasses.add(Util.getObjectClass(objectObjectClassName));
 
 									continue;
 								}
@@ -1209,14 +1166,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 								if (subjectObjectClassName.equalsIgnoreCase(objectClassName)) {
 
 									associationDataObject.add(new ConnectorObjectId(iterator.next(),
-											"account".equals(objectObjectClassName) ?
-													ObjectClass.ACCOUNT : new ObjectClass(objectObjectClassName)));
+											Util.getObjectClass(objectObjectClassName)));
 
 									addAttributeToBuilder = false;
 								} else {
 									associationDataSubject.add(new ConnectorObjectId(iterator.next(),
-											"account".equals(subjectObjectClassName) ?
-													ObjectClass.ACCOUNT : new ObjectClass(subjectObjectClassName)));
+											Util.getObjectClass(subjectObjectClassName)));
 
 									addAttributeToBuilder = true;
 								}
@@ -1949,18 +1904,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return createConnectorObject(record, true);
 	}
 
-	private String getObjectClassName() {
-		ObjectClass objectClass = getObjectClass();
+	public String getObjectClassName() {
 
-		if (ObjectClass.ACCOUNT.equals(objectClass)) {
-
-			return "account";
-		} else if (ObjectClass.GROUP.equals(objectClass)) {
-
-			return "group";
-		} else {
-			return objectClass.getObjectClassValue();
-		}
+		return Util.getObjectClassName(getObjectClass());
 	}
 //	private void retrieveAssociationData(HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>>  candidates) {
 //
@@ -2052,11 +1998,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				Map<String, Set<String>> attrsAndValues = new HashMap<>();
 				ObjectClass evaluatedObjectClass;
 
-				if ("account".equals(objectClassName)) {
-					evaluatedObjectClass = ObjectClass.ACCOUNT;
-				} else {
-					evaluatedObjectClass = new ObjectClass(objectClassName);
-				}
+				evaluatedObjectClass = Util.getObjectClass(objectClassName);
 
 				for (AssociationHolder associationHolder : holders) {
 
@@ -2072,7 +2014,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				}
 
 				ObjectClassHandler associatedObjectClassHandler =
-						availableHandlers.get(new ObjectClass(objectClassName));
+						availableHandlers.get(Util.getObjectClass(objectClassName));
 
 				Set<CSVRecord> records = associatedObjectClassHandler.fetchCSVRecords(attrsAndValues);
 
@@ -2214,14 +2156,18 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
-					   OperationOptions oo, boolean isAccessReference) {
+					   OperationOptions oo, boolean isSubjectForCleanup) {
 
 		notNull(uid, "Uid must not be null");
-
+		Uid originalUid = uid;
 		boolean areReferencesManaged = !ArrayUtils.isEmpty(configuration.getManagedAssociationPairs());
 		boolean holderOfComplexRefObject = false;
+		boolean handleReferentialIntegrity = false;
 
-		if(areReferencesManaged){holderOfComplexRefObject = mayContainComplexReferenceObject();}
+		if(areReferencesManaged){
+
+			holderOfComplexRefObject = mayContainComplexReferenceObject();
+		}
 
 		if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
 				&& attributes.isEmpty()) {
@@ -2286,7 +2232,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 							if (referenceAttribute != null) {
 
-								referenceDataDeliveryVector = determineReferenceDataDeliveryVector(referenceAttribute,
+								referenceDataDeliveryVector = determineReferenceObjectDataDeliveryVectors(referenceAttribute,
 										uid.getUidValue());
 							}
 							if(referenceDataDeliveryVector != null) {
@@ -2295,8 +2241,22 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 										referenceAttribute, operation, uid);
 							}
 						}
+						List<Object> updated;
 
-						List<Object> updated = updateObject(operation, data, attributes);
+
+						if(isSubjectForCleanup) {
+
+							CleanupFlag cleanupFlag = new CleanupFlag(isSubjectForCleanup);
+							updated = updateObject(operation, data, attributes, cleanupFlag);
+
+							if (cleanupFlag.isRemove()) {
+
+								continue;
+							}
+						} else {
+
+							updated = updateObject(operation, data, attributes, null);
+						}
 
 						int uidIndex = this.getHeader().get(configuration.getUniqueAttribute()).getIndex();
 						Object newUidValue = updated.get(uidIndex);
@@ -2312,8 +2272,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				if (!found) {
 
 					if (areReferencesManaged) {
-						if (isAccessReference) {
-							// TODO # A Should we create missing accesses?
+						if (isSubjectForCleanup) {
 
 							createNewReference = true;
 						}
@@ -2337,11 +2296,61 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			cleanupResources(writer, reader, lock, configuration);
 		}
 
-		if(createNewReference) {
-			create(objectClass, attributes, null);
+		if (areReferencesManaged) {
+
+			if (createNewReference) {
+				create(objectClass, attributes, null);
+			}
+			String changedIdValue = referentialIntegrityChange(operation, attributes);
+
+			if (changedIdValue != null) {
+
+				ReferentialInterityHandler referentialInterityHandler = new ReferentialInterityHandler(this);
+				if(changedIdValue.isEmpty()){
+
+					referentialInterityHandler.handle(uid.getUidValue(), operation);
+				} else {
+
+					referentialInterityHandler.handle(originalUid.getUidValue(), changedIdValue, operation);
+				}
+
+			}
 		}
 
 		return uid;
+	}
+
+	private String referentialIntegrityChange(Operation operation, Set<Attribute> attributes) {
+
+		if (!associationHolders.containsKey(getObjectClassName())) {
+
+			return null;
+		}
+
+		if (Operation.DELETE.equals(operation)) {
+
+			return "";
+		} else {
+
+			Iterator<Attribute> iterator = attributes.iterator();
+			String uniqueAttributeName = configuration.getUniqueAttribute();
+			while (iterator.hasNext()) {
+				Attribute attribute = iterator.next();
+				if (attribute.getName().equals(uniqueAttributeName)) {
+
+					List<Object> values = attribute.getValue();
+
+					if (values != null) {
+						return (String) values.get(0);
+					}
+
+					throw new ConnectorException("Unexpected situation." +
+							" The updated ID attribute does not contain a value.");
+				}
+			}
+		}
+
+		return null;
 	}
 
 	private Set<Attribute> normalize(Set<Attribute> attributes) {
@@ -2411,8 +2420,22 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return configuration.getNameAttribute().equals(column);
 	}
 
-	private List<Object> updateObject(Operation operation, Map<String, String> data, Set<Attribute> attributes) {
+	private List<Object> updateObject(Operation operation, Map<String, String> data, Set<Attribute> attributes,
+									  CleanupFlag cleanupFlag) {
+
 		Object[] result = new Object[getHeader().size()];
+
+		List<String> mandatoryAccessAttributes = null;
+		if(cleanupFlag !=null) {
+			if (cleanupFlag.isSubjectForCleanup()) {
+				mandatoryAccessAttributes = new ArrayList<>();
+				Set<AssociationHolder> associationHoldersSet = associationHolders.get(getObjectClassName());
+
+				for (AssociationHolder associationHolder : associationHoldersSet) {
+					mandatoryAccessAttributes.add(associationHolder.getValueAttributeName());
+				}
+			}
+		}
 
 		// prefill actual data
 		for (String column : getHeader().keySet()) {
@@ -2434,9 +2457,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				for (Attribute attribute : attributes) {
 					String name = attribute.getName();
 
-                    int index = getColumnIndex(attribute);
-                    Class type = String.class;
-                    if (OperationalAttributes.PASSWORD_NAME.equals(name)) {
+					int index = getColumnIndex(attribute);
+					Class type = String.class;
+					if (OperationalAttributes.PASSWORD_NAME.equals(name)) {
 						type = GuardedString.class;
 					}
 
@@ -2449,15 +2472,97 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						throw new IllegalArgumentException("Unique attribute '" + name + "' must contain single value");
 					}
 
-                    String value = Util.createRawValue(attribute.getName(), updated, configuration);
+					String value = createRawValue(attribute.getName(), updated, configuration);
 
 					result[index] = value;
+
+					if (cleanupFlag != null && cleanupFlag.isSubjectForCleanup()) {
+						if (mandatoryAccessAttributes != null && !mandatoryAccessAttributes.isEmpty()) {
+							if (mandatoryAccessAttributes.contains(name)) {
+								if (!(value != null && !value.isEmpty())) {
+
+									cleanupFlag.setRemove(true);
+									return null;
+								}
+							}
+						}
+					}
 				}
 		}
 
 		return Arrays.asList(result);
 	}
 
+	private List<Object> updateObject(Map<String, String> data, Set <AttributeDelta> attributeDeltas,
+									  CleanupFlag cleanupFlag) {
+		Object[] result = new Object[getHeader().size()];
+
+		List<String> mandatoryAccessAttributes = null;
+		if(cleanupFlag !=null) {
+			if (cleanupFlag.isSubjectForCleanup()) {
+				mandatoryAccessAttributes = new ArrayList<>();
+				Set<AssociationHolder> associationHoldersSet = associationHolders.get(getObjectClassName());
+
+				for (AssociationHolder associationHolder : associationHoldersSet) {
+					mandatoryAccessAttributes.add(associationHolder.getValueAttributeName());
+				}
+			}
+		}
+
+		// prefill actual data
+		for (String column : getHeader().keySet()) {
+			result[getHeader().get(column).getIndex()] = data.get(column);
+		}
+
+		for (AttributeDelta attributeDelta : attributeDeltas){
+
+			String name = attributeDelta.getName();
+
+			List<Object> objectsToAdd = attributeDelta.getValuesToAdd();
+			List<Object> objectsToRemove = attributeDelta.getValuesToRemove();
+			List<Object> objectsToReplace = attributeDelta.getValuesToReplace();
+
+
+			if (objectsToReplace != null && !objectsToReplace.isEmpty()) {
+
+				int index = getColumnIndex(attributeDelta.getName());
+				result[index] = Util.createAttributeValues((String) result[index], String.class, configuration);
+
+			} else {
+
+				int index = getColumnIndex(name);
+				Class type = String.class;
+
+				List<Object> current = Util.createAttributeValues((String) result[index], type, configuration);
+				List<Object> updated = current;
+				if (objectsToAdd != null && !objectsToAdd.isEmpty()) {
+					updated = addValues(current, objectsToAdd);
+				}
+
+				if (objectsToRemove != null && !objectsToRemove.isEmpty()) {
+					updated = removeValues(updated, objectsToRemove);
+				}
+
+				String value = createRawValue(name, updated, configuration);
+
+				result[index] = value;
+
+				if (cleanupFlag != null && cleanupFlag.isSubjectForCleanup()) {
+					if (mandatoryAccessAttributes != null && !mandatoryAccessAttributes.isEmpty()) {
+						if (mandatoryAccessAttributes.contains(name)) {
+							if (!(value != null && !value.isEmpty())) {
+
+								cleanupFlag.setRemove(true);
+								return null;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return Arrays.asList(result);
+	}
 
 	public Map<ObjectClass ,ObjectClassHandler> getHandlers() {
 		return handlers;
@@ -2467,7 +2572,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		this.handlers = handlers;
 	}
 
-	public Set<CSVRecord> fetchCSVRecords(Map<String, Set<String>> attributeAndValues) {
+	public Set<CSVRecord> fetchCSVRecords(Map<String, Set<String>> searchedAttributeAndValues) {
 		CSVFormat csv = createCsvFormatReader(configuration);
 
 		Set<CSVRecord> recordSet = new HashSet<>();
@@ -2487,9 +2592,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					String value = record.get(i);
 					ArrayList<String> values = (ArrayList<String>) createAttributeValues(value);
 
-					if (attributeAndValues.containsKey(name)) {
+					if (searchedAttributeAndValues.containsKey(name)) {
 
-						Set<String> searchedValues = attributeAndValues.get(name);
+						Set<String> searchedValues = searchedAttributeAndValues.get(name);
 						boolean isMatch = !Collections.disjoint(values, searchedValues);
 						if (isMatch){
 
@@ -2505,6 +2610,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return recordSet;
 	}
 
+	public Map<String, HashSet<AssociationHolder>> getAssociationHolders() {
+		return associationHolders;
+	}
+
 	public void setAssociationHolders(Map<String, HashSet<AssociationHolder>> associationHolders) {
 		this.associationHolders = associationHolders;
 	}
@@ -2515,15 +2624,168 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
     private int getColumnIndex(Attribute attribute) {
         String name = attribute.getName();
-        if (name.equals(Uid.NAME)) {
-            return getHeader().get(configuration.getUniqueAttribute()).getIndex();
-        } else if (name.equals(Name.NAME)) {
-            return getHeader().get(configuration.getNameAttribute()).getIndex();
-        } else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
-            return getHeader().get(configuration.getPasswordAttribute()).getIndex();
-        } else if (name.equals(PredefinedAttributes.LAST_LOGIN_DATE_NAME)) {
-            return getHeader().get(configuration.getLastLoginDateAttribute()).getIndex();
-        }
-        return getHeader().get(name).getIndex();
+		return getColumnIndex(name);
+	}
+
+	private int getColumnIndex(String name) {
+
+		if (name.equals(Uid.NAME)) {
+			return getHeader().get(configuration.getUniqueAttribute()).getIndex();
+		} else if (name.equals(Name.NAME)) {
+			return getHeader().get(configuration.getNameAttribute()).getIndex();
+		} else if (name.equals(OperationalAttributes.PASSWORD_NAME)) {
+			return getHeader().get(configuration.getPasswordAttribute()).getIndex();
+		} else if (name.equals(PredefinedAttributes.LAST_LOGIN_DATE_NAME)) {
+			return getHeader().get(configuration.getLastLoginDateAttribute()).getIndex();
+		}
+		return getHeader().get(name).getIndex();
+	}
+
+	public ObjectClassHandlerConfiguration getConfiguration() {
+		return configuration;
+	}
+
+	public void updateAllReferencesOfValue(Filter filter , Set<AttributeDelta> attributeDeltaSet,
+										   String value, boolean isSubjectForCleanup) {
+
+		Map<Integer, String> header = reverseHeaderMap();
+		boolean compareCaseInsensitive = false;
+
+		FileLock lock = obtainTmpFileLock(configuration);
+		Reader reader = null;
+		Writer writer = null;
+
+		List<String> filteredAttributeNames = new ArrayList<>();
+		if (filter instanceof OrFilter) {
+
+			for (Filter filterFromCollection : ((OrFilter) filter).getFilters()) {
+				if (filterFromCollection instanceof EqualsFilter) {
+
+					Attribute attribute = ((EqualsFilter) filterFromCollection).getAttribute();
+					filteredAttributeNames.add(attribute.getName());
+				} else if (filterFromCollection instanceof EqualsIgnoreCaseFilter) {
+
+					compareCaseInsensitive = true;
+					Attribute attribute = ((EqualsIgnoreCaseFilter) filterFromCollection).getAttribute();
+					filteredAttributeNames.add(attribute.getName());
+				} else {
+
+					throw new ConnectorException("Unsupported type of Filter used in update all action.");
+				}
+			}
+
+		} else if (filter instanceof EqualsFilter || filter instanceof EqualsIgnoreCaseFilter) {
+
+			Attribute attribute = ((AttributeFilter) filter).getAttribute();
+			filteredAttributeNames.add(attribute.getName());
+
+			if (filter instanceof EqualsIgnoreCaseFilter) {
+				compareCaseInsensitive = true;
+			}
+		} else {
+
+			throw new ConnectorException("Unsupported type of Filter used in update all action.");
+		}
+
+		try {
+			synchronized (CsvConnector.SYNCH_FILE_LOCK) {
+				reader = createReader(configuration);
+				writer = new BufferedWriter(Channels.newWriter(lock.channel(), configuration.getEncoding()));
+
+				CSVFormat csv = createCsvFormat(configuration);
+				CSVParser parser = csv.parse(reader);
+
+				csv = createCsvFormat(configuration);
+				CSVPrinter printer = csv.print(writer);
+
+				Iterator<CSVRecord> iterator = parser.iterator();
+
+				while (iterator.hasNext()) {
+					CSVRecord record = iterator.next();
+
+					Map<String, String> data = new HashMap<>();
+					for (int i = 0; i < record.size(); i++) {
+						data.put(header.get(i), record.get(i));
+					}
+
+					List<String> multivaluedAttributes = getMultivaluedAttributes();
+					List<String> recordAttrValues = new ArrayList<>();
+
+					for (String filteredAttributeName : filteredAttributeNames) {
+
+						if (multivaluedAttributes.contains(filteredAttributeName)) {
+
+							String[] attributeData = data.get(filteredAttributeName).
+									split(configuration.getMultivalueDelimiter());
+							recordAttrValues.addAll(Arrays.asList(attributeData));
+						} else {
+
+							recordAttrValues.add(data.get(filteredAttributeName));
+						}
+					}
+
+					if (compareCaseInsensitive) {
+
+						boolean contains = recordAttrValues.stream().anyMatch(value::equalsIgnoreCase);
+						if (!contains) {
+							printer.printRecord(record);
+							continue;
+						}
+					} else {
+
+						if (!recordAttrValues.contains(value)) {
+							printer.printRecord(record);
+							continue;
+						}
+					}
+
+					List<Object> updated;
+
+					if (isSubjectForCleanup){
+
+						CleanupFlag cleanupFlag = new CleanupFlag(isSubjectForCleanup);
+						updated = updateObject(data, attributeDeltaSet, cleanupFlag);
+
+						if(cleanupFlag.isRemove()){
+
+							continue;
+						}
+					} else {
+
+					updated = updateObject(data, attributeDeltaSet, null);
+					}
+
+					if (updated != null && !updated.isEmpty()) {
+						printer.printRecord(updated);
+					} else {
+						throw new ConnectorException("Object empty after reference value update");
+					}
+
+				}
+
+				writer.close();
+				reader.close();
+
+				moveTmpToOrig();
+			}
+		} catch (Exception ex) {
+
+			handleGenericException(ex, "Error during bulk reference update, change related to the ID: '" + value);
+
+		} finally {
+			cleanupResources(writer, reader, lock, configuration);
+		}
+	}
+	private List<String> getMultivaluedAttributes(){
+
+		List<String> multivalueAttributes = new ArrayList<>();
+
+
+		if (StringUtil.isNotEmpty(configuration.getMultivalueAttributes())) {
+			String[] array = configuration.getMultivalueAttributes().split(configuration.getMultivalueDelimiter());
+			multivalueAttributes = Arrays.asList(array);
+		}
+
+		return multivalueAttributes;
 	}
 }

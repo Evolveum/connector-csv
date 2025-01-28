@@ -1,4 +1,4 @@
 id;name;description;members-test;members-default;members-admin
 1;users-all;ua;1;2;2
 2;users-new;u-na;1;;
-3;devs;u-deva;1,;;
+3;devs;u-deva;1;;

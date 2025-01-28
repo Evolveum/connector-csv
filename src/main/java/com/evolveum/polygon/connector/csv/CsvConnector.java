@@ -246,7 +246,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
         }
 
         for (String ocName : objectObjectClassNames) {
-            ObjectClassHandler ocHanler = handlers.get(new ObjectClass(ocName));
+            ObjectClassHandler ocHanler = handlers.get(Util.getObjectClass(ocName));
 
             if(ocHanler!=null){
 
@@ -472,53 +472,91 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
             associationHolders = new HashMap<>();
         }
 
-        AssociationHolder associationHolder = constructAssociationHolder(pairArray, character ,access);
+        AssociationHolder associationHolder = constructAssociationHolder(pairArray, character ,access, false);
 
         if (associationHolders != null && !associationHolders.isEmpty()) {
 
-            List<String> ocNames;
+//            List<String> ocNames;
+//
+            Map<String, String> objectClasses = new HashMap<>();
+            objectClasses.put(Util.R_I_R_SUBJECT, associationHolder.getSubjectObjectClassName());
+            objectClasses.put(Util.R_I_R_OBJECT, associationHolder.getObjectObjectClassName());
 
-            if (OBTAINS.equals(character)) {
+//            if (OBTAINS.equals(character)) {
+//
+//                ocNames = List.of(associationHolder.getSubjectObjectClassName(), associationHolder.getObjectObjectClassName());
+//            } else {
+//
+//                ocNames = List.of(associationHolder.getSubjectObjectClassName());
+//            }
 
-                ocNames = List.of(associationHolder.getSubjectObjectClassName(), associationHolder.getObjectObjectClassName());
-            } else {
+            for(String spec : objectClasses.keySet()) {
 
-                ocNames = List.of(associationHolder.getSubjectObjectClassName());
-            }
+                String ocName = objectClasses.get(spec);
 
-
-            for (String ocName : ocNames) {
-
+                HashSet associationHolderSet;
                 if (!associationHolders.containsKey(ocName)) {
 
-                    HashSet associationHolderSet = new HashSet<>();
+                    associationHolderSet = new HashSet<>();
+                } else {
+                    associationHolderSet = associationHolders.get(ocName);
+                }
+
+                if (Util.R_I_R_SUBJECT.equals(spec)) {
                     associationHolderSet.add(associationHolder);
                     associationHolders.put(ocName, associationHolderSet);
                 } else {
 
-                    HashSet holders = associationHolders.get(ocName);
-                    holders.add(associationHolder);
-                    associationHolders.put(ocName, holders);
+                    if (OBTAINS.equals(character)) {
+                        AssociationHolder associationHolderReferredOc = constructAssociationHolder(pairArray, character,
+                                access, true);
+                        associationHolderSet.add(associationHolderReferredOc);
+                        associationHolders.put(ocName, associationHolderSet);
+                    } else {
+                        associationHolderSet.add(associationHolder);
+                        associationHolders.put(ocName, associationHolderSet);
+                    }
                 }
+
             }
 
-        } else {
+//            for (String ocName : ocNames) {
+//
+//                if (!associationHolders.containsKey(ocName)) {
+//
+//                    HashSet associationHolderSet = new HashSet<>();
+//                    associationHolderSet.add(associationHolder);
+//                    associationHolders.put(ocName, associationHolderSet);
+//                } else {
+//
+//                    HashSet holders = associationHolders.get(ocName);
+//                    holders.add(associationHolder);
+//                    associationHolders.put(ocName, holders);
+//                }
+//            }
+
+            } else {
             HashSet hashSet = new HashSet();
-            hashSet.add(associationHolder);
 
             if (OBTAINS.equals(character)) {
-
+                hashSet.add(associationHolder);
                 associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
                 associationHolders.put(associationHolder.getObjectObjectClassName(), (HashSet<AssociationHolder>) hashSet.clone());
             } else {
-
+                hashSet.add(associationHolder);
                 associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
+
+                HashSet objHashSet = new HashSet();
+                AssociationHolder associationHolderReferredOc = constructAssociationHolder(pairArray, character ,access,
+                        true);
+                objHashSet.add(associationHolderReferredOc);
+                associationHolders.put(associationHolder.getObjectObjectClassName(), objHashSet);
             }
         }
     }
 
     private AssociationHolder constructAssociationHolder(String[] pairArray, AssociationCharacter character,
-                                                         boolean access) {
+                                                         boolean access, boolean ommitSchema) {
         AssociationHolder associationHolder = new AssociationHolder();
         if (pairArray.length == 2) {
 
@@ -594,6 +632,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                     + "\" or \"" + OBTAINS + " \"");
         }
 
+        associationHolder.setOmitFromSchema(ommitSchema);
         return associationHolder;
     }
 

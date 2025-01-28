@@ -223,7 +223,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         ConnectorFacade connector = setupConnector("/create-memberOf.csv", config);
 
-        Uid expected = new Uid(USER_MEMBER_UID);
+        Uid expected = new Uid(USER_MEMBER_ID);
 
 
         ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(GROUP_MEMBER_UID_NEW,
@@ -242,8 +242,8 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         assertNotNull(object);
 
         attributes = new HashSet<>();
-        attributes.add(new Name(USER_MEMBER_UID));
-        attributes.add(createAttribute(Uid.NAME, USER_MEMBER_UID));
+        attributes.add(new Name(USER_MEMBER_ID));
+        attributes.add(createAttribute(Uid.NAME, USER_MEMBER_ID));
         attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference, origReference));
         attributes.add(createAttribute(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME));
         attributes.add(createAttribute(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME));
@@ -251,13 +251,13 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         assertConnectorObject(attributes, object);
 
         Map<String, String> expectedRecord = new HashMap<>();
-        expectedRecord.put(ATTR_UID, USER_MEMBER_UID);
+        expectedRecord.put(ATTR_UID, USER_MEMBER_ID);
         expectedRecord.put(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME);
         expectedRecord.put(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME);
         expectedRecord.put(ATTR_PASSWORD, USER_MEMBER_PASSWORD);
         expectedRecord.put(ATTR_MEMBER_OF, "1," + GROUP_MEMBER_UID_NEW);
 
-        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_UID);
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_ID);
         assertEquals(expectedRecord, realRecord);
     }
 
@@ -285,7 +285,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         ConnectorFacade connector = setupConnector("/create-memberOf.csv", config);
 
-        Uid expected = new Uid(USER_MEMBER_UID);
+        Uid expected = new Uid(USER_MEMBER_ID);
 
         ConnectorObjectReference origReference = new ConnectorObjectReference(buildConnectorObject("1",
                 "1", null, new ObjectClass("group")));
@@ -300,21 +300,21 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         assertNotNull(object);
 
         attributes = new HashSet<>();
-        attributes.add(new Name(USER_MEMBER_UID));
-        attributes.add(createAttribute(Uid.NAME, USER_MEMBER_UID));
+        attributes.add(new Name(USER_MEMBER_ID));
+        attributes.add(createAttribute(Uid.NAME, USER_MEMBER_ID));
         attributes.add(createAttribute(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME));
         attributes.add(createAttribute(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME));
         attributes.add(AttributeBuilder.buildPassword(new GuardedString(USER_MEMBER_PASSWORD.toCharArray())));
         assertConnectorObject(attributes, object);
 
         Map<String, String> expectedRecord = new HashMap<>();
-        expectedRecord.put(ATTR_UID, USER_MEMBER_UID);
+        expectedRecord.put(ATTR_UID, USER_MEMBER_ID);
         expectedRecord.put(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME);
         expectedRecord.put(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME);
         expectedRecord.put(ATTR_PASSWORD, USER_MEMBER_PASSWORD);
         expectedRecord.put(ATTR_MEMBER_OF, "");
 
-        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_UID);
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_ID);
         assertEquals(expectedRecord, realRecord);
     }
 
@@ -855,7 +855,6 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
     @Test
     public void removeReferenceAttributeOnAccessComplex() throws Exception {
 
-        //TODO # A should we remove the whole access object with the last "subject" removed?
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");
         config.setNameAttribute("id");
@@ -911,7 +910,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         assertEquals(expected, real);
 
         ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
-        assertNotNull(object);
+       assertNotNull(object);
 
         attributes = new HashSet<>();
         attributes.add(new Name(valueUserIdUpdateAccessOnObject));
@@ -932,5 +931,9 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         Map<String, String> realRecord = CsvTestUtil.findRecord(config, ATTR_ID,
                 valueUserIdUpdateAccessOnObject);
         assertEquals(expectedRecord, realRecord);
+
+        Map<String, String> accessRecord = CsvTestUtil.findRecord(createConfigurationReferencedObjectClass(
+                "./target/access.csv", ATTR_ID), ATTR_ID, "1");
+        assertEquals(null, accessRecord);
     }
 }
