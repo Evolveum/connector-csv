@@ -46,6 +46,17 @@ public class ReferenceDataDeliveryVector {
     }
 
     @Override
+    public String toString() {
+        return "ReferenceDataDeliveryVector{" +
+                "objectClass=" + objectClass +
+                ", originIsRecipient=" + originIsRecipient +
+                ", attributeName='" + attributeName + '\'' +
+                ", identificatorAttributeName='" + identificatorAttributeName + '\'' +
+                ", isAccess=" + isAccess +
+                '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

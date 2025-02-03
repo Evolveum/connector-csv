@@ -504,17 +504,15 @@ public class Util {
 
     public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
                                                                            AssociationHolder holder,
-                                                                           String uniqueAttrName, String objectClassName,
-                                                                           Map<ObjectClass, ObjectClassHandler> handlerMap,
+                                                                           String uniqueAttrName, String nameAttrName,
                                                                            Set<String> referenceAttributeNames){
-        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName ,objectClassName ,
-                handlerMap, referenceAttributeNames, null);
+        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName, nameAttrName,
+                referenceAttributeNames, null);
     }
 
         public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
                                                                            AssociationHolder holder,
-                                                                           String uniqueAttrName, String objectClassName,
-                                                                           Map<ObjectClass, ObjectClassHandler> handlerMap,
+                                                                           String uniqueAttrName, String nameAttrName,
                                                                            Set<String> referenceAttributeNames,
                                                                                Boolean isPartOfAccess) {
 
@@ -523,14 +521,27 @@ public class Util {
             String objectObjectClassName = holder.getObjectObjectClassName();
             Boolean isRecipient = objectObjectClassName.equals(holder.getSubjectObjectClassName());
 
-            if (!objectClassName.equals(objectObjectClassName)) {
-                ObjectClassHandler handler = handlerMap.get(Util.getObjectClass(objectObjectClassName));
-                uniqueAttrName = handler.getConfiguration().getUniqueAttribute();
-            }
+//            if (!objectClassName.equals(objectObjectClassName)) {
+//                ObjectClassHandler handler = handlerMap.get(Util.getObjectClass(objectObjectClassName));
+//                uniqueAttrName = handler.getConfiguration().getUniqueAttribute();
+//                nameAttrName = handler.getConfiguration().getNameAttribute();
+//            }
 
             if (uniqueAttrName.equals(referenceAttrName)) {
+                if(nameAttrName != null && !nameAttrName.isEmpty()) {
+
+                    if (!uniqueAttrName.equals(nameAttrName)) {
+                        identificatorAttributeName = Uid.NAME;
+                    } else {
+                        identificatorAttributeName = Name.NAME;
+                    }
+                } else {
+
+                    identificatorAttributeName = Name.NAME;
+                }
+
                 referenceAttrName = holder.getAssociationAttributeName();
-                identificatorAttributeName = Uid.NAME;
+
                 isRecipient = true;
             }
 

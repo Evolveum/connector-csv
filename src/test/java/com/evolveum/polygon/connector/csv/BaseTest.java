@@ -130,7 +130,13 @@ public abstract class BaseTest {
         config.validate();
     }
 
-    protected void assertConnectorObject(Set<Attribute> expected, BaseConnectorObject object) {
+    protected void assertConnectorObject(Set<Attribute> expected, BaseConnectorObject object){
+
+        assertConnectorObject(expected, object, null);
+    }
+
+    protected void assertConnectorObject(Set<Attribute> expected, BaseConnectorObject object,
+                                         String idAttributeNameOfReferenceObject) {
         Set<Attribute> real = object.getAttributes();
         assertEquals(expected.size(), real.size());
 
@@ -141,11 +147,14 @@ public abstract class BaseTest {
             Attribute realAttr = object.getAttributeByName(name);
             assertNotNull(realAttr);
 
-            List<String> expReferenceValues = getIdValuesFromReferenceAttribute(expValues);
-            List<String> realReferenceValues = getIdValuesFromReferenceAttribute(realAttr.getValue());
+            List<String> expReferenceValues = getIdValuesFromReferenceAttribute(expValues,
+                    idAttributeNameOfReferenceObject);
+            List<String> realReferenceValues = getIdValuesFromReferenceAttribute(realAttr.getValue(),
+                    idAttributeNameOfReferenceObject);
 
             if (expReferenceValues != null && realReferenceValues != null) {
-                assertEquals(expReferenceValues, realReferenceValues);
+                assertTrue(expReferenceValues.containsAll(realReferenceValues));
+                assertTrue(realReferenceValues.containsAll(expReferenceValues));
             } else {
                 assertEquals(expValues.size(), realAttr.getValue().size());
                 assertTrue(expValues.containsAll(realAttr.getValue()));
@@ -154,7 +163,7 @@ public abstract class BaseTest {
         }
     }
 
-   private List<String> getIdValuesFromReferenceAttribute(List<Object> values){
+   private List<String> getIdValuesFromReferenceAttribute(List<Object> values,  String uniqueAttributeName){
 
         List<String> referenceValues = new ArrayList<>();
 
@@ -162,12 +171,26 @@ public abstract class BaseTest {
 
             if (value instanceof ConnectorObjectReference) {
                 BaseConnectorObject bco = ((ConnectorObjectReference) value).getValue();
-                Attribute attribute = bco.getAttributeByName(Uid.NAME);
+                Attribute attribute = null;
+
+                if(uniqueAttributeName != null){
+
+                    attribute = bco.getAttributeByName(uniqueAttributeName);
+                }
+
+                if(attribute == null){
+
+                    attribute = bco.getAttributeByName(Uid.NAME);
+                }
+
                 List<Object> idValues = attribute.getValue();
 
                 for (Object o : idValues) {
                     if (o instanceof Uid) {
                         String idVal = ((Uid) o).getUidValue();
+                        referenceValues.add(idVal);
+                    } else {
+                        String idVal = o.toString();
                         referenceValues.add(idVal);
                     }
 
@@ -310,21 +333,31 @@ public abstract class BaseTest {
         foundReferenceUidList.put(idValue, referecedIds.keySet());
     }
 
-    protected ConnectorObject buildConnectorObject(String name, String uid, Set<Attribute> attributes, ObjectClass objectClass) {
-        ConnectorObjectBuilder cob = new ConnectorObjectBuilder();
+    protected ConnectorObjectIdentification buildConnectorObject(String name, String uid, Set<Attribute> attributes, ObjectClass objectClass) {
 
-        cob.addAttribute((new AttributeBuilder().setName(Name.NAME).addValue(name)).build());
-        cob.addAttribute((new AttributeBuilder().setName(Uid.NAME).addValue(uid)).build());
+        return buildConnectorObject(name, uid, attributes, objectClass, false);
+    }
+
+    protected ConnectorObjectIdentification buildConnectorObject(String name, String uid, Set<Attribute> attributes,
+                                                                 ObjectClass objectClass, boolean omitUid) {
+        Set<Attribute> cob = new HashSet<>();
+
+        cob.add((new AttributeBuilder().setName(Name.NAME).addValue(name)).build());
+
+        if(!omitUid){
+            cob.add((new AttributeBuilder().setName(Uid.NAME).addValue(uid)).build());
+
+        }
 
         if(attributes!=null) {
             for (Attribute attribute : attributes) {
-                cob.addAttribute(attribute);
+                cob.add(attribute);
             }
         }
 
-        cob.setObjectClass(objectClass);
+        ConnectorObjectIdentification cid = new ConnectorObjectIdentification(objectClass, attributes);
 
-        return cob.build();
+        return cid;
     }
 
     protected BaseConnectorObject assertReferenceAndReturnReferenceObject(Set<Attribute> referenceAttributes,

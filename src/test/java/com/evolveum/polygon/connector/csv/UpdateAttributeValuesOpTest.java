@@ -225,12 +225,18 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         Uid expected = new Uid(USER_MEMBER_ID);
 
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name(GROUP_MEMBER_UID_NEW));
 
         ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(GROUP_MEMBER_UID_NEW,
-                GROUP_MEMBER_UID_NEW, null, new ObjectClass("group")));
+                GROUP_MEMBER_UID_NEW, referenceAttributes, new ObjectClass("group")));
+
+
+        Set<Attribute> origReferenceAttributes = new HashSet<>();
+        origReferenceAttributes.add(new Name("1"));
 
         ConnectorObjectReference origReference = new ConnectorObjectReference(buildConnectorObject("1",
-                "1", null, new ObjectClass("group")));
+                "1", origReferenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
@@ -248,7 +254,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         attributes.add(createAttribute(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME));
         attributes.add(createAttribute(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME));
         attributes.add(AttributeBuilder.buildPassword(new GuardedString(USER_MEMBER_PASSWORD.toCharArray())));
-        assertConnectorObject(attributes, object);
+        assertConnectorObject(attributes, object, Name.NAME);
 
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_UID, USER_MEMBER_ID);
@@ -287,8 +293,11 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         Uid expected = new Uid(USER_MEMBER_ID);
 
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name("1"));
+
         ConnectorObjectReference origReference = new ConnectorObjectReference(buildConnectorObject("1",
-                "1", null, new ObjectClass("group")));
+                "1", referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, origReference));
@@ -344,11 +353,17 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         Uid expected = new Uid("4");
 
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name(NEW_REFERENCE_ID));
+
         ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
-                NEW_REFERENCE_ID, null, new ObjectClass("group")));
+                NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
+
+        Set<Attribute> oldReferenceAttributes = new HashSet<>();
+        oldReferenceAttributes.add(new Name("2"));
 
         ConnectorObjectReference oldReference = new ConnectorObjectReference(buildConnectorObject("2",
-                "2", null, new ObjectClass("group")));
+                "2", oldReferenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
@@ -364,7 +379,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         attributes.add(createAttribute(Uid.NAME, GROUP_MEMBER_UPDATED_UID));
         attributes.add(createAttribute(ASSOC_ATTR_GROUP, oldReference, reference));
         attributes.add(createAttribute(ATTR_DESCRIPTION, GROUP_MEMBER_UPDATED_DESCRIPTION));
-        assertConnectorObject(attributes, object);
+        assertConnectorObject(attributes, object, Name.NAME);
 
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_ID, GROUP_MEMBER_UPDATED_UID);
@@ -402,8 +417,11 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         Uid expected = new Uid("4");
 
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name("2"));
+
         ConnectorObjectReference oldReference = new ConnectorObjectReference(buildConnectorObject("2",
-                "2", null, new ObjectClass("group")));
+                "2", referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, oldReference));
@@ -713,6 +731,10 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
                 NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("access")));
+        ConnectorObjectReference connectorObjectReferenceExpectedOne = new ConnectorObjectReference(buildConnectorObject("2",
+                "2", Set.of(createAttribute(Uid.NAME, "2")), new ObjectClass("access")));
+        ConnectorObjectReference connectorObjectReferenceExpectedTwo = new ConnectorObjectReference(buildConnectorObject("3",
+                "3", Set.of(createAttribute(Uid.NAME, "3")), new ObjectClass("access")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_ACCESS, connectorObjectReference));
@@ -727,7 +749,8 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         attributes.add(new Name(valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(ATTR_NAME, "jack"));
-        attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference));
+        attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference,
+                connectorObjectReferenceExpectedOne ,connectorObjectReferenceExpectedTwo));
         attributes.add(createAttribute(ATTR_EMPL, "234"));
         attributes.add(createAttribute(ATTR_TITLE, "manager"));
         assertConnectorObject(attributes, object);
@@ -808,6 +831,11 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
                 NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("access")));
 
+        ConnectorObjectReference connectorObjectReferenceExpectedOne = new ConnectorObjectReference(buildConnectorObject("2",
+                "2", Set.of(createAttribute(Uid.NAME, "2")), new ObjectClass("access")));
+        ConnectorObjectReference connectorObjectReferenceExpectedTwo = new ConnectorObjectReference(buildConnectorObject("3",
+                "3", Set.of(createAttribute(Uid.NAME, "3")), new ObjectClass("access")));
+
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_ACCESS, connectorObjectReference));
         Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
@@ -821,7 +849,8 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         attributes.add(new Name(valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(ATTR_NAME, "jack"));
-        attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference));
+        attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference,
+                connectorObjectReferenceExpectedOne ,connectorObjectReferenceExpectedTwo));
         attributes.add(createAttribute(ATTR_EMPL, "234"));
         attributes.add(createAttribute(ATTR_TITLE, "manager"));
         assertConnectorObject(attributes, object);

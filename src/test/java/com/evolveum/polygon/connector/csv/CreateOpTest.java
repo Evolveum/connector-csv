@@ -296,8 +296,11 @@ public class CreateOpTest extends BaseTest {
 
         ConnectorFacade connector = setupConnector("/create-memberOf.csv", config);
 
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name(NEW_REFERENCE_ID));
+
         ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
-                NEW_REFERENCE_ID, null, new ObjectClass("group")));
+                NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(new Name(NEW_UID));
@@ -319,7 +322,7 @@ public class CreateOpTest extends BaseTest {
         attributes.add(createAttribute(ATTR_LAST_NAME, NEW_LAST_NAME));
         attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference));
         attributes.add(AttributeBuilder.buildPassword(new GuardedString(NEW_PASSWORD.toCharArray())));
-        assertConnectorObject(attributes, newObject);
+        assertConnectorObject(attributes, newObject, Name.NAME);
 
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_UID, NEW_UID);
@@ -356,8 +359,11 @@ public class CreateOpTest extends BaseTest {
 
         ConnectorFacade connector = setupConnector("/create-memberOf.csv", config);
 
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name(NEW_REFERENCE_ID));
+
         ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
-                NEW_REFERENCE_ID, null, new ObjectClass("group")));
+                NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(new Name(NEW_GROUP_UID));
@@ -376,7 +382,7 @@ public class CreateOpTest extends BaseTest {
         attributes.add(createAttribute(Uid.NAME, NEW_GROUP_UID));
         attributes.add(createAttribute(ATTR_DESCRIPTION, NEW_GROUP_DESCRIPTION));
         attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference));
-        assertConnectorObject(attributes, newObject);
+        assertConnectorObject(attributes, newObject, Name.NAME);
 
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_ID, NEW_GROUP_UID);

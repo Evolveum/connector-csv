@@ -472,25 +472,15 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
             associationHolders = new HashMap<>();
         }
 
-        AssociationHolder associationHolder = constructAssociationHolder(pairArray, character ,access, false);
+        AssociationHolder associationHolder = constructAssociationHolder(pairArray, character, access, false);
 
         if (associationHolders != null && !associationHolders.isEmpty()) {
 
-//            List<String> ocNames;
-//
             Map<String, String> objectClasses = new HashMap<>();
             objectClasses.put(Util.R_I_R_SUBJECT, associationHolder.getSubjectObjectClassName());
             objectClasses.put(Util.R_I_R_OBJECT, associationHolder.getObjectObjectClassName());
 
-//            if (OBTAINS.equals(character)) {
-//
-//                ocNames = List.of(associationHolder.getSubjectObjectClassName(), associationHolder.getObjectObjectClassName());
-//            } else {
-//
-//                ocNames = List.of(associationHolder.getSubjectObjectClassName());
-//            }
-
-            for(String spec : objectClasses.keySet()) {
+            for (String spec : objectClasses.keySet()) {
 
                 String ocName = objectClasses.get(spec);
 
@@ -519,23 +509,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                 }
 
             }
-
-//            for (String ocName : ocNames) {
-//
-//                if (!associationHolders.containsKey(ocName)) {
-//
-//                    HashSet associationHolderSet = new HashSet<>();
-//                    associationHolderSet.add(associationHolder);
-//                    associationHolders.put(ocName, associationHolderSet);
-//                } else {
-//
-//                    HashSet holders = associationHolders.get(ocName);
-//                    holders.add(associationHolder);
-//                    associationHolders.put(ocName, holders);
-//                }
-//            }
-
-            } else {
+        } else {
             HashSet hashSet = new HashSet();
 
             if (OBTAINS.equals(character)) {
@@ -547,7 +521,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                 associationHolders.put(associationHolder.getSubjectObjectClassName(), hashSet);
 
                 HashSet objHashSet = new HashSet();
-                AssociationHolder associationHolderReferredOc = constructAssociationHolder(pairArray, character ,access,
+                AssociationHolder associationHolderReferredOc = constructAssociationHolder(pairArray, character, access,
                         true);
                 objHashSet.add(associationHolderReferredOc);
                 associationHolders.put(associationHolder.getObjectObjectClassName(), objHashSet);
@@ -556,7 +530,13 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
     }
 
     private AssociationHolder constructAssociationHolder(String[] pairArray, AssociationCharacter character,
-                                                         boolean access, boolean ommitSchema) {
+                                                         boolean access, boolean omitFromSchema) {
+        if(LOG.isOk()){
+
+            LOG.ok("Constructing association holder. Association Character {0}, Is Access {1}, Will be omitted from" +
+                    " schema {2}. {3}", character, access, omitFromSchema, System.lineSeparator());
+        }
+
         AssociationHolder associationHolder = new AssociationHolder();
         if (pairArray.length == 2) {
 
@@ -632,7 +612,12 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                     + "\" or \"" + OBTAINS + " \"");
         }
 
-        associationHolder.setOmitFromSchema(ommitSchema);
+        associationHolder.setOmitFromSchema(omitFromSchema);
+
+        if(LOG.isOk()){
+            LOG.ok("The constructed Association Holder {0}. {1}", associationHolder, System.lineSeparator());
+        }
+
         return associationHolder;
     }
 

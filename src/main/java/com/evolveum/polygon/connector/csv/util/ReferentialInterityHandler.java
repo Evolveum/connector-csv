@@ -2,15 +2,19 @@ package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.ObjectClassHandler;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
+import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.*;
 
 import java.util.*;
 
+import static com.evolveum.polygon.connector.csv.util.Util.constructReferenceDataVector;
+
 public class ReferentialInterityHandler {
 
     private ObjectClassHandler objectClassHandler;
+    private static final Log LOG = Log.getLog(ReferentialInterityHandler.class);
 
     public ReferentialInterityHandler(ObjectClassHandler objectClassHandler) {
 
@@ -23,6 +27,14 @@ public class ReferentialInterityHandler {
     }
 
     public void handle(String uidValue, String uidUpdated, Operation operation) {
+
+        if(LOG.isOk()){
+
+            String tmp = operation == Operation.UPDATE ? "The updated uid: "+ uidUpdated : "";
+
+            LOG.ok("Handling referential integrity for the object {0}, the operation which triggered this handling: {1}."
+                    + tmp, uidValue, operation);
+        }
 
         Map<ObjectClass, Set<ReferenceDataDeliveryVector>> referenceDataDeliveryVectors =
                 determineReferenceDataDeliveryVectors();
@@ -53,6 +65,10 @@ public class ReferentialInterityHandler {
 
             for (ReferenceDataDeliveryVector referenceDataDeliveryVector : referenceDataDeliveryVectorsPerOc) {
 
+                if(LOG.isOk()){
+                    LOG.ok("The Vector used for Referential Integrity operation {0}", referenceDataDeliveryVector);
+                }
+
                 Attribute attribute = AttributeBuilder.build(referenceDataDeliveryVector.getAttributeName(),
                         subjectOfReferentialIntegrityUidValue);
 
@@ -81,6 +97,17 @@ public class ReferentialInterityHandler {
 
             Filter filter = constructFinalUpdateFilter(filters,
                     subjectOfReferentialIntegrityUidValue);
+
+            if(LOG.isOk()){
+
+                for (AttributeDelta attributeDelta : attributeDeltasSet){
+
+                    LOG.ok("Attribute DELTA used for referential integrity update: {0}. {1}", attributeDelta,
+                            System.lineSeparator());
+                }
+                LOG.ok("Attribute FILTER used for referential integrity update: {0}. {1}", filter,
+                        System.lineSeparator());
+            }
 
             vectorObjectClassHandler.updateAllReferencesOfValue(filter, attributeDeltasSet,
                     subjectOfReferentialIntegrityUidValue, isSubjectForCleanup);
@@ -138,29 +165,44 @@ public class ReferentialInterityHandler {
             for (AssociationHolder holder : holders) {
                 ReferenceDataDeliveryVector referenceDataDeliveryVector;
 
-                if (holder.isAccess()){
+                if (holder.isAccess()) {
 
                     cleanupOcList.add(holder.getObjectObjectClassName());
                 }
 
+                String vectorObjectClassName;
+
                 if (!currentObjectClassName.equals(holder.getSubjectObjectClassName())) {
 
-                    String vectorObjectClassName = holder.getSubjectObjectClassName();
+                    vectorObjectClassName = holder.getSubjectObjectClassName();
+                } else {
+                    vectorObjectClassName = holder.getObjectObjectClassName();
+                }
 
-                    boolean isPartOfAccess = isPartOfAccess(holder, associationHolders.get(vectorObjectClassName));
 
-                    referenceDataDeliveryVector = Util.constructReferenceDataVector(
+                boolean isPartOfAccess = isPartOfAccess(holder, associationHolders.get(vectorObjectClassName));
+
+//                    referenceDataDeliveryVector = Util.constructReferenceDataVector(
+//                            Util.getObjectClass(vectorObjectClassName), holder,
+//                            configuration.getUniqueAttribute(),currentObjectClassName, objectClassHandler.getHandlers(),
+//                            null, isPartOfAccess);
+
+                if (!currentObjectClassName.equals(holder.getObjectObjectClassName())) {
+                    ObjectClassHandler handler = objectClassHandler.getHandlers()
+                            .get(Util.getObjectClass(holder.getObjectObjectClassName()));
+
+                    referenceDataDeliveryVector = constructReferenceDataVector(
                             Util.getObjectClass(vectorObjectClassName), holder,
-                            configuration.getUniqueAttribute(),currentObjectClassName, objectClassHandler.getHandlers(),
-                            null, isPartOfAccess);
+                            handler.getConfiguration().getUniqueAttribute(),
+                            handler.getConfiguration().getNameAttribute(), null,
+                            isPartOfAccess);
                 } else {
 
-                    String vectorObjectClassName = holder.getObjectObjectClassName();
-
-                    referenceDataDeliveryVector = Util.constructReferenceDataVector(
-                            Util.getObjectClass(vectorObjectClassName), holder,
-                            configuration.getUniqueAttribute(),currentObjectClassName,
-                            objectClassHandler.getHandlers(), null);
+                    referenceDataDeliveryVector = constructReferenceDataVector(
+                            Util.getObjectClass(vectorObjectClassName),
+                            holder, configuration.getUniqueAttribute()
+                            , configuration.getNameAttribute(),
+                            null, isPartOfAccess);
                 }
 
                 if (referenceDataDeliveryVector != null) {
@@ -183,6 +225,10 @@ public class ReferentialInterityHandler {
     }
 
     private boolean isPartOfAccess(AssociationHolder holder, HashSet<AssociationHolder> associationHolders) {
+
+        if(holder.isAccess()){
+            return true;
+        }
 
         for (AssociationHolder holderFromSet : associationHolders) {
             if (!holderFromSet.equals(holder)) {

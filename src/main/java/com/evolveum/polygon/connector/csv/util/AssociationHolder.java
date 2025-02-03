@@ -68,4 +68,16 @@ public class AssociationHolder {
         this.omitFromSchema = omitFromSchema;
     }
 
+    @Override
+    public String toString() {
+        return "AssociationHolder{" +
+                "associationAttributeName='" + associationAttributeName + '\'' +
+                ", valueAttributeName='" + valueAttributeName + '\'' +
+                ", subjectObjectClassName='" + subjectObjectClassName + '\'' +
+                ", objectObjectClassName='" + objectObjectClassName + '\'' +
+                ", isAccess=" + isAccess +
+                ", omitFromSchema=" + omitFromSchema +
+                ", character=" + character +
+                '}';
+    }
 }
