@@ -2107,13 +2107,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		return Util.getObjectClassName(getObjectClass());
 	}
-//	private void retrieveAssociationData(HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>>  candidates) {
-//
-//		retrieveAssociationData(candidates, 0);
-//	}
 
 	private void retrieveAssociationData(HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>>  candidates) {
-// TODO # A refactor
+
 		Set<AssociationHolder> associationSet = associationHolders.get(getObjectClassName());
 
 		if (associationSet == null) {
@@ -2123,8 +2119,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		Map<ObjectClass, Set<String>> valuesPerObjectClass = new HashMap<>();
 		String objectClass = getObjectClassName();
-		Map<ObjectClass, ObjectClassHandler> availableHandlers;
-		Map<ObjectClassHandler, Set<CSVRecord>> recordSet = new HashMap<>();
+
 		Map<String, Set<AssociationHolder>> objectClassAndAttrs = null;
 
 		for (ConnectorObjectId id : candidates.keySet()) {
@@ -2155,7 +2150,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 		}
 
-		if(valuesPerObjectClass.isEmpty()){
+		if (valuesPerObjectClass.isEmpty()) {
 
 			return;
 		}
@@ -2187,6 +2182,22 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				objectClassAndAttrs.put(objectObjectCLassName, holders);
 			}
 		}
+
+		Map<ObjectClassHandler, Set<CSVRecord>> recordSet = createRecordSetsOfReferredObjects(objectClassAndAttrs,
+				valuesPerObjectClass);
+
+
+		if (!recordSet.isEmpty()) {
+
+			constructReferredObjectsAndSaturateConnectorObjectCandidates(candidates, recordSet);
+		}
+	}
+
+	private Map<ObjectClassHandler, Set<CSVRecord>> createRecordSetsOfReferredObjects(
+			Map<String, Set<AssociationHolder>> objectClassAndAttrs, Map<ObjectClass, Set<String>> valuesPerObjectClass) {
+		Map<ObjectClass, ObjectClassHandler> availableHandlers;
+		Map<ObjectClassHandler, Set<CSVRecord>> recordSet = new HashMap<>();
+
 		if (objectClassAndAttrs != null) {
 
 			availableHandlers = getHandlers();
@@ -2228,80 +2239,83 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				}
 			}
 		}
+		return recordSet;
+	}
 
-		if (recordSet != null && !recordSet.isEmpty()) {
-			for (ObjectClassHandler objectClassHandler : recordSet.keySet()) {
+	private void constructReferredObjectsAndSaturateConnectorObjectCandidates(
+			HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>> connectorObjectCandidates,
+												Map<ObjectClassHandler, Set<CSVRecord>> recordSet) {
+		for (ObjectClassHandler objectClassHandler : recordSet.keySet()) {
 
-				Set<CSVRecord> records = recordSet.get(objectClassHandler);
-				HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> retrievedCandidates = new HashMap<>();
-				boolean shouldReiterate = false;
-				for (CSVRecord record : records) {
-					ConnectorObjectCandidate oc;
+			Set<CSVRecord> records = recordSet.get(objectClassHandler);
+			HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> retrievedCandidates = new HashMap<>();
+			boolean shouldReiterate = false;
+			for (CSVRecord record : records) {
+				ConnectorObjectCandidate oc;
 
-						oc = objectClassHandler.createConnectorObjectOrCandidateObject(record,
-								false);
+				oc = objectClassHandler.createConnectorObjectOrCandidateObject(record,
+						false);
 
-					ConnectorObjectId cid = oc.getId();
-					objectClassHandler.saturateCandidates(cid, retrievedCandidates, oc);
+				ConnectorObjectId cid = oc.getId();
+				objectClassHandler.saturateCandidates(cid, retrievedCandidates, oc);
 
-					if (!shouldReiterate) {
+				if (!shouldReiterate) {
 
-						shouldReiterate = objectClassHandler.appendToCandidateMap(oc, retrievedCandidates,
-								true);
-					} else {
+					shouldReiterate = objectClassHandler.appendToCandidateMap(oc, retrievedCandidates,
+							true);
+				} else {
 
-						objectClassHandler.appendToCandidateMap(oc, retrievedCandidates,
-								true);
-					}
+					objectClassHandler.appendToCandidateMap(oc, retrievedCandidates,
+							true);
 				}
+			}
 
-				if (shouldReiterate) {
+			if (shouldReiterate) {
 
-					objectClassHandler.reIterateCandidates(retrievedCandidates);
-				}
+				objectClassHandler.reIterateCandidates(retrievedCandidates);
+			}
 
-				objectClassHandler.retrieveAssociationData(retrievedCandidates);
+			objectClassHandler.retrieveAssociationData(retrievedCandidates);
 
-				Set<ConnectorObjectCandidate> finalCandidateSet = new HashSet<>();
-				retrievedCandidates.values().forEach(val -> finalCandidateSet.addAll(val));
-				for (ConnectorObjectCandidate candidate : finalCandidateSet) {
+			Set<ConnectorObjectCandidate> finalCandidateSet = new HashSet<>();
+			retrievedCandidates.values().forEach(val -> finalCandidateSet.addAll(val));
+			for (ConnectorObjectCandidate candidate : finalCandidateSet) {
 
-					candidate.evaluateDependencies();
-					if (candidate.complete()) {
-						if (candidates.containsKey(candidate.getId())) {
-							Set<ConnectorObjectCandidate> candidateSet = candidates.get(candidate.getId());
+				candidate.evaluateDependencies();
+				if (candidate.complete()) {
+					if (connectorObjectCandidates.containsKey(candidate.getId())) {
+						Set<ConnectorObjectCandidate> candidateSet = connectorObjectCandidates.get(candidate.getId());
 
-							for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
+						for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
 
-								candidateFromSet.addCandidateUponWhichThisDepends(candidate);
-							}
+							candidateFromSet.addCandidateUponWhichThisDepends(candidate);
+						}
 
-						} else if (!candidate.getSubjectIdsToBeProcessed().isEmpty()) {
+					} else if (!candidate.getSubjectIdsToBeProcessed().isEmpty()) {
 
-							Set<ConnectorObjectId> idSet = candidate.getSubjectIdsToBeProcessed();
-							for (ConnectorObjectId id : idSet) {
+						Set<ConnectorObjectId> idSet = candidate.getSubjectIdsToBeProcessed();
+						for (ConnectorObjectId id : idSet) {
 
-								if (candidates.containsKey(id)) {
-									Set<ConnectorObjectCandidate> candidateSet = candidates.get(id);
+							if (connectorObjectCandidates.containsKey(id)) {
+								Set<ConnectorObjectCandidate> candidateSet = connectorObjectCandidates.get(id);
 
-									for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
+								for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
 
-										candidateFromSet.addCandidateUponWhichThisDepends(candidate);
-									}
+									candidateFromSet.addCandidateUponWhichThisDepends(candidate);
 								}
 							}
 						}
-					} else {
-
-						throw new ConnectorException("Invalid operation outcome, Connector Object Candidate '"+
-								candidate.getId()+"' ");
 					}
+				} else {
+
+					throw new ConnectorException("Invalid operation outcome, Connector Object Candidate '" +
+							candidate.getId() + "' ");
 				}
 			}
 		}
 	}
 
-    private Long createLastLoginDateValue(String value) {
+	private Long createLastLoginDateValue(String value) {
         if (StringUtil.isEmpty(value)) {
             return null;
         }

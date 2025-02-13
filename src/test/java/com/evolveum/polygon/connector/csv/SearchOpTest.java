@@ -36,7 +36,6 @@ public class SearchOpTest extends BaseTest {
 
     @Test
     public void findAllAccountsNativeAssociationsGroupMultiParameters() throws Exception {
-// TODO # A assertions have to be updated
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");
         config.setNameAttribute("id");
