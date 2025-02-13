@@ -21,6 +21,8 @@ import java.util.Map.Entry;
 
 import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.OBTAINS;
 import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.REFERS_TO;
+import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
+import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -461,18 +463,71 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
             }
         }
 
+       Set<String> objectClassesWithMultipleRefAttributes = checkForReferenceAttributeMultiplicity(obtainArrays);
+
         for (String[] obtainsArray : obtainArrays) {
 
-            constructAssociationHolders(obtainsArray, OBTAINS, isAccess);
+            if(objectClassesWithMultipleRefAttributes != null) {
+
+                constructAssociationHolders(obtainsArray, OBTAINS, isAccess, objectClassesWithMultipleRefAttributes);
+            }else {
+
+                constructAssociationHolders(obtainsArray, OBTAINS, isAccess);
+            }
         }
     }
 
+    private Set<String> checkForReferenceAttributeMultiplicity(Set<String[]> obtainArrays) {
+
+        Map<String, Set<String>> multipleRefAttributes = new HashMap<>();
+        Set<String> finalSet = new HashSet<>();
+        for (String[] array : obtainArrays) {
+            Set<String> objectClassesWithMultipleRefAttributes = new HashSet<>();
+            String subjectName = "";
+            for (int i = 0; i <= 1; i++) {
+
+                String objectObjectClass = array[i];
+                String[] objectClassAndMemberAttributes = objectObjectClass.split(CONF_ASSOC_ATTR_DELIMITER);
+                String objectClassName = objectClassAndMemberAttributes[0].
+                        trim().substring(1);
+
+                if (i == 0) {
+                    subjectName = objectClassName;
+                    objectClassesWithMultipleRefAttributes = multipleRefAttributes.get(objectClassName);
+
+                } else {
+
+                    if (objectClassesWithMultipleRefAttributes == null) {
+                        objectClassesWithMultipleRefAttributes = new HashSet<>();
+                    }
+
+                    if (!objectClassesWithMultipleRefAttributes.contains(objectClassName)) {
+
+                        objectClassesWithMultipleRefAttributes.add(objectClassName);
+                        multipleRefAttributes.put(subjectName, objectClassesWithMultipleRefAttributes);
+                    } else {
+                        finalSet.add(objectClassName);
+                    }
+                }
+            }
+        }
+
+        return finalSet;
+    }
+
     private void constructAssociationHolders(String[] pairArray, AssociationCharacter character, boolean access) {
+
+        constructAssociationHolders(pairArray, character, access, null);
+    }
+
+    private void constructAssociationHolders(String[] pairArray, AssociationCharacter character, boolean access,
+                                             Set<String> multiReferenceObjectClasses) {
         if (associationHolders == null) {
             associationHolders = new HashMap<>();
         }
 
-        AssociationHolder associationHolder = constructAssociationHolder(pairArray, character, access, false);
+        AssociationHolder associationHolder = constructAssociationHolder(pairArray, character, access,
+                false, multiReferenceObjectClasses);
 
         if (associationHolders != null && !associationHolders.isEmpty()) {
 
@@ -499,7 +554,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
 
                     if (OBTAINS.equals(character)) {
                         AssociationHolder associationHolderReferredOc = constructAssociationHolder(pairArray, character,
-                                access, true);
+                                access, true, multiReferenceObjectClasses);
                         associationHolderSet.add(associationHolderReferredOc);
                         associationHolders.put(ocName, associationHolderSet);
                     } else {
@@ -522,7 +577,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
 
                 HashSet objHashSet = new HashSet();
                 AssociationHolder associationHolderReferredOc = constructAssociationHolder(pairArray, character, access,
-                        true);
+                        true, multiReferenceObjectClasses);
                 objHashSet.add(associationHolderReferredOc);
                 associationHolders.put(associationHolder.getObjectObjectClassName(), objHashSet);
             }
@@ -530,7 +585,8 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
     }
 
     private AssociationHolder constructAssociationHolder(String[] pairArray, AssociationCharacter character,
-                                                         boolean access, boolean omitFromSchema) {
+                                                         boolean access, boolean omitFromSchema,
+                                                         Set<String> multiReferenceObjectClasses) {
         if(LOG.isOk()){
 
             LOG.ok("Constructing association holder. Association Character {0}, Is Access {1}, Will be omitted from" +
@@ -598,10 +654,27 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
                         associationHolder.setAccess(access);
                         associationHolder.setValueAttributeName(objectClassAndMemberAttributes[1].trim());
 
+                        if(access){
+
+                        associationHolder.setReferenceName(ASSOC_ATTR_ACCESS);
+                        } else {
+
+                            if(multiReferenceObjectClasses!=null &&
+                                    multiReferenceObjectClasses.contains(associationHolder.getObjectObjectClassName())){
+
+                                associationHolder.setReferenceName(ASSOC_ATTR_GROUP +"-"
+                                        + objectClassAndMemberAttributes[1].trim());
+                            } else {
+
+                                associationHolder.setReferenceName(ASSOC_ATTR_GROUP);
+                            }
+                        }
+
                     } else if (REFERS_TO.equals(character)) {
 
                         associationHolder.setCharacter(REFERS_TO);
                         associationHolder.setAssociationAttributeName(objectClassAndMemberAttributes[1].trim());
+                        associationHolder.setReferenceName(ASSOC_ATTR_GROUP);
                     }
                 }
             }

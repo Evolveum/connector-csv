@@ -377,7 +377,8 @@ public class SyncOpTest extends BaseTest {
                     if (objectsByObjectClass.containsKey(uidVal)) {
                         Set<Uid> referencedUidList = objectsByObjectClass.get(uidVal);
                         objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
-                                null, ASSOC_ATTR_GROUP);
+                                null, Set.of(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT,
+                                        ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN));
                     }
                 }
             }

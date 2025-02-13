@@ -1,12 +1,10 @@
 package com.evolveum.polygon.connector.csv.util;
 
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
-import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
-import org.identityconnectors.framework.common.objects.ConnectorObjectReference;
+import org.identityconnectors.framework.common.objects.*;
 
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
+
+import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 
 public class ConnectorObjectCandidate {
 
@@ -17,19 +15,26 @@ public class ConnectorObjectCandidate {
     private Set<ConnectorObjectId> alreadyProcessedObjectIds = new HashSet<>();
     private Set<ConnectorObjectId> objectIdsToBeProcessed;
     private Set<ConnectorObjectId> subjectIdsToBeProcessed;
-    private String referenceName;
+//    private String referenceName;
+
+    private Set<String> referenceNames;
+
     private boolean isComplete = false;
 
 
     public ConnectorObjectCandidate(ConnectorObjectId id, ConnectorObjectBuilder candidateBuilder, Set<ConnectorObjectId> associatedObjectIds,
                                     Set<ConnectorObjectId> subjectIdsToBeProcessed, String referenceName) {
+        this(id, candidateBuilder, associatedObjectIds, subjectIdsToBeProcessed, Set.of(referenceName));
+    }
+
+    public ConnectorObjectCandidate(ConnectorObjectId id, ConnectorObjectBuilder candidateBuilder, Set<ConnectorObjectId> associatedObjectIds,
+                                    Set<ConnectorObjectId> subjectIdsToBeProcessed, Set<String> referenceNames) {
         this.id = id;
         this.candidateBuilder = candidateBuilder;
         this.objectIdsToBeProcessed = associatedObjectIds;
         this.subjectIdsToBeProcessed = subjectIdsToBeProcessed;
-        this.referenceName = referenceName;
+        this.referenceNames = referenceNames;
     }
-
 
     public void evaluateDependencies() {
 
@@ -46,11 +51,9 @@ public class ConnectorObjectCandidate {
 
                     alreadyProcessedObjectIds.add(candidateId);
                 }
-
                 iterator.remove();
             }
         }
-
     }
 
     public boolean complete() {
@@ -66,8 +69,49 @@ public class ConnectorObjectCandidate {
         if (objectIdsToBeProcessed.isEmpty()) {
 
             if (!referencedObjects.isEmpty()) {
-                candidateBuilder.addAttribute(AttributeBuilder.build(referenceName, referencedObjects));
+
+                if(referenceNames.size() == 1){
+
+                    candidateBuilder.addAttribute(AttributeBuilder.build(referenceNames.iterator().next(),
+                            referencedObjects));
+                }else {
+
+                    Map<String, Set<ConnectorObjectReference>> referencesPerAttribute = new HashMap<>();
+                    for (ConnectorObjectReference connectorObjectReference : referencedObjects) {
+
+                        BaseConnectorObject baseConnectorObject = connectorObjectReference.getValue();
+
+                        for (String name : referenceNames) {
+
+                           String refAttrName = name;
+                            if(refAttrName.contains(ASSOC_ATTR_GROUP+"-")){
+                                refAttrName = refAttrName.replaceAll(ASSOC_ATTR_GROUP+"-", "");
+                            }
+                            Attribute attribute = baseConnectorObject.getAttributeByName(refAttrName);
+
+                            if (attribute != null && attribute.getValue()
+                                    .contains(id.getId())) {
+                                Set<ConnectorObjectReference> referenceSet = referencesPerAttribute.get(name);
+
+                                if (referenceSet != null) {
+
+                                    referenceSet.add(connectorObjectReference);
+                                } else {
+                                    referenceSet = new HashSet<>();
+                                    referenceSet.add(connectorObjectReference);
+                                    referencesPerAttribute.put(name, referenceSet);
+                                }
+                            }
+                        }
+                    }
+                    for(String attrName : referencesPerAttribute.keySet()){
+
+                        candidateBuilder.addAttribute(AttributeBuilder.build(attrName,
+                                referencesPerAttribute.get(attrName)));
+                    }
+                }
             }
+
             isComplete = true;
             return true;
         }

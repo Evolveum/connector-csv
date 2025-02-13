@@ -492,7 +492,10 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
                 NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference));
+
         Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
 
         assertEquals(expected, real);
@@ -504,7 +507,9 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         attributes.add(new Name(valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(ATTR_NAME, "jack"));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference));
         attributes.add(createAttribute(ATTR_EMPL, "234"));
         attributes.add(createAttribute(ATTR_TITLE, "manager"));
         assertConnectorObject(attributes, object);
@@ -518,7 +523,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         referenceAttributesToCheck.add(createAttribute(ATTR_MEMBERS_ADMIN, valueUserIdUpdateAccessOnObject));
 
         assertReferenceAndReturnReferenceObject(referenceAttributesToCheck,
-                object.getAttributeByName(ASSOC_ATTR_GROUP), new Uid(NEW_REFERENCE_ID));
+                object.getAttributeByName(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST), new Uid(NEW_REFERENCE_ID));
 
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_ID, valueUserIdUpdateAccessOnObject);
@@ -534,7 +539,6 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
     @Test
     public void removeReferenceAttributeOnObjectComplexSpecial() throws Exception {
 
-        //TODO # A Should this remove the accounts reference to the group
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");
         config.setNameAttribute("id");
@@ -572,7 +576,8 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
                 NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference));
         Uid real = connector.removeAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
 
         assertEquals(expected, real);
@@ -641,7 +646,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
                 NEW_REFERENCE_ID, referenceAttributesRemoved, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, referenceRemoval));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, referenceRemoval));
         Uid real = connector.removeAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
 
         assertEquals(expected, real);
@@ -662,14 +667,14 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         attributes = new HashSet<>();
         attributes.add(new Name(valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP, referenceToCheck));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, referenceToCheck));
         attributes.add(createAttribute(ATTR_NAME, "jack"));
         attributes.add(createAttribute(ATTR_EMPL, "234"));
         attributes.add(createAttribute(ATTR_TITLE, "manager"));
         assertConnectorObject(attributes, object);
 
         assertReferenceAndReturnReferenceObject(referenceAttributesToCheck,
-                object.getAttributeByName(ASSOC_ATTR_GROUP), new Uid(NEW_REFERENCE_ID));
+                object.getAttributeByName(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT), new Uid(NEW_REFERENCE_ID));
 
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_ID, valueUserIdUpdateAccessOnObject);

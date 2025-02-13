@@ -194,15 +194,13 @@ public class ReferentialInterityHandler {
                     referenceDataDeliveryVector = constructReferenceDataVector(
                             Util.getObjectClass(vectorObjectClassName), holder,
                             handler.getConfiguration().getUniqueAttribute(),
-                            handler.getConfiguration().getNameAttribute(), null,
-                            isPartOfAccess);
+                            handler.getConfiguration().getNameAttribute(), isPartOfAccess);
                 } else {
 
                     referenceDataDeliveryVector = constructReferenceDataVector(
                             Util.getObjectClass(vectorObjectClassName),
                             holder, configuration.getUniqueAttribute()
-                            , configuration.getNameAttribute(),
-                            null, isPartOfAccess);
+                            , configuration.getNameAttribute(), isPartOfAccess);
                 }
 
                 if (referenceDataDeliveryVector != null) {

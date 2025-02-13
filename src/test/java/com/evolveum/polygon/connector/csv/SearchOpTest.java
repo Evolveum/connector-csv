@@ -36,7 +36,7 @@ public class SearchOpTest extends BaseTest {
 
     @Test
     public void findAllAccountsNativeAssociationsGroupMultiParameters() throws Exception {
-
+// TODO # A assertions have to be updated
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");
         config.setNameAttribute("id");
@@ -78,7 +78,10 @@ public class SearchOpTest extends BaseTest {
                 String uidVal = uid.getUidValue();
                 Set<Uid> referencedUidList = listOfReferencedObjectsBySubject.get(uidVal);
                 objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
-                        null, ASSOC_ATTR_GROUP);
+                        null, Set.of(
+                                ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST,
+                                ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN,
+                                ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT));
             }
         }
     }

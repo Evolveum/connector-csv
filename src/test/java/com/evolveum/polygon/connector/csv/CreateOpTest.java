@@ -437,7 +437,7 @@ public class CreateOpTest extends BaseTest {
         attributes.add(createAttribute(ATTR_NAME, NEW_USER_NAME));
         attributes.add(createAttribute(ATTR_EMPL, NEW_USER_EMPL));
         attributes.add(createAttribute(ATTR_TITLE, NEW_USER_TITLE));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
         Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
         assertNotNull(uid);
         assertEquals(NEW_USER_UID, uid.getUidValue());
@@ -451,11 +451,11 @@ public class CreateOpTest extends BaseTest {
         attributes.add(createAttribute(ATTR_NAME, NEW_USER_NAME));
         attributes.add(createAttribute(ATTR_EMPL, NEW_USER_EMPL));
         attributes.add(createAttribute(ATTR_TITLE, NEW_USER_TITLE));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
         assertConnectorObject(attributes, newObject);
 
         for(Attribute attr : newObject.getAttributes()) {
-            if (ASSOC_ATTR_GROUP.equals(attr.getName())) {
+            if ((ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST).equals(attr.getName())) {
                 List<Object> valueList = attr.getValue();
 
                 if (valueList!=null && !valueList.isEmpty() && valueList.size() == 1) {
@@ -523,7 +523,9 @@ public class CreateOpTest extends BaseTest {
                 NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
 
 
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP, connectorObjectReference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, connectorObjectReference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, connectorObjectReference));
+
         Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
         assertNotNull(uid);
         assertEquals(NEW_USER_UID, uid.getUidValue());
@@ -537,11 +539,13 @@ public class CreateOpTest extends BaseTest {
         attributes.add(createAttribute(ATTR_NAME, NEW_USER_NAME));
         attributes.add(createAttribute(ATTR_EMPL, NEW_USER_EMPL));
         attributes.add(createAttribute(ATTR_TITLE, NEW_USER_TITLE));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP, connectorObjectReference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, connectorObjectReference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, connectorObjectReference));
         assertConnectorObject(attributes, newObject);
 
         for(Attribute attr : newObject.getAttributes()) {
-            if (ASSOC_ATTR_GROUP.equals(attr.getName())) {
+            if ((ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST).equals(attr.getName()) ||
+                    (ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT).equals(attr.getName())) {
                 List<Object> valueList = attr.getValue();
 
                 if (!valueList.isEmpty() && valueList.size() == 1) {

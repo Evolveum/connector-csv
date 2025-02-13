@@ -420,7 +420,9 @@ public class UpdateOpTest extends BaseTest {
                 NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
-        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference));
         Uid real = connector.update(ObjectClass.ACCOUNT, expected, attributes, null);
 
         assertEquals(expected, real);
@@ -432,13 +434,19 @@ public class UpdateOpTest extends BaseTest {
         attributes.add(new Name(valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(ATTR_NAME, "jack"));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference));
         attributes.add(createAttribute(ATTR_EMPL, "234"));
         attributes.add(createAttribute(ATTR_TITLE, "manager"));
         assertConnectorObject(attributes, object);
 
         assertReferenceAndReturnReferenceObject(referenceAttributes,
-                object.getAttributeByName(ASSOC_ATTR_GROUP), new Uid(NEW_REFERENCE_ID));
+                object.getAttributeByName(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST), new Uid(NEW_REFERENCE_ID));
+        assertReferenceAndReturnReferenceObject(referenceAttributes,
+                object.getAttributeByName(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT), new Uid(NEW_REFERENCE_ID));
+        assertReferenceAndReturnReferenceObject(referenceAttributes,
+                object.getAttributeByName(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN), new Uid(NEW_REFERENCE_ID));
 
         Map<String, String> expectedRecord = new HashMap<>();
         expectedRecord.put(ATTR_ID, valueUserIdUpdateAccessOnObject);

@@ -504,16 +504,13 @@ public class Util {
 
     public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
                                                                            AssociationHolder holder,
-                                                                           String uniqueAttrName, String nameAttrName,
-                                                                           Set<String> referenceAttributeNames){
-        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName, nameAttrName,
-                referenceAttributeNames, null);
+                                                                           String uniqueAttrName, String nameAttrName){
+        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName, nameAttrName, null);
     }
 
         public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
                                                                            AssociationHolder holder,
                                                                            String uniqueAttrName, String nameAttrName,
-                                                                           Set<String> referenceAttributeNames,
                                                                                Boolean isPartOfAccess) {
 
             String referenceAttrName = holder.getValueAttributeName();
@@ -551,18 +548,17 @@ public class Util {
 
             boolean vectorIsAccess = isPartOfAccess != null ? isPartOfAccess : holder.isAccess();
 
-            if (referenceAttributeNames != null && !referenceAttributeNames.isEmpty()) {
-
-                if (referenceAttributeNames.contains(referenceAttrName)) {
-
-                    return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
-                            , referenceAttrName, identificatorAttributeName, vectorIsAccess);
-                }
-            } else {
+//            if (referenceAttributeNames != null && !referenceAttributeNames.isEmpty()) {
+//
+//                if (referenceAttributeNames.contains(referenceAttrName)) {
+//
+//                    return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
+//                            , referenceAttrName, identificatorAttributeName, vectorIsAccess);
+//                }
+//            } else {
                 return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
                         , referenceAttrName, identificatorAttributeName, vectorIsAccess);
-            }
+//            }
 
-            return null;
         }
 }

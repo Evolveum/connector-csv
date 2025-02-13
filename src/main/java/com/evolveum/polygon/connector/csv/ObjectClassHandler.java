@@ -219,7 +219,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					StringBuilder subTypeBuilder = new StringBuilder();
 					String associationAttr = holder.getAssociationAttributeName();
-					String evaluatedAttribute = null;
+					String evaluatedAttribute;
 
 					if (associationAttr != null && !associationAttr.isEmpty()) {
 						subTypeBuilder.append(associationAttr);
@@ -231,11 +231,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					if (objectClassName.equals(holder.getSubjectObjectClassName())) {
 
 						evaluatedAttribute = associationAttr;
-						if (holder.isAccess()) {
-							builder = new AttributeInfoBuilder(ASSOC_ATTR_ACCESS, ConnectorObjectReference.class);
-						} else {
-							builder = new AttributeInfoBuilder(ASSOC_ATTR_GROUP, ConnectorObjectReference.class);
-						}
+						builder = new AttributeInfoBuilder(holder.getReferenceName(), ConnectorObjectReference.class);
 
 						builder.setReturnedByDefault(true);
 						builder.setRoleInReference(R_I_R_SUBJECT);
@@ -250,7 +246,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 								if (columns.containsKey(evaluatedAttribute)) {
 									columns.remove(evaluatedAttribute);
 									if (multivalueAttributes.contains(evaluatedAttribute)) {
-										// TODO # A in case of access 'object' this could be false review
 										builder.setMultiValued(true);
 									}
 								} else {
@@ -365,7 +360,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		FileLock lock = obtainTmpFileLock(configuration);
 		Reader reader = null;
 		Writer writer = null;
-		boolean holderOfComplexRefObject = mayContainComplexReferenceObject();
 
 		try {
 			Set<ReferenceDataPayload> referenceDataPayload = new HashSet<>();
@@ -404,13 +398,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				Set<ReferenceDataDeliveryVector> referenceDataDeliveryVector = null;
 
-				Attribute referenceAttribute = null;
+				Set<Attribute> referenceAttribute = null;
 				if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
 
-					referenceAttribute = getAttributeByName(holderOfComplexRefObject ? ASSOC_ATTR_ACCESS : ASSOC_ATTR_GROUP
-							, attributes);
+					referenceAttribute = getAttributeByName(attributes, true);
 
 					if (referenceAttribute != null) {
+
 						referenceDataDeliveryVector = determineReferenceObjectDataDeliveryVectors(referenceAttribute,
 								uidValue);
 					}
@@ -477,7 +471,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				if (!getObjectClass().equals(objectClass)) {
 					Map<ObjectClass, ObjectClassHandler> handlers = getHandlers();
 					ObjectClassHandler handler = handlers.get(objectClass);
-
+					
 					handler.update(operation, objectClass, new Uid(objectId),
 							dataPayload.getAttributes(), null, isAccess);
 				} else {
@@ -491,14 +485,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private Set<ReferenceDataPayload> createReferenceDataFromAttributes(
 			Set<ReferenceDataDeliveryVector> referenceDataDeliveryVectors, Set<Attribute> attributes,
-			Attribute referenceAttribute) {
-		return createReferenceDataFromAttributes(referenceDataDeliveryVectors, attributes, referenceAttribute,
+			Set<Attribute> referenceAttributes) {
+		return createReferenceDataFromAttributes(referenceDataDeliveryVectors, attributes, referenceAttributes,
 				null, null);
 	}
 
 	private Set<ReferenceDataPayload> createReferenceDataFromAttributes(
 			Set<ReferenceDataDeliveryVector> referenceDataDeliveryVectors, Set<Attribute> attributes,
-			Attribute referenceAttribute, Operation operation, Uid uid) {
+			Set<Attribute> referenceAttributes, Operation operation, Uid uid) {
 
 		if(LOG.isOk()) {
 			LOG.ok("Computing reference data.");
@@ -515,14 +509,38 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 
 			if (attribute != null) {
-				if (ASSOC_ATTR_GROUP.equals(attribute.getName()) || ASSOC_ATTR_ACCESS.equals(attribute.getName())) {
+				String attributeName = attribute.getName();
+				if (ASSOC_ATTR_GROUP.equals(attributeName) || ASSOC_ATTR_ACCESS.equals(attributeName)) {
 					attributeIterator.remove();
 					break;
+				}
+				if (attributeName.contains(ASSOC_ATTR_GROUP + "-")) {
+					attributeIterator.remove();
 				}
 			}
 		}
 		for (ReferenceDataDeliveryVector referenceDataDeliveryVector : referenceDataDeliveryVectors) {
 			String valueAttributeName = referenceDataDeliveryVector.getIdAttributeName();
+
+			Attribute referenceAttribute = null;
+			Iterator<Attribute> attrIterator= referenceAttributes.iterator();
+			if(referenceAttributes.size() > 1 ) {
+				while (attrIterator.hasNext()) {
+
+					referenceAttribute = attrIterator.next();
+					if (referenceAttribute.getName().equals(ASSOC_ATTR_GROUP + "-" + valueAttributeName)) {
+						break;
+					}
+				}
+			} else if (referenceAttributes.size() == 1) {
+				referenceAttribute = attrIterator.next();
+			} else {
+
+				if (LOG.isOk()) {
+
+					LOG.ok("Reference attribute set empty.");
+				}
+			}
 
 			Map<String, Set<Attribute>> referencedObjectdata = getReferenceData(valueAttributeName, referenceAttribute);
 
@@ -605,7 +623,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				if (configuration.getUniqueAttribute().equals(referenceDataDeliveryVector.getIdAttributeName())) {
 
 					dataPayloadValue = Arrays.asList(uid.getUidValue());
-					;
 				} else {
 
 					throw new ConnectorException("Invalid operation outcome in case of " +
@@ -661,7 +678,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				if (o instanceof ConnectorObjectReference) {
 					BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
-					//TODO review
 					ObjectClass objectClassOfReferencedObject = bco.getObjectClass();
 
 					if(LOG.isOk()) {
@@ -694,9 +710,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							attribute = bco.getAttributeByName(Uid.NAME);
 						}
 
-//						if(Name.NAME.equals(valueAttributeName)){
-//
-//						}
 					}
 
 					if(attribute !=null) {
@@ -724,23 +737,88 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		return null;
 	}
+	private Attribute getAttributeByName(String attributeName, Set<Attribute> attributes) {
 
-	private Attribute getAttributeByName(String name, Set<Attribute> attributes) {
+		Set<Attribute> attributeSet = getAttributeByName(attributeName, attributes, false);
+		if (attributeSet.size() == 1) {
+			return attributeSet.iterator().next();
+		} else {
+			if (LOG.isOk()) {
 
-		if(LOG.isOk()) {
-			LOG.ok("About to fetch the attribute object for the attribute: {0}", name);
-		}
-		try {
-			Attribute attribute = attributes.stream()
-					.filter(a -> name.equals(a.getName()))
-					.findFirst()
-					.get();
-			return attribute;
-
-		} catch (NoSuchElementException e) {
-
+				LOG.ok("Attribute not found among update attribute set.");
+			}
 			return null;
 		}
+	}
+
+	private Set<Attribute>  getAttributeByName(Set<Attribute> attributes, boolean fetchReferenceAttribute) {
+
+		return getAttributeByName(null, attributes, true);
+	}
+
+	private Set<Attribute> getAttributeByName(String attributeName, Set<Attribute> attributes,
+										 boolean fetchReferenceAttribute) {
+
+		Set<AssociationHolder> associationHolderSet = associationHolders.get(getObjectClassName());
+		Set<Attribute> attributeSet = new HashSet<>();
+
+			Iterator<Attribute> attributeIterator = attributes.iterator();
+
+			while (attributeIterator.hasNext()) {
+
+				Attribute attr = attributeIterator.next();
+				String attrName = attr.getName();
+				if (fetchReferenceAttribute) {
+					Iterator<AssociationHolder> holderIterator = associationHolderSet.iterator();
+
+					while (holderIterator.hasNext()) {
+						AssociationHolder holder = holderIterator.next();
+						if (holder.getReferenceName().equals(attrName)) {
+
+							attributeSet.add(attr);
+						}
+					}
+				} else {
+					if (attrName.equals(attributeName)) {
+						attributeSet.add(attr);
+					}
+				}
+			}
+//		try {
+//			attribute = attributes.stream()
+//					.filter(a -> {
+//								if (fetchReferenceAttribute) {
+//									Iterator<AssociationHolder> holderIterator = associationHolderSet.iterator();
+//
+//									while (holderIterator.hasNext()) {
+//										AssociationHolder holder = holderIterator.next();
+//										if (holder.getReferenceName().equals(a.getName())) {
+//											return true;
+//										}
+//									}
+//									return false;
+//								} else {
+//
+//									return a.getName().equals(attributeName);
+//								}
+//							}
+//					)
+//					.findAny()
+//					.get();
+//		} catch (NoSuchElementException e) {
+//			if (LOG.isOk()) {
+//
+//				LOG.ok("Attribute not found among update attribute set.");
+//			}
+//		}
+//
+//		if (LOG.isOk()) {
+//			if (attribute != null) {
+//
+//				LOG.ok("About to fetch the attribute object for the attribute: {0}", attribute.getName());
+//			}
+//		}
+		return attributeSet;
 	}
 
 	private void moveTmpToOrig() throws IOException {
@@ -801,74 +879,97 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 	private Set<ReferenceDataDeliveryVector> determineReferenceObjectDataDeliveryVectors(Attribute referenceAttribute,
 																						 String identifierValue) {
-		if(LOG.isOk()) {
+		return determineReferenceObjectDataDeliveryVectors(Set.of(referenceAttribute), identifierValue);
+	}
+
+	private Set<ReferenceDataDeliveryVector> determineReferenceObjectDataDeliveryVectors(Set<Attribute> referenceAttributes,
+																						 String identifierValue) {
+		if (LOG.isOk()) {
 
 			LOG.ok("Computing reference data delivery vectors based on identifier value {0}.", identifierValue);
 		}
 
 		Set<ReferenceDataDeliveryVector> setOfVectors = new HashSet<>();
-		List<Object> objectList = referenceAttribute.getValue();
-		Set<String> attributeNames;
-		ObjectClass referencedOc = null;
 
-		if (objectList !=null && objectList.size() > 0) {
-			Object o = objectList.get(0);
+		for (Attribute referenceAttribute : referenceAttributes) {
 
-			if (o instanceof ConnectorObjectReference) {
-				BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
-				referencedOc = bco.getObjectClass();
-				attributeNames = new HashSet<>();
-				bco.getAttributes().stream().forEach(a -> {
+			List<Object> objectList = referenceAttribute.getValue();
+			String referenceAttrName = referenceAttribute.getName();
 
-					if (a.getValue().contains(identifierValue)) {
+//		if(referenceAttribute.getName().contains(ASSOC_ATTR_GROUP+"-")){
+//			referenceAttrName = referenceAttribute.getName().replaceAll(ASSOC_ATTR_GROUP+"-", "");
+//		}
 
-						attributeNames.add(a.getName());
-					}
-				});
+//		Set<String> attributeNames;
+			ObjectClass referencedOc = null;
 
+			if (objectList != null && objectList.size() > 0) {
+				Object o = objectList.get(0);
+
+				if (o instanceof ConnectorObjectReference) {
+					BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
+					referencedOc = bco.getObjectClass();
+//				attributeNames = new HashSet<>();
+//				bco.getAttributes().stream().forEach(a -> {
+//
+//					if (a.getValue().contains(identifierValue)) {
+//
+//						attributeNames.add(a.getName());
+//					}
+//				});
+
+				} else {
+					throw new ConnectorException("Reference attribute " + referenceAttribute.getName() +
+							" is of not supported object type.");
+				}
 			} else {
-				throw new ConnectorException("Reference attribute " + referenceAttribute.getName() +
-						" is of not supported object type.");
+//			attributeNames = null;
 			}
-		} else {
-			attributeNames = null;
-		}
 
-		String currentObjectClassName = getObjectClassName();
+			String currentObjectClassName = getObjectClassName();
 
-		if (referencedOc != null) {
-			if (associationHolders.containsKey(currentObjectClassName)) {
-				HashSet<AssociationHolder> holders = associationHolders.get(currentObjectClassName);
+			if (referencedOc != null) {
+				if (associationHolders.containsKey(currentObjectClassName)) {
+					HashSet<AssociationHolder> holders = associationHolders.get(currentObjectClassName);
 
-				for (AssociationHolder holder : holders) {
-					String objectObjectClassName = holder.getObjectObjectClassName();
-					if (objectObjectClassName.equals(referencedOc.getObjectClassValue())) {
-						ReferenceDataDeliveryVector referenceDataDeliveryVector;
+					for (AssociationHolder holder : holders) {
 
-						if (!currentObjectClassName.equals(objectObjectClassName)) {
-							ObjectClassHandler handler = getHandlers().get(Util.getObjectClass(objectObjectClassName));
-							 referenceDataDeliveryVector = constructReferenceDataVector(
-									referencedOc, holder, handler.getConfiguration().getUniqueAttribute(),
-									 handler.getConfiguration().getNameAttribute(),
-									 attributeNames);
-						} else {
+						if (referenceAttrName != null) {
 
-							 referenceDataDeliveryVector = constructReferenceDataVector(
-									referencedOc, holder, configuration.getUniqueAttribute()
-									 , configuration.getNameAttribute(),
-									 attributeNames);
+							if (!referenceAttrName.equals(holder.getReferenceName())) {
+								continue;
+							}
 						}
 
-						if(referenceDataDeliveryVector != null){setOfVectors.add(referenceDataDeliveryVector);}
+						String objectObjectClassName = holder.getObjectObjectClassName();
+						if (objectObjectClassName.equals(referencedOc.getObjectClassValue())) {
+							ReferenceDataDeliveryVector referenceDataDeliveryVector;
+
+							if (!currentObjectClassName.equals(objectObjectClassName)) {
+								ObjectClassHandler handler = getHandlers().get(Util.getObjectClass(objectObjectClassName));
+								referenceDataDeliveryVector = constructReferenceDataVector(
+										referencedOc, holder, handler.getConfiguration().getUniqueAttribute(),
+										handler.getConfiguration().getNameAttribute());
+							} else {
+
+								referenceDataDeliveryVector = constructReferenceDataVector(
+										referencedOc, holder, configuration.getUniqueAttribute()
+										, configuration.getNameAttribute());
+							}
+
+							if (referenceDataDeliveryVector != null) {
+								setOfVectors.add(referenceDataDeliveryVector);
+							}
+						}
 					}
 				}
+			} else {
+				throw new ConnectorException("The value of reference attribute " + referenceAttribute.getName() +
+						" does not contain an object class.");
 			}
-		} else {
-			throw new ConnectorException("The value of reference attribute " + referenceAttribute.getName() +
-					" does not contain an object class.");
 		}
 
-		if(LOG.isOk()) {
+		if (LOG.isOk()) {
 			LOG.ok("Size of the reference data delivery vector set: {0}. {1}", setOfVectors.size(),
 					System.lineSeparator());
 		}
@@ -1187,7 +1288,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		String uid = "";
 
-		String referenceName = ASSOC_ATTR_GROUP;
+		Set<String> referenceNames = new HashSet<>();
 		Set<ConnectorObjectId> associationDataObject = new HashSet<>();
 		Set<ConnectorObjectId> associationDataSubject = new HashSet<>();
 		Set<ObjectClass> relationToObjectClasses = new HashSet<>();
@@ -1222,10 +1323,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						String objectObjectClassName = holder.getObjectObjectClassName();
 						String subjectObjectClassName = holder.getSubjectObjectClassName();
 
-						if(subjectObjectClassName.equals(getObjectClassName()) && holder.isAccess()){
-
-							referenceName = ASSOC_ATTR_ACCESS;
-						}
+//						if(subjectObjectClassName.equals(getObjectClassName()) && holder.isAccess()){
+//
+//							referenceName = ASSOC_ATTR_ACCESS;
+//						}
 
 						if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
 
@@ -1241,12 +1342,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						}
 
 						if (name.equalsIgnoreCase(analysedAttributeName)) {
-							if (objectClassName.equalsIgnoreCase(subjectObjectClassName)) {
 
+							if (objectClassName.equalsIgnoreCase(subjectObjectClassName)) {
+								referenceNames.add(holder.getReferenceName());
 								if (analysedAttributeName.equals(configuration.getUniqueAttribute())) {
 
 									relationToObjectClasses.add(Util.getObjectClass(objectObjectClassName));
-
 									continue;
 								}
 							}
@@ -1307,10 +1408,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		if (syncDeltaType != null) {
 			return new SyncDeltaObjectCandidate(cid,
-					builder, associationDataObject, associationDataSubject, syncToken, syncDeltaType, referenceName);
+					builder, associationDataObject, associationDataSubject, syncToken, syncDeltaType, referenceNames);
 		} else {
 			return new ConnectorObjectCandidate(cid,
-					builder, associationDataObject, associationDataSubject, referenceName);
+					builder, associationDataObject, associationDataSubject, referenceNames);
 		}
 	}
 
@@ -2320,12 +2421,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					if (!Operation.DELETE.equals(operation)) {
 						Set<ReferenceDataDeliveryVector> referenceDataDeliveryVector = null;
 
-						Attribute referenceAttribute;
+						Set<Attribute> referenceAttribute;
 
 						if(areReferencesManaged) {
 
-							referenceAttribute = getAttributeByName(holderOfComplexRefObject ? ASSOC_ATTR_ACCESS : ASSOC_ATTR_GROUP,
-									attributes);
+							referenceAttribute = getAttributeByName(attributes, true);
 
 							if (referenceAttribute != null) {
 
@@ -2483,6 +2583,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		Set<String> columns = getHeader().keySet();
+		ATTR_LOOP:
 		for (Attribute attribute : result) {
 			String attrName = attribute.getName();
 			if (Uid.NAME.equals(attrName) || Name.NAME.equals(attrName)
@@ -2496,10 +2597,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             }
 
 			if (!columns.contains(attrName)) {
-				///TODO # A what if csv has native attribute called group?
 				if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
-					if (ASSOC_ATTR_GROUP.equals(attribute.getName()) || ASSOC_ATTR_ACCESS.equals(attribute.getName())){
-						continue;
+					Set<AssociationHolder> associationHolderSet = associationHolders.get(getObjectClassName());
+
+					for(AssociationHolder associationHolder : associationHolderSet){
+						if (attribute.getName().equals(associationHolder.getReferenceName())){
+							continue ATTR_LOOP;
+						}
 					}
 				}
 				throw new ConnectorException("Unknown attribute " + attrName);
@@ -2739,6 +2843,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		} else if (name.equals(PredefinedAttributes.LAST_LOGIN_DATE_NAME)) {
 			return getHeader().get(configuration.getLastLoginDateAttribute()).getIndex();
 		}
+
 		return getHeader().get(name).getIndex();
 	}
 

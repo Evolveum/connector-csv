@@ -1,9 +1,8 @@
 package com.evolveum.polygon.connector.csv.util;
 
-import java.util.Objects;
-
 public class AssociationHolder {
 
+    private String referenceName;
     private String associationAttributeName;
     private String valueAttributeName;
     private String subjectObjectClassName;
@@ -68,10 +67,19 @@ public class AssociationHolder {
         this.omitFromSchema = omitFromSchema;
     }
 
+    public String getReferenceName() {
+        return referenceName;
+    }
+
+    public void setReferenceName(String referenceName) {
+        this.referenceName = referenceName;
+    }
+
     @Override
     public String toString() {
         return "AssociationHolder{" +
-                "associationAttributeName='" + associationAttributeName + '\'' +
+                "referenceName='" + referenceName + '\'' +
+                ", associationAttributeName='" + associationAttributeName + '\'' +
                 ", valueAttributeName='" + valueAttributeName + '\'' +
                 ", subjectObjectClassName='" + subjectObjectClassName + '\'' +
                 ", objectObjectClassName='" + objectObjectClassName + '\'' +

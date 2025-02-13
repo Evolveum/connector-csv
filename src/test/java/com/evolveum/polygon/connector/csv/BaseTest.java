@@ -211,6 +211,14 @@ public abstract class BaseTest {
                                                 ObjectClass objectClassOfReferencedObject, Set<Uid> uidOfReferencedObject,
                                                 String accessAttributeName, String referenceAttributeName ) {
 
+        objectContainsReferenceToObject(connectorObject, objectClassOfReferencedObject, uidOfReferencedObject,
+                accessAttributeName, Set.of(referenceAttributeName));
+    }
+
+    public void objectContainsReferenceToObject(ConnectorObject connectorObject,
+                                                ObjectClass objectClassOfReferencedObject, Set<Uid> uidOfReferencedObject,
+                                                String accessAttributeName, Set<String> referenceAttributeName ) {
+
         Map<Uid, Set<Uid>> uidsOfAccessAndReferencedObject = new HashMap<>();
 
         if (uidOfReferencedObject != null && !uidOfReferencedObject.isEmpty()) {
@@ -226,20 +234,31 @@ public abstract class BaseTest {
                                                 ObjectClass objectClassOfReferencedObject,
                                                 Map<Uid, Set<Uid>> uidsOfAccessAndReferencedObject,
                                                 String accessAttributeName, String referenceAttrName) {
+        objectContainsReferenceToObject(connectorObject, objectClassOfRelationObject, objectClassOfReferencedObject,
+                uidsOfAccessAndReferencedObject, accessAttributeName, Set.of(referenceAttrName));
+    }
+
+    public void objectContainsReferenceToObject(ConnectorObject connectorObject,
+                                                ObjectClass objectClassOfRelationObject,
+                                                ObjectClass objectClassOfReferencedObject,
+                                                Map<Uid, Set<Uid>> uidsOfAccessAndReferencedObject,
+                                                String accessAttributeName, Set<String> referenceAttrNames) {
 
         Set<Attribute> connectorObjectAttributeSet = connectorObject.getAttributes();
         Map<Uid, Set<Uid>> foundReferenceUidList = new HashMap<>();
 
         for (Attribute attribute : connectorObjectAttributeSet) {
-            if (referenceAttrName.equals(attribute.getName())) {
-                List<Object> referenceList = attribute.getValue();
+            for (String referenceAttrName : referenceAttrNames) {
+                if (referenceAttrName.equals(attribute.getName())) {
+                    List<Object> referenceList = attribute.getValue();
 
-                for (Object connectorObjectReference : referenceList) {
+                    for (Object connectorObjectReference : referenceList) {
 
-                    if (connectorObjectReference instanceof ConnectorObjectReference) {
+                        if (connectorObjectReference instanceof ConnectorObjectReference) {
 
-                        populateReferenceList(connectorObjectReference, objectClassOfRelationObject,
-                                objectClassOfReferencedObject, accessAttributeName, foundReferenceUidList);
+                            populateReferenceList(connectorObjectReference, objectClassOfRelationObject,
+                                    objectClassOfReferencedObject, accessAttributeName, foundReferenceUidList);
+                        }
                     }
                 }
             }
