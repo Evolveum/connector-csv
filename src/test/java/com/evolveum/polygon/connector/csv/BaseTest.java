@@ -11,8 +11,6 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 import static org.testng.AssertJUnit.*;
 
 /**
@@ -65,6 +63,9 @@ public abstract class BaseTest {
     public static final String ACCESS_BASIC_DESCRIPTION = "test accounts";
     public static final String ACCESS_BASIC_SUBJECT_ID = "1";
     public static final String ACCESS_BASIC_OBJECT_ID = "1";
+
+    public static final String ASSOC_ATTR_ACCESS = "access";
+    public static final String ASSOC_ATTR_GROUP = "group";
 
     protected CsvConfiguration createConfiguration() {
         return createConfigurationNameEqualsUid();

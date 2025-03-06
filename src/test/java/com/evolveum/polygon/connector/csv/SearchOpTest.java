@@ -14,9 +14,6 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.util.*;
 
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
-
 /**
  * Created by Viliam Repan (lazyman).
  */

@@ -35,7 +35,6 @@ public class ConnectorObjectId {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ConnectorObjectId that = (ConnectorObjectId) o;
         return Objects.equals(getId(), that.getId()) && Objects.equals(getObjectClass(), that.getObjectClass());
@@ -44,5 +43,14 @@ public class ConnectorObjectId {
     @Override
     public int hashCode() {
         return Objects.hash(getId(), getObjectClass());
+    }
+
+    @Override
+    public String toString() {
+        return "ConnectorObjectId{" +
+                "id='" + id + '\'' +
+                ", objectClass=" + objectClass +
+                ", relatedObjectClasses=" + relatedObjectClasses +
+                '}';
     }
 }

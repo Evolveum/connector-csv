@@ -12,8 +12,6 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.util.*;
 
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
 
@@ -606,7 +604,8 @@ public class CreateOpTest extends BaseTest {
 
         Set<Attribute> secondLvlReferenceObjectAttributes = new HashSet<>();
         secondLvlReferenceObjectAttributes.add(createAttribute(Uid.NAME, NEW_REFERENCE_ID));
-        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, "users"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, NEW_REFERENCE_ID));
+        secondLvlReferenceObjectAttributes.add(createAttribute(ATTR_NAME, "users"));
 
         ConnectorObjectReference connectorObjectReferenceSecondLvl = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
                 NEW_REFERENCE_ID, secondLvlReferenceObjectAttributes, new ObjectClass("group")));

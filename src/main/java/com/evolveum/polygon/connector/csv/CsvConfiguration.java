@@ -330,6 +330,28 @@ public class CsvConfiguration extends AbstractConfiguration {
         config.setIgnoreIdentifierCase(ignoreIdentifierCase);
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_REFERENCE_ATTRIBUTE_DIRECT_NAME",
+            helpMessageKey = "UI_REFERENCE_ATTRIBUTE_DIRECT_HELP")
+    public String getAssocAttrDirect() {
+        return config.getAssocAttrDirect();
+    }
+
+    public void setAssocAttrDirect(String assocAttrDirect) {
+        config.setAssocAttrDirect(assocAttrDirect);
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_REFERENCE_ATTRIBUTE_INDIRECT_NAME",
+            helpMessageKey = "UI_REFERENCE_ATTRIBUTE_INDIRECT_HELP")
+    public String getAssocAttrIndirect() {
+        return config.getAssocAttrIndirect();
+    }
+
+    public void setAssocAttrIndirect(String assocAttrIndirect) {
+        config.setAssocAttrIndirect(assocAttrIndirect);
+    }
+
     @Override
     public void validate() {
         LOG.info("Csv configuration validation started");

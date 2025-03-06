@@ -1,10 +1,9 @@
 package com.evolveum.polygon.connector.csv.util;
 
+import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.objects.*;
 
 import java.util.*;
-
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 
 public class ConnectorObjectCandidate {
 
@@ -15,43 +14,61 @@ public class ConnectorObjectCandidate {
     private Set<ConnectorObjectId> alreadyProcessedObjectIds = new HashSet<>();
     private Set<ConnectorObjectId> objectIdsToBeProcessed;
     private Set<ConnectorObjectId> subjectIdsToBeProcessed;
-//    private String referenceName;
+    private String nameAssocAttrDirect;
+    private Integer depth = 0;
 
     private Set<String> referenceNames;
 
     private boolean isComplete = false;
-
-
-    public ConnectorObjectCandidate(ConnectorObjectId id, ConnectorObjectBuilder candidateBuilder, Set<ConnectorObjectId> associatedObjectIds,
-                                    Set<ConnectorObjectId> subjectIdsToBeProcessed, String referenceName) {
-        this(id, candidateBuilder, associatedObjectIds, subjectIdsToBeProcessed, Set.of(referenceName));
-    }
+    private static final Log LOG = Log.getLog(ConnectorObjectCandidate.class);
 
     public ConnectorObjectCandidate(ConnectorObjectId id, ConnectorObjectBuilder candidateBuilder, Set<ConnectorObjectId> associatedObjectIds,
-                                    Set<ConnectorObjectId> subjectIdsToBeProcessed, Set<String> referenceNames) {
+                                    Set<ConnectorObjectId> subjectIdsToBeProcessed, Set<String> referenceNames, String nameAssocAttrDirect) {
         this.id = id;
         this.candidateBuilder = candidateBuilder;
         this.objectIdsToBeProcessed = associatedObjectIds;
         this.subjectIdsToBeProcessed = subjectIdsToBeProcessed;
         this.referenceNames = referenceNames;
+        this.nameAssocAttrDirect = nameAssocAttrDirect;
     }
 
     public void evaluateDependencies() {
 
-        Iterator<ConnectorObjectCandidate> iterator = candidatesUponWhichThisObjectDepends.iterator();
-        while (iterator.hasNext()) {
-            ConnectorObjectCandidate candidate = iterator.next();
-            ConnectorObjectId candidateId = candidate.getId();
-            if (candidate.complete()) {
+        if (depth < 2) {
+            Iterator<ConnectorObjectCandidate> iterator = candidatesUponWhichThisObjectDepends.iterator();
+            while (iterator.hasNext()) {
+
+                ConnectorObjectCandidate candidate = iterator.next();
+                ConnectorObjectId candidateId = candidate.getId();
+
+                if (candidate.complete()) {
+
+                    ConnectorObjectReference connectorObjectReference =
+                            new ConnectorObjectReference(candidate.getCandidateBuilder().build());
+                    referencedObjects.add(connectorObjectReference);
+                    if (objectIdsToBeProcessed.remove(candidateId)) {
+
+                        alreadyProcessedObjectIds.add(candidateId);
+                    }
+
+                    iterator.remove();
+                }
+            }
+        } else {
+            Iterator<ConnectorObjectId> connectorObjectIdIterator = objectIdsToBeProcessed.iterator();
+            while(connectorObjectIdIterator.hasNext()) {
+
+                ConnectorObjectId objectId = connectorObjectIdIterator.next();
+                AttributeBuilder attributeBuilder = new AttributeBuilder();
+
+                attributeBuilder.setName(Name.NAME).addValue(Collections.singleton(objectId.getId()));
+                ConnectorObjectIdentification connectorObjectIdentification =
+                        new ConnectorObjectIdentification(objectId.getObjectClass(), Set.of(attributeBuilder.build()));
 
                 ConnectorObjectReference connectorObjectReference =
-                        new ConnectorObjectReference(candidate.getCandidateBuilder().build());
+                        new ConnectorObjectReference(connectorObjectIdentification);
                 referencedObjects.add(connectorObjectReference);
-                if (objectIdsToBeProcessed.remove(candidateId)) {
-
-                    alreadyProcessedObjectIds.add(candidateId);
-                }
-                iterator.remove();
+                connectorObjectIdIterator.remove();
             }
         }
     }
@@ -67,14 +84,11 @@ public class ConnectorObjectCandidate {
         }
 
         if (objectIdsToBeProcessed.isEmpty()) {
-
             if (!referencedObjects.isEmpty()) {
-
-                if(referenceNames.size() == 1){
-
+                if (referenceNames.size() == 1) {
                     candidateBuilder.addAttribute(AttributeBuilder.build(referenceNames.iterator().next(),
                             referencedObjects));
-                }else {
+                } else {
 
                     Map<String, Set<ConnectorObjectReference>> referencesPerAttribute = new HashMap<>();
                     for (ConnectorObjectReference connectorObjectReference : referencedObjects) {
@@ -83,9 +97,9 @@ public class ConnectorObjectCandidate {
 
                         for (String name : referenceNames) {
 
-                           String refAttrName = name;
-                            if(refAttrName.contains(ASSOC_ATTR_GROUP+"-")){
-                                refAttrName = refAttrName.replaceAll(ASSOC_ATTR_GROUP+"-", "");
+                            String refAttrName = name;
+                            if (refAttrName.contains(nameAssocAttrDirect + "-")) {
+                                refAttrName = refAttrName.replaceAll(nameAssocAttrDirect + "-", "");
                             }
                             Attribute attribute = baseConnectorObject.getAttributeByName(refAttrName);
 
@@ -104,7 +118,7 @@ public class ConnectorObjectCandidate {
                             }
                         }
                     }
-                    for(String attrName : referencesPerAttribute.keySet()){
+                    for (String attrName : referencesPerAttribute.keySet()) {
 
                         candidateBuilder.addAttribute(AttributeBuilder.build(attrName,
                                 referencesPerAttribute.get(attrName)));
@@ -119,7 +133,6 @@ public class ConnectorObjectCandidate {
     }
 
     public void addCandidateUponWhichThisDepends(ConnectorObjectCandidate candidate) {
-
         if (this.getId().equals(candidate.getId())) {
             return;
         }
@@ -129,6 +142,7 @@ public class ConnectorObjectCandidate {
                 return;
             }
         }
+        candidate.setDepth(getDepth() + 1);
         candidatesUponWhichThisObjectDepends.add(candidate);
     }
 
@@ -150,5 +164,53 @@ public class ConnectorObjectCandidate {
 
     public Set<ConnectorObjectId> getAlreadyProcessedObjectIds() {
         return alreadyProcessedObjectIds;
+    }
+
+    public void dumpNonCompleteReferences() {
+
+        if (LOG.isOk()) {
+            if (objectIdsToBeProcessed != null) {
+                LOG.ok("The reference lookup for connector object candidate {0} not complete.", id);
+                LOG.ok("The following references still remain unresolved:");
+
+                for (ConnectorObjectId coi : objectIdsToBeProcessed) {
+                    LOG.ok("Referenced connector object: {0}", coi);
+                    for (ConnectorObjectCandidate candidate : candidatesUponWhichThisObjectDepends) {
+                        if (candidate.getId().equals(coi)) {
+                            candidate.dumpNonCompleteReferences();
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public Integer getDepth() {
+        return depth;
+    }
+
+    public void setDepth(Integer depth) {
+
+        if (this.depth != 0) {
+
+            if (depth < this.depth) {
+                this.depth = depth;
+            }
+        } else {
+
+            this.depth = depth;
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ConnectorObjectCandidate candidate = (ConnectorObjectCandidate) o;
+        return isComplete == candidate.isComplete && Objects.equals(getId(), candidate.getId()) && Objects.equals(getCandidateBuilder(), candidate.getCandidateBuilder()) && Objects.equals(referencedObjects, candidate.referencedObjects) && Objects.equals(candidatesUponWhichThisObjectDepends, candidate.candidatesUponWhichThisObjectDepends) && Objects.equals(getAlreadyProcessedObjectIds(), candidate.getAlreadyProcessedObjectIds()) && Objects.equals(getObjectIdsToBeProcessed(), candidate.getObjectIdsToBeProcessed()) && Objects.equals(getSubjectIdsToBeProcessed(), candidate.getSubjectIdsToBeProcessed()) && Objects.equals(nameAssocAttrDirect, candidate.nameAssocAttrDirect) && Objects.equals(referenceNames, candidate.referenceNames);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getId(), getCandidateBuilder(), referencedObjects, candidatesUponWhichThisObjectDepends, getAlreadyProcessedObjectIds(), getObjectIdsToBeProcessed(), getSubjectIdsToBeProcessed(), nameAssocAttrDirect, referenceNames, isComplete);
     }
 }

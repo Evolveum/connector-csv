@@ -4,6 +4,7 @@ import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.SyncDeltaType;
 import org.identityconnectors.framework.common.objects.SyncToken;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class SyncDeltaObjectCandidate extends ConnectorObjectCandidate {
@@ -13,9 +14,9 @@ public class SyncDeltaObjectCandidate extends ConnectorObjectCandidate {
     public SyncDeltaObjectCandidate(ConnectorObjectId id, ConnectorObjectBuilder candidateBuilder,
                                     Set<ConnectorObjectId> associatedObjectIds,
                                     Set<ConnectorObjectId> subjectIdsToBeProcessed, SyncToken syncToken,
-                                    SyncDeltaType syncDeltaType, Set<String> referenceNames) {
+                                    SyncDeltaType syncDeltaType, Set<String> referenceNames, String nameAssocAttrDirect) {
 
-        super(id, candidateBuilder, associatedObjectIds, subjectIdsToBeProcessed, referenceNames);
+        super(id, candidateBuilder, associatedObjectIds, subjectIdsToBeProcessed, referenceNames, nameAssocAttrDirect);
         this.syncToken = syncToken;
         this.syncDeltaType = syncDeltaType;
     }

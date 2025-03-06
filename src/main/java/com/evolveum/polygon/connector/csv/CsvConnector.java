@@ -21,8 +21,7 @@ import java.util.Map.Entry;
 
 import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.OBTAINS;
 import static com.evolveum.polygon.connector.csv.util.AssociationCharacter.REFERS_TO;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
+
 
 /**
  * Created by Viliam Repan (lazyman).
@@ -277,8 +276,30 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
     @Override
     public SyncToken getLatestSyncToken(ObjectClass oc) {
         LOG.info(">>> getLatestSyncToken {0}", oc);
+        SyncToken token = null;
 
-        SyncToken token = getHandler(oc).getLatestSyncToken(oc);
+        if (ObjectClass.ALL != oc) {
+            token = getHandler(oc).getLatestSyncToken(oc);
+
+        } else {
+            if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+
+                for (ObjectClass o : handlers.keySet()) {
+                    SyncToken fetchedToken = getHandler(o).getLatestSyncToken(oc);
+                    if (token == null) {
+                        token = fetchedToken;
+                    } else {
+                        if (Util.getTokenValue(token) < Util.getTokenValue(fetchedToken)) {
+                            token = fetchedToken;
+                        }
+                    }
+                }
+            } else {
+
+                throw new ConnectorException("The object class " + oc.getDisplayNameKey() + " is not supported without" +
+                        " the usage of native reference configuration.");
+            }
+        }
 
         LOG.info(">>> getLatestSyncToken finished");
 
@@ -656,17 +677,17 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
 
                         if(access){
 
-                        associationHolder.setReferenceName(ASSOC_ATTR_ACCESS);
+                        associationHolder.setReferenceName(configuration.getAssocAttrIndirect());
                         } else {
 
                             if(multiReferenceObjectClasses!=null &&
                                     multiReferenceObjectClasses.contains(associationHolder.getObjectObjectClassName())){
 
-                                associationHolder.setReferenceName(ASSOC_ATTR_GROUP +"-"
+                                associationHolder.setReferenceName(configuration.getAssocAttrDirect() +"-"
                                         + objectClassAndMemberAttributes[1].trim());
                             } else {
 
-                                associationHolder.setReferenceName(ASSOC_ATTR_GROUP);
+                                associationHolder.setReferenceName(configuration.getAssocAttrDirect());
                             }
                         }
 
@@ -674,7 +695,7 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
 
                         associationHolder.setCharacter(REFERS_TO);
                         associationHolder.setAssociationAttributeName(objectClassAndMemberAttributes[1].trim());
-                        associationHolder.setReferenceName(ASSOC_ATTR_GROUP);
+                        associationHolder.setReferenceName(configuration.getAssocAttrDirect());
                     }
                 }
             }

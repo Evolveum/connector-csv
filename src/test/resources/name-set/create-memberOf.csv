@@ -1,3 +1,2 @@
 firstName;uid;lastName;password;memberOf
-john;123;doe;qwe123;1
-jack;124;doe;;
+john;123;doe;qwe123;all-accounts

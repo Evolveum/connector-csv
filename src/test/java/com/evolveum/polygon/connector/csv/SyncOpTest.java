@@ -1,7 +1,5 @@
 package com.evolveum.polygon.connector.csv;
 
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertEquals;
 
@@ -119,6 +117,45 @@ public class SyncOpTest extends BaseTest {
         try {
             long timestampBefore = System.currentTimeMillis();
             SyncToken token = connector.getLatestSyncToken(ObjectClass.ACCOUNT);
+            long timestampToken = Long.valueOf((String) token.getValue());
+            long timestampAfter = System.currentTimeMillis();
+
+            assertTrue(timestampToken >= timestampBefore && timestampToken <= timestampAfter,
+                    "wrong token " + timestampToken + ", expected token between " + timestampBefore + " and " + timestampAfter);
+        } finally {
+            CsvTestUtil.deleteAllSyncFiles();
+        }
+    }
+
+    @Test
+    public void syncALLTokenTest() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setNameAttribute("id");
+        config.setMultivalueDelimiter(",");
+        config.setMultivalueAttributes("memberOf");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values = Set.of(
+                "\"account\"+memberOf -# \"group\"+id",
+                "\"group\"+memberOf -# \"group\"+id"
+        );
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groups-memberOf.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-memberOf.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/account-memberOf.csv", config);
+
+        try {
+            long timestampBefore = System.currentTimeMillis();
+            SyncToken token = connector.getLatestSyncToken(ObjectClass.ALL);
             long timestampToken = Long.valueOf((String) token.getValue());
             long timestampAfter = System.currentTimeMillis();
 
@@ -532,6 +569,78 @@ public class SyncOpTest extends BaseTest {
             mapOfReferencedObjectsBySubject.put(new ObjectClass("group"), Map.of("5",
                     Set.of(new Uid("2"))));
 
+
+            for (SyncDelta delta : deltas) {
+                ConnectorObject o = delta.getObject();
+                Uid uid = o.getUid();
+                ObjectClass oc = o.getObjectClass();
+                String uidVal = uid.getUidValue();
+
+                if (mapOfReferencedObjectsBySubject.containsKey(oc)) {
+                    Map<String, Set<Uid>> objectsByObjectClass = mapOfReferencedObjectsBySubject.get(oc);
+                    if (objectsByObjectClass.containsKey(uidVal)) {
+                        Set<Uid> referencedUidList = objectsByObjectClass.get(uidVal);
+                        objectContainsReferenceToObject(o, new ObjectClass("group"), referencedUidList,
+                                null, ASSOC_ATTR_GROUP);
+                    }
+                }
+            }
+        } finally {
+            CsvTestUtil.deleteAllSyncFiles();
+        }
+    }
+
+//    @Test
+    public void sync_ALL_WithAccountsNativeAssociationsMemberOfObjectNoChange() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setNameAttribute("id");
+        config.setMultivalueDelimiter(",");
+        config.setMultivalueAttributes("memberOf");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values = Set.of(
+                "\"account\"+memberOf -# \"group\"+id",
+                "\"group\"+memberOf -# \"group\"+id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groups-memberOf.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-memberOf.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/account-memberOf.csv", config);
+
+        File oldAccountDataSyncFile = new File("./target/data.csv.sync.1300734815299");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "name-set/data.csv.sync.1300734815299"), oldAccountDataSyncFile);
+
+        File oldgroupSyncFile = new File("./target/groups-memberOf.csv.sync.1300734815299");
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH, "/name-set/groups-memberOf.csv.sync.1300734815299"), oldgroupSyncFile);
+
+        try {
+            final List<SyncDelta> deltas = new ArrayList<>();
+            connector.sync(ObjectClass.ALL, new SyncToken("1300734815299"), delta -> {
+                deltas.add(delta);
+                return true;
+            }, null);
+
+            AssertJUnit.assertEquals(1, deltas.size());
+
+            SyncToken token = deltas.get(0).getToken();
+
+            Map<String, SyncDelta> deltaMap = createSyncDeltaTestMap(token);
+
+            Map<ObjectClass, Map<String, Set<Uid>>> mapOfReferencedObjectsBySubject = new HashMap<>();
+            mapOfReferencedObjectsBySubject.put(ObjectClass.ACCOUNT, Map.of("123", Set.of(new Uid("2"),
+                    new Uid("1"))));
+            mapOfReferencedObjectsBySubject.put(ObjectClass.ACCOUNT, Map.of("111", Set.of(new Uid("4"),
+                    new Uid("5"))));
 
             for (SyncDelta delta : deltas) {
                 ConnectorObject o = delta.getObject();

@@ -17,8 +17,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
 
@@ -493,7 +491,8 @@ public class UpdateOpTest extends BaseTest {
 
         Set<Attribute> secondLvlReferenceObjectAttributes = new HashSet<>();
         secondLvlReferenceObjectAttributes.add(createAttribute(Uid.NAME, "2"));
-        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, "guests"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, "2"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(ATTR_NAME, "guests"));
 
         ConnectorObjectReference connectorObjectReferenceSecondLvl = new ConnectorObjectReference(buildConnectorObject("2",
                 "2", secondLvlReferenceObjectAttributes, new ObjectClass("group")));
@@ -676,6 +675,7 @@ public class UpdateOpTest extends BaseTest {
         Set<Attribute> attributes = new HashSet<>();
 
         attributes.add(AttributeBuilder.build(ATTR_ID, uidValueForUpdate));
+        attributes.add(AttributeBuilder.build(ATTR_NAME, "users"));
         Uid real = connector.update(new ObjectClass("group"), expected, attributes, null);
 
         ConnectorObject groupObject = connector.getObject(new ObjectClass("group"), real, null);
@@ -712,8 +712,9 @@ public class UpdateOpTest extends BaseTest {
         assertConnectorObject(attributes, userObject);
 
         attributes = new HashSet<>();
-        attributes.add(new Name(GROUP_NO_MEMBER_NAME));
+        attributes.add(new Name(uidValueForUpdate));
         attributes.add(createAttribute(Uid.NAME, uidValueForUpdate));
+        attributes.add(createAttribute(ATTR_NAME, GROUP_NO_MEMBER_NAME));
 
         assertConnectorObject(attributes, groupObject);
 

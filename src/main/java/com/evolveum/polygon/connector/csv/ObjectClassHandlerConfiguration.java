@@ -65,6 +65,9 @@ public class ObjectClassHandlerConfiguration {
 
     private Integer maxImmersion= 2;
 
+    private String assocAttrDirect ="group";
+    private String assocAttrIndirect ="access";
+
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
     }
@@ -353,6 +356,22 @@ public class ObjectClassHandlerConfiguration {
 
     public void setMaxImmersion(Integer maximumImmersion) {
         this.maxImmersion = maximumImmersion;
+    }
+
+    public String getAssocAttrDirect() {
+        return assocAttrDirect;
+    }
+
+    public void setAssocAttrDirect(String assocAttrDirect) {
+        this.assocAttrDirect = assocAttrDirect;
+    }
+
+    public String getAssocAttrIndirect() {
+        return assocAttrIndirect;
+    }
+
+    public void setAssocAttrIndirect(String assocAttrIndirect) {
+        this.assocAttrIndirect = assocAttrIndirect;
     }
 
     public void validate() {

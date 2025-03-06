@@ -43,13 +43,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private static final Log LOG = Log.getLog(ObjectClassHandler.class);
 
 
-	private ObjectClassHandlerConfiguration configuration;
+	private final ObjectClassHandlerConfiguration configuration;
 	private Map<ObjectClass, ObjectClassHandler> handlers;
 
 	private Map<String, Column> header;
+	private final String ASSOC_ATTR_GROUP;
+	private final String ASSOC_ATTR_ACCESS;
 
 	public ObjectClassHandler(ObjectClassHandlerConfiguration configuration) {
 		this.configuration = configuration;
+		this.ASSOC_ATTR_GROUP = configuration.getAssocAttrDirect();
+		this.ASSOC_ATTR_ACCESS = configuration.getAssocAttrIndirect();
 	}
 
 	public Map<String, Column> getHeader() {
@@ -512,7 +516,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				String attributeName = attribute.getName();
 				if (ASSOC_ATTR_GROUP.equals(attributeName) || ASSOC_ATTR_ACCESS.equals(attributeName)) {
 					attributeIterator.remove();
-					break;
 				}
 				if (attributeName.contains(ASSOC_ATTR_GROUP + "-")) {
 					attributeIterator.remove();
@@ -523,26 +526,34 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			String valueAttributeName = referenceDataDeliveryVector.getIdAttributeName();
 
 			Attribute referenceAttribute = null;
-			Iterator<Attribute> attrIterator= referenceAttributes.iterator();
+			Set<Attribute> referenceAttributeSetBasedOnId = new HashSet<>();
+
+			Iterator<Attribute> attrIterator = referenceAttributes.iterator();
 			if(referenceAttributes.size() > 1 ) {
 				while (attrIterator.hasNext()) {
 
 					referenceAttribute = attrIterator.next();
-					if (referenceAttribute.getName().equals(ASSOC_ATTR_GROUP + "-" + valueAttributeName)) {
-						break;
+					if ((referenceAttribute.getName().equals(ASSOC_ATTR_GROUP))) {
+
+						referenceAttributeSetBasedOnId.add(referenceAttribute);
+					} else if (referenceAttribute.getName().equals(ASSOC_ATTR_GROUP + "-" +
+							referenceDataDeliveryVector.getAttributeName())) {
+
+						referenceAttributeSetBasedOnId.add(referenceAttribute);
+
 					}
 				}
 			} else if (referenceAttributes.size() == 1) {
-				referenceAttribute = attrIterator.next();
+				referenceAttributeSetBasedOnId.add(attrIterator.next());
 			} else {
-
 				if (LOG.isOk()) {
 
 					LOG.ok("Reference attribute set empty.");
 				}
 			}
 
-			Map<String, Set<Attribute>> referencedObjectdata = getReferenceData(valueAttributeName, referenceAttribute);
+			Map<String, Set<Attribute>> referencedObjectdata = getReferenceData(valueAttributeName,
+					referenceAttributeSetBasedOnId);
 
 			if(referencedObjectdata !=null && !referencedObjectdata.isEmpty()) {
 
@@ -661,16 +672,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 	}
 
-	private Map<String, Set<Attribute> > getReferenceData(String valueAttributeName, Attribute referenceAttribute) {
+	private Map<String, Set<Attribute>> getReferenceData(String valueAttributeName, Set<Attribute> referenceAttributes) {
 		Map<String, Set<Attribute>> referenceData = new HashMap<>();
 
 		if(LOG.isOk()) {
 			LOG.ok("Fetching reference data.");
 			LOG.ok("Value attribute: {0}. {1}Reference Attribute: {2}", valueAttributeName ,System.lineSeparator(),
-					valueAttributeName);
+					referenceAttributes);
 		}
 
-		if (referenceAttribute != null) {
+		if (referenceAttributes != null) {
+			for (Attribute referenceAttribute : referenceAttributes) {
 
 			List<Object> references = referenceAttribute.getValue();
 
@@ -680,7 +692,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
 					ObjectClass objectClassOfReferencedObject = bco.getObjectClass();
 
-					if(LOG.isOk()) {
+					if (LOG.isOk()) {
 
 						LOG.ok("About to fetch data based on the value attribute name {0} from" +
 								" the 'Base Connector Object': {1}", valueAttributeName, bco);
@@ -688,7 +700,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					Attribute attribute = bco.getAttributeByName(valueAttributeName);
 
-					if(attribute == null) {
+					if (attribute == null) {
 
 						String uidAttrName;
 
@@ -701,7 +713,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							uidAttrName = objectClassHandler.configuration.getUniqueAttribute();
 						}
 
-						if(Uid.NAME.equals(valueAttributeName)){
+						if (Uid.NAME.equals(valueAttributeName)) {
 
 
 							attribute = bco.getAttributeByName(uidAttrName);
@@ -712,7 +724,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					}
 
-					if(attribute !=null) {
+					if (attribute != null) {
 						List<Object> referenceValues = attribute.getValue();
 
 						for (Object object : referenceValues) {
@@ -727,6 +739,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					}
 				}
 			}
+		}
 			return referenceData;
 		}
 
@@ -896,11 +909,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			List<Object> objectList = referenceAttribute.getValue();
 			String referenceAttrName = referenceAttribute.getName();
 
-//		if(referenceAttribute.getName().contains(ASSOC_ATTR_GROUP+"-")){
-//			referenceAttrName = referenceAttribute.getName().replaceAll(ASSOC_ATTR_GROUP+"-", "");
-//		}
-
-//		Set<String> attributeNames;
 			ObjectClass referencedOc = null;
 
 			if (objectList != null && objectList.size() > 0) {
@@ -909,21 +917,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				if (o instanceof ConnectorObjectReference) {
 					BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
 					referencedOc = bco.getObjectClass();
-//				attributeNames = new HashSet<>();
-//				bco.getAttributes().stream().forEach(a -> {
-//
-//					if (a.getValue().contains(identifierValue)) {
-//
-//						attributeNames.add(a.getName());
-//					}
-//				});
 
 				} else {
 					throw new ConnectorException("Reference attribute " + referenceAttribute.getName() +
 							" is of not supported object type.");
 				}
-			} else {
-//			attributeNames = null;
 			}
 
 			String currentObjectClassName = getObjectClassName();
@@ -1029,7 +1027,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			boolean shouldReiterate = false;
 			Iterator<CSVRecord> iterator = parser.iterator();
 
-			HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates = new HashMap<>();
+			HashMap <ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> candidates = new HashMap<>();
 			while (iterator.hasNext()) {
 				CSVRecord record = iterator.next();
 				if (skipRecord(record)) {
@@ -1037,19 +1035,19 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				}
 
 				if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
-					Object ob = createConnectorObjectOrCandidateObject(record, false);
-					if (ob instanceof ConnectorObjectCandidate) {
-						ConnectorObjectId cid = ((ConnectorObjectCandidate) ob).getId();
-						saturateCandidates(cid, candidates, (ConnectorObjectCandidate) ob);
+					ConnectorObjectCandidate ob = createConnectorObjectOrCandidateObject(record, false);
+
+						ConnectorObjectId cid =  ob.getId();
+						saturateCandidates(cid, candidates, ob);
 
 						if (!shouldReiterate) {
 
-							shouldReiterate = appendToCandidateMap((ConnectorObjectCandidate) ob, candidates, true);
+							shouldReiterate = appendToCandidateMap(ob, candidates, true);
 						} else {
 
-							appendToCandidateMap((ConnectorObjectCandidate) ob, candidates, true);
+							appendToCandidateMap(ob, candidates, true);
 						}
-					}
+
 				} else {
 					ConnectorObject obj = createConnectorObject(record);
 					if (!handleQueriedObject(filter, obj, handler)) {
@@ -1073,9 +1071,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					candidate.evaluateDependencies();
 					if (candidate.complete()) {
+
 						if (!handleQueriedObject(filter, candidate.getCandidateBuilder().build(), handler)) {
 							break;
 						}
+					} else {
+						throw new ConnectorException("References of queried object were not fully resolved.");
 					}
 				}
 			}
@@ -1085,9 +1086,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private void saturateCandidates(ConnectorObjectId cid,
-									HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates,
+									HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> candidates,
 									ConnectorObjectCandidate ob) {
-
+		if (LOG.isOk()) {
+			LOG.ok("About to saturate candidates with the objects they depend on, the current object cid: {0}", cid);
+		}
 		if (candidates.containsKey(cid)) {
 			Set<ConnectorObjectCandidate> candidatesSet = candidates.get(cid);
 			Iterator candidateSetIterator = candidatesSet.iterator();
@@ -1101,13 +1104,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private boolean appendToCandidateMap(ConnectorObjectCandidate ob,
-										 HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates) {
+										 HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> candidates) {
 
 		return appendToCandidateMap(ob, candidates, false);
 	}
 
 	private boolean appendToCandidateMap(ConnectorObjectCandidate ob,
-										 HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates,
+										 HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> candidates,
 										 boolean appendWithoutAssociatedObjects) {
 		boolean shouldReiterate = false;
 
@@ -1133,12 +1136,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 			if (candidates.containsKey(auid)) {
 
-				Set<ConnectorObjectCandidate> candidatesSet = candidates.get(auid);
-				candidatesSet.add(ob);
+				CandidateSet<ConnectorObjectCandidate> candidatesSet = candidates.get(auid);
+				candidatesSet.addWithId(ob);
 			} else {
 
-				Set<ConnectorObjectCandidate> candidatesSet = new HashSet<>();
-				candidatesSet.add(ob);
+				CandidateSet<ConnectorObjectCandidate> candidatesSet = new CandidateSet<>();
+				candidatesSet.addWithId(ob);
 				candidates.put(auid, candidatesSet);
 			}
 		}
@@ -1146,19 +1149,19 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return shouldReiterate;
 	}
 
-	private void reIterateCandidates(HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidatesToProcess) {
+	private void reIterateCandidates(HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> candidatesToProcess) {
 		reIterateCandidates(candidatesToProcess, null, null);
 	}
 
-	private void reIterateCandidates(HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> candidatesToProcess,
-									 HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> originalCandidates,
+	private void reIterateCandidates(HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> candidatesToProcess,
+									 HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> originalCandidates,
 									 Map<ConnectorObjectId, ConnectorObjectCandidate> processedAndReferencedCandidates) {
 		CSVFormat csv = createCsvFormatReader(configuration);
 		if (processedAndReferencedCandidates == null) {
 
 			processedAndReferencedCandidates = new HashMap<>();
 		}
-		HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> nonCompleteCandidates = new HashMap<>();
+		HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> nonCompleteCandidates = new HashMap<>();
 		try (Reader reader = createReader(configuration)) {
 
 			CSVParser parser = csv.parse(reader);
@@ -1175,9 +1178,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				if (processedAndReferencedCandidates.containsKey(ob.getId())) {
 
 					ob = processedAndReferencedCandidates.get(ob.getId());
+					LOG.ok("Candidate found among processed ones {0}", ob.getId());
 				}
 
 				if (candidatesToProcess.containsKey(ob.getId())) {
+
+
 					Set<ConnectorObjectCandidate> candidatesSet = candidatesToProcess.get(ob.getId());
 					Iterator candidateSetIterator = candidatesSet.iterator();
 
@@ -1205,9 +1211,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					for (ConnectorObjectId objectId : ob.getObjectIdsToBeProcessed()) {
 						if (candidatesToProcess.containsKey(objectId)) {
-							Set<ConnectorObjectCandidate> candidateSet = candidatesToProcess.get(objectId);
-							if (candidateSet.contains(ob)) {
-								break;
+							CandidateSet<ConnectorObjectCandidate> candidateSet = candidatesToProcess.get(objectId);
+							if (candidateSet.contains(ob) || candidateSet.getCandidateId().contains(ob.getId())) {
+
+								continue;
 							}
 						}
 
@@ -1220,12 +1227,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 						if (nonCompleteCandidates.containsKey(objectId)) {
 
-							Set<ConnectorObjectCandidate> candidateSet = nonCompleteCandidates.get(objectId);
-							candidateSet.add(ob);
+							CandidateSet<ConnectorObjectCandidate> candidateSet = nonCompleteCandidates.get(objectId);
+							candidateSet.addWithId(ob);
 						} else {
 
-							Set<ConnectorObjectCandidate> candidateSet = new HashSet<>();
-							candidateSet.add(ob);
+							CandidateSet<ConnectorObjectCandidate> candidateSet = new CandidateSet<>();
+							candidateSet.addWithId(ob);
 							nonCompleteCandidates.put(objectId, candidateSet);
 						}
 					}
@@ -1236,7 +1243,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				for (ConnectorObjectId id : candidatesToProcess.keySet()) {
 					if (nonCompleteCandidates.containsKey(id)) {
-						nonCompleteCandidates.remove(id);
+
+						Set<ConnectorObjectCandidate> toBeProcessed = nonCompleteCandidates.get(id);
+
+						toBeProcessed.removeAll(candidatesToProcess.get(id));
+						if (toBeProcessed.isEmpty()) {
+
+							nonCompleteCandidates.remove(id);
+						}
 					}
 				}
 				if (!nonCompleteCandidates.isEmpty()) {
@@ -1286,7 +1300,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private ConnectorObjectCandidate createConnectorObjectOrCandidateObject(CSVRecord record, boolean omitAssociations,
 														  SyncToken syncToken, SyncDeltaType syncDeltaType) {
 
-		String uid = "";
+		String id = "";
 
 		Set<String> referenceNames = new HashSet<>();
 		Set<ConnectorObjectId> associationDataObject = new HashSet<>();
@@ -1322,11 +1336,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					for (AssociationHolder holder : associationSet) {
 						String objectObjectClassName = holder.getObjectObjectClassName();
 						String subjectObjectClassName = holder.getSubjectObjectClassName();
-
-//						if(subjectObjectClassName.equals(getObjectClassName()) && holder.isAccess()){
-//
-//							referenceName = ASSOC_ATTR_ACCESS;
-//						}
 
 						if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
 
@@ -1377,7 +1386,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 			if (name.equals(configuration.getUniqueAttribute())) {
 				builder.setUid(value);
-				uid = value;
 				if (!isUniqueAndNameAttributeEqual()) {
 					continue;
 				}
@@ -1385,6 +1393,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 			if (name.equals(configuration.getNameAttribute())) {
 				builder.setName(new Name(value));
+				id = value;
 				continue;
 			}
 
@@ -1404,14 +1413,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 		}
 
-		ConnectorObjectId cid = new ConnectorObjectId(uid, getObjectClass(), relationToObjectClasses);
+		ConnectorObjectId cid = new ConnectorObjectId(id, getObjectClass(), relationToObjectClasses.isEmpty() ?
+				null : relationToObjectClasses);
 
 		if (syncDeltaType != null) {
 			return new SyncDeltaObjectCandidate(cid,
-					builder, associationDataObject, associationDataSubject, syncToken, syncDeltaType, referenceNames);
+					builder, associationDataObject, associationDataSubject, syncToken, syncDeltaType, referenceNames,
+					configuration.getAssocAttrDirect());
 		} else {
 			return new ConnectorObjectCandidate(cid,
-					builder, associationDataObject, associationDataSubject, referenceNames);
+					builder, associationDataObject, associationDataSubject, referenceNames,
+					configuration.getAssocAttrDirect());
 		}
 	}
 
@@ -1535,7 +1547,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		File syncLockFile = createSyncLockFile(configuration);
 		FileLock lock = obtainTmpFileLock(syncLockFile);
 		try {
-			long tokenLongValue = getTokenValue(token);
+			long tokenLongValue = Util.getTokenValue(token);
 			LOG.info("Token {0}", tokenLongValue);
 
 			if (tokenLongValue == -1) {
@@ -1602,7 +1614,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 			boolean shouldContinue = true;
 			boolean shouldReiterate = false;
-			HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>> candidates = new HashMap<>();
+			HashMap <ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> candidates = new HashMap<>();
 
 			while (iterator.hasNext()) {
 				CSVRecord record = iterator.next();
@@ -1973,18 +1985,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					token, type);
 	}
 
-	private long getTokenValue(SyncToken token) {
-		if (token == null || token.getValue() == null) {
-			return -1;
-		}
-		String object = token.getValue().toString();
-		if (!object.matches("[0-9]{13}")) {
-			return -1;
-		}
-
-		return Long.parseLong(object);
-	}
-
 	private String createNewSyncFile() {
 		long timestamp = System.currentTimeMillis();
 
@@ -2108,7 +2108,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return Util.getObjectClassName(getObjectClass());
 	}
 
-	private void retrieveAssociationData(HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>>  candidates) {
+	private void retrieveAssociationData(HashMap <ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>>  candidates) {
+
+		retrieveAssociationData(candidates, 1);
+	}
+
+	private void retrieveAssociationData(HashMap <ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>>  candidates,
+										 Integer depth) {
 
 		Set<AssociationHolder> associationSet = associationHolders.get(getObjectClassName());
 
@@ -2189,7 +2195,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		if (!recordSet.isEmpty()) {
 
-			constructReferredObjectsAndSaturateConnectorObjectCandidates(candidates, recordSet);
+			constructReferredObjectsAndSaturateConnectorObjectCandidates(candidates, recordSet, depth);
 		}
 	}
 
@@ -2212,14 +2218,18 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				for (AssociationHolder associationHolder : holders) {
 
+					Set<String> objectValues = valuesPerObjectClass.get(evaluatedObjectClass);
+					if (objectValues == null) {
+						break;
+					}
 					if (AssociationCharacter.REFERS_TO.equals(associationHolder.getCharacter())) {
 
 						attrsAndValues.put(associationHolder.getAssociationAttributeName(),
-								valuesPerObjectClass.get(evaluatedObjectClass));
+								objectValues);
 					} else {
 
 						attrsAndValues.put(associationHolder.getValueAttributeName(),
-								valuesPerObjectClass.get(evaluatedObjectClass));
+								objectValues);
 					}
 				}
 
@@ -2243,12 +2253,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	}
 
 	private void constructReferredObjectsAndSaturateConnectorObjectCandidates(
-			HashMap <ConnectorObjectId, Set<ConnectorObjectCandidate>> connectorObjectCandidates,
-												Map<ObjectClassHandler, Set<CSVRecord>> recordSet) {
+			HashMap <ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> connectorObjectCandidates,
+												Map<ObjectClassHandler, Set<CSVRecord>> recordSet, Integer depth) {
 		for (ObjectClassHandler objectClassHandler : recordSet.keySet()) {
 
 			Set<CSVRecord> records = recordSet.get(objectClassHandler);
-			HashMap<ConnectorObjectId, Set<ConnectorObjectCandidate>> retrievedCandidates = new HashMap<>();
+			HashMap<ConnectorObjectId, CandidateSet<ConnectorObjectCandidate>> retrievedCandidates = new HashMap<>();
 			boolean shouldReiterate = false;
 			for (CSVRecord record : records) {
 				ConnectorObjectCandidate oc;
@@ -2257,6 +2267,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						false);
 
 				ConnectorObjectId cid = oc.getId();
+				oc.setDepth(depth);
 				objectClassHandler.saturateCandidates(cid, retrievedCandidates, oc);
 
 				if (!shouldReiterate) {
@@ -2275,16 +2286,20 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				objectClassHandler.reIterateCandidates(retrievedCandidates);
 			}
 
-			objectClassHandler.retrieveAssociationData(retrievedCandidates);
+			objectClassHandler.retrieveAssociationData(retrievedCandidates, depth + 1);
 
 			Set<ConnectorObjectCandidate> finalCandidateSet = new HashSet<>();
 			retrievedCandidates.values().forEach(val -> finalCandidateSet.addAll(val));
 			for (ConnectorObjectCandidate candidate : finalCandidateSet) {
 
+			if(LOG.isOk()) {
+				LOG.ok("Evaluating candidate reference: {0} ", candidate.getId());
+			}
 				candidate.evaluateDependencies();
 				if (candidate.complete()) {
+
 					if (connectorObjectCandidates.containsKey(candidate.getId())) {
-						Set<ConnectorObjectCandidate> candidateSet = connectorObjectCandidates.get(candidate.getId());
+						CandidateSet<ConnectorObjectCandidate> candidateSet = connectorObjectCandidates.get(candidate.getId());
 
 						for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
 
@@ -2292,12 +2307,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						}
 
 					} else if (!candidate.getSubjectIdsToBeProcessed().isEmpty()) {
-
 						Set<ConnectorObjectId> idSet = candidate.getSubjectIdsToBeProcessed();
 						for (ConnectorObjectId id : idSet) {
 
 							if (connectorObjectCandidates.containsKey(id)) {
-								Set<ConnectorObjectCandidate> candidateSet = connectorObjectCandidates.get(id);
+								CandidateSet<ConnectorObjectCandidate> candidateSet = connectorObjectCandidates.get(id);
 
 								for (ConnectorObjectCandidate candidateFromSet : candidateSet) {
 
@@ -2307,9 +2321,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						}
 					}
 				} else {
-
-					throw new ConnectorException("Invalid operation outcome, Connector Object Candidate '" +
-							candidate.getId() + "' ");
+					if (LOG.isOk()) {
+						candidate.dumpNonCompleteReferences();
+					}
+					throw new ConnectorException("Invalid operation outcome, potentially missing reference data for" +
+							" Connector Object Candidate '" + candidate.getId() + "' ");
 				}
 			}
 		}
@@ -2814,11 +2830,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					if (searchedAttributeAndValues.containsKey(name)) {
 
 						Set<String> searchedValues = searchedAttributeAndValues.get(name);
-						boolean isMatch = !Collections.disjoint(values, searchedValues);
-						if (isMatch){
+						if(searchedValues!=null) {
+							boolean isMatch = !Collections.disjoint(values, searchedValues);
+							if (isMatch) {
 
-							recordSet.add(record);
-							break;
+								recordSet.add(record);
+								break;
+							}
 						}
 					}
 				}

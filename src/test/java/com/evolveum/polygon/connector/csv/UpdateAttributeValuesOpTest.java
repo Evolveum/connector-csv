@@ -12,8 +12,6 @@ import org.testng.annotations.Test;
 import java.io.File;
 import java.util.*;
 
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_ACCESS;
-import static com.evolveum.polygon.connector.csv.util.Util.ASSOC_ATTR_GROUP;
 import static org.testng.Assert.assertTrue;
 import static org.testng.AssertJUnit.assertEquals;
 import static org.testng.AssertJUnit.assertNotNull;
@@ -201,6 +199,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
     @Test
     public void addReferenceAttributeOnSubjectDifferentOc() throws Exception {
+
         CsvConfiguration config = createConfigurationNameEqualsUid();
         config.setMultivalueDelimiter(",");
         config.setMultivalueAttributes("memberOf");
@@ -226,10 +225,10 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         Uid expected = new Uid(USER_MEMBER_ID);
 
         Set<Attribute> referenceAttributes = new HashSet<>();
-        referenceAttributes.add(new Name(GROUP_MEMBER_UID_NEW));
+        referenceAttributes.add(new Name("2"));
 
-        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(GROUP_MEMBER_UID_NEW,
-                GROUP_MEMBER_UID_NEW, referenceAttributes, new ObjectClass("group")));
+        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject("test",
+                "2", referenceAttributes, new ObjectClass("group")));
 
 
         Set<Attribute> origReferenceAttributes = new HashSet<>();
@@ -262,6 +261,149 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         expectedRecord.put(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME);
         expectedRecord.put(ATTR_PASSWORD, USER_MEMBER_PASSWORD);
         expectedRecord.put(ATTR_MEMBER_OF, "1," + GROUP_MEMBER_UID_NEW);
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_ID);
+        assertEquals(expectedRecord, realRecord);
+    }
+
+    @Test
+    public void addReferenceAttributeOnSubjectDifferentOcMultiple() throws Exception {
+
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        config.setMultivalueAttributes("memberOf");
+
+        Set<String> values = Set.of(
+                "\"account\"+memberOf -# \"group\"+id",
+                "\"group\"+memberOf -# \"group\"+id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groups-memberOf.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.properties"), groupsProperties);
+
+        File groupsCsv = new File("./target/groups-memberOf.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-memberOf.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/create-memberOf.csv", config);
+
+        Uid expected = new Uid(USER_MEMBER_ID);
+
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name("2"));
+        Set<Attribute> referenceTwoAttributes = new HashSet<>();
+        referenceTwoAttributes.add(new Name("3"));
+
+        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject("2",
+                "2", referenceAttributes, new ObjectClass("group")));
+
+        ConnectorObjectReference referenceTwo = new ConnectorObjectReference(buildConnectorObject("3",
+                "3", referenceTwoAttributes, new ObjectClass("group")));
+
+        Set<Attribute> origReferenceAttributes = new HashSet<>();
+        origReferenceAttributes.add(new Name("1"));
+
+        ConnectorObjectReference origReference = new ConnectorObjectReference(buildConnectorObject("1",
+                "1", origReferenceAttributes, new ObjectClass("group")));
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, referenceTwo));
+
+        Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(USER_MEMBER_ID));
+        attributes.add(createAttribute(Uid.NAME, USER_MEMBER_ID));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference, referenceTwo, origReference));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(USER_MEMBER_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object, Name.NAME);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, USER_MEMBER_ID);
+        expectedRecord.put(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, USER_MEMBER_PASSWORD);
+        expectedRecord.put(ATTR_MEMBER_OF, "1,2,3");
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_ID);
+        assertEquals(expectedRecord, realRecord);
+    }
+
+    @Test
+    public void addReferenceAttributeOnSubjectDifferentOcNameDefined() throws Exception {
+        CsvConfiguration config = createConfigurationNameEqualsUid();
+        config.setMultivalueDelimiter(",");
+        config.setMultivalueAttributes("memberOf");
+
+        Set<String> values = Set.of(
+                "\"account\"+memberOf -# \"group\"+description",
+                "\"group\"+memberOf -# \"group\"+description"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groups-memberOf.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/name-set/groups-memberOf.properties"), groupsProperties);
+
+        File groupsCsv = new File("./target/groups-memberOf.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/name-set/groups-memberOf.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/name-set/create-memberOf.csv", config);
+
+        Uid expected = new Uid(USER_MEMBER_ID);
+
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(new Name("test"));
+
+        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject("test",
+                "test", referenceAttributes, new ObjectClass("group")));
+
+
+        Set<Attribute> origReferenceAttributes = new HashSet<>();
+        origReferenceAttributes.add(new Name("all-accounts"));
+
+        ConnectorObjectReference origReference = new ConnectorObjectReference(buildConnectorObject("all-accounts",
+                "all-accounts", origReferenceAttributes, new ObjectClass("group")));
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP, reference));
+        Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(USER_MEMBER_ID));
+        attributes.add(createAttribute(Uid.NAME, USER_MEMBER_ID));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP, reference, origReference));
+        attributes.add(createAttribute(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME));
+        attributes.add(createAttribute(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME));
+        attributes.add(AttributeBuilder.buildPassword(new GuardedString(USER_MEMBER_PASSWORD.toCharArray())));
+        assertConnectorObject(attributes, object, Name.NAME);
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_UID, USER_MEMBER_ID);
+        expectedRecord.put(ATTR_FIRST_NAME, USER_MEMBER_FIRST_NAME);
+        expectedRecord.put(ATTR_LAST_NAME, USER_MEMBER_LAST_NAME);
+        expectedRecord.put(ATTR_PASSWORD, USER_MEMBER_PASSWORD);
+        expectedRecord.put(ATTR_MEMBER_OF, "all-accounts," + "test");
 
         Map<String, String> realRecord = CsvTestUtil.findRecord(createConfigurationNameEqualsUid(), USER_MEMBER_ID);
         assertEquals(expectedRecord, realRecord);
@@ -481,20 +623,27 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         Uid expected = new Uid(valueUserIdUpdateAccessOnObject);
 
         Set<Attribute> referenceAttributes = new HashSet<>();
-        referenceAttributes.add(createAttribute(Uid.NAME, NEW_REFERENCE_ID));
-        referenceAttributes.add(createAttribute(Name.NAME, "users-all"));
-        referenceAttributes.add(createAttribute(ATTR_DESCRIPTION, "ua"));
+        referenceAttributes.add(createAttribute(Uid.NAME, "3"));
+        referenceAttributes.add(createAttribute(Name.NAME, "devs"));
+        referenceAttributes.add(createAttribute(ATTR_DESCRIPTION, "u-deva"));
         referenceAttributes.add(createAttribute(ATTR_MEMBERS_TEST, valueUserIdUpdateAccessOnObject));
         referenceAttributes.add(createAttribute(ATTR_MEMBERS_DEFAULT, valueUserIdUpdateAccessOnObject));
         referenceAttributes.add(createAttribute(ATTR_MEMBERS_ADMIN, valueUserIdUpdateAccessOnObject));
 
-        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject(NEW_REFERENCE_ID,
-                NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("group")));
+        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject("3",
+                "3", referenceAttributes, new ObjectClass("group")));
 
         Set<Attribute> attributes = new HashSet<>();
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference));
         attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference));
+
+        Set<Attribute> referenceAttributesOld = new HashSet<>();
+        referenceAttributesOld.add(createAttribute(Uid.NAME, "1"));
+        referenceAttributesOld.add(createAttribute(Name.NAME, "users-all"));
+
+        ConnectorObjectReference referenceOld = new ConnectorObjectReference(buildConnectorObject("1",
+                "1", referenceAttributesOld, new ObjectClass("group")));
 
         Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
 
@@ -508,16 +657,16 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
         attributes.add(createAttribute(ATTR_NAME, "jack"));
         attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_TEST, reference));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference));
-        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_DEFAULT, reference, referenceOld));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP+"-"+ATTR_MEMBERS_ADMIN, reference, referenceOld));
         attributes.add(createAttribute(ATTR_EMPL, "234"));
         attributes.add(createAttribute(ATTR_TITLE, "manager"));
         assertConnectorObject(attributes, object);
 
         Set<Attribute> referenceAttributesToCheck = new HashSet<>();
-        referenceAttributesToCheck.add(createAttribute(Uid.NAME, NEW_REFERENCE_ID));
-        referenceAttributesToCheck.add(createAttribute(Name.NAME, "users-all"));
-        referenceAttributesToCheck.add(createAttribute(ATTR_DESCRIPTION, "ua"));
+        referenceAttributesToCheck.add(createAttribute(Uid.NAME, "3"));
+        referenceAttributesToCheck.add(createAttribute(Name.NAME, "devs"));
+        referenceAttributesToCheck.add(createAttribute(ATTR_DESCRIPTION, "u-deva"));
         referenceAttributesToCheck.add(createAttribute(ATTR_MEMBERS_TEST, "1", valueUserIdUpdateAccessOnObject));
         referenceAttributesToCheck.add(createAttribute(ATTR_MEMBERS_DEFAULT, valueUserIdUpdateAccessOnObject));
         referenceAttributesToCheck.add(createAttribute(ATTR_MEMBERS_ADMIN, valueUserIdUpdateAccessOnObject));
@@ -721,7 +870,8 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         Set<Attribute> secondLvlReferenceObjectAttributes = new HashSet<>();
         secondLvlReferenceObjectAttributes.add(createAttribute(Uid.NAME, "1"));
-        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, "users"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, "1"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(ATTR_NAME, "users"));
 
         ConnectorObjectReference connectorObjectReferenceSecondLvl = new ConnectorObjectReference(buildConnectorObject("1",
                 "1", secondLvlReferenceObjectAttributes, new ObjectClass("group")));
@@ -820,7 +970,8 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
         Set<Attribute> secondLvlReferenceObjectAttributes = new HashSet<>();
         secondLvlReferenceObjectAttributes.add(createAttribute(Uid.NAME, GROUP_MEMBER_UID_NEW));
-        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, "guests"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, GROUP_MEMBER_UID_NEW));
+        secondLvlReferenceObjectAttributes.add(createAttribute(ATTR_NAME, "guests"));
 
         ConnectorObjectReference connectorObjectReferenceSecondLvl = new ConnectorObjectReference(buildConnectorObject("1",
                 "1", secondLvlReferenceObjectAttributes, new ObjectClass("group")));

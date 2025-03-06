@@ -42,8 +42,8 @@ public class Util {
 
     public static final String UTF8_BOM = "\uFEFF";
 
-    public static final String ASSOC_ATTR_GROUP ="group";
-    public static final String ASSOC_ATTR_ACCESS ="access";
+//    public static final String ASSOC_ATTR_GROUP ="group";
+//    public static final String ASSOC_ATTR_ACCESS ="access";
 
     public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
     public static final String R_I_R_OBJECT = AttributeUtil.createSpecialName("OBJECT");
@@ -516,26 +516,12 @@ public class Util {
             String referenceAttrName = holder.getValueAttributeName();
             String identificatorAttributeName = holder.getAssociationAttributeName();
             String objectObjectClassName = holder.getObjectObjectClassName();
-            Boolean isRecipient = objectObjectClassName.equals(holder.getSubjectObjectClassName());
+            boolean isRecipient = objectObjectClassName.equals(holder.getSubjectObjectClassName());
 
-//            if (!objectClassName.equals(objectObjectClassName)) {
-//                ObjectClassHandler handler = handlerMap.get(Util.getObjectClass(objectObjectClassName));
-//                uniqueAttrName = handler.getConfiguration().getUniqueAttribute();
-//                nameAttrName = handler.getConfiguration().getNameAttribute();
-//            }
-
-            if (uniqueAttrName.equals(referenceAttrName)) {
-                if(nameAttrName != null && !nameAttrName.isEmpty()) {
-
-                    if (!uniqueAttrName.equals(nameAttrName)) {
-                        identificatorAttributeName = Uid.NAME;
-                    } else {
-                        identificatorAttributeName = Name.NAME;
-                    }
-                } else {
+            if (uniqueAttrName.equals(referenceAttrName) ||
+                    (nameAttrName!=null && nameAttrName.equals(referenceAttrName))) {
 
                     identificatorAttributeName = Name.NAME;
-                }
 
                 referenceAttrName = holder.getAssociationAttributeName();
 
@@ -548,17 +534,19 @@ public class Util {
 
             boolean vectorIsAccess = isPartOfAccess != null ? isPartOfAccess : holder.isAccess();
 
-//            if (referenceAttributeNames != null && !referenceAttributeNames.isEmpty()) {
-//
-//                if (referenceAttributeNames.contains(referenceAttrName)) {
-//
-//                    return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
-//                            , referenceAttrName, identificatorAttributeName, vectorIsAccess);
-//                }
-//            } else {
                 return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
                         , referenceAttrName, identificatorAttributeName, vectorIsAccess);
-//            }
-
         }
+
+    public static long getTokenValue(SyncToken token) {
+        if (token == null || token.getValue() == null) {
+            return -1;
+        }
+        String object = token.getValue().toString();
+        if (!object.matches("[0-9]{13}")) {
+            return -1;
+        }
+
+        return Long.parseLong(object);
+    }
 }
