@@ -49,4 +49,16 @@ public class ConfigurationTest extends BaseTest {
         ConnectorFacade connector = setupConnector("/create.csv", config);
         connector.test();
     }
+
+    @Test
+    public void testTabDelimiter() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setUniqueAttribute("uid");
+        config.setFieldDelimiter("\\t");
+        config.setReadOnly(true);
+
+        ConnectorFacade connector = setupConnector("/create-tabs.tsv", config);
+        connector.test();
+
+    }
 }
