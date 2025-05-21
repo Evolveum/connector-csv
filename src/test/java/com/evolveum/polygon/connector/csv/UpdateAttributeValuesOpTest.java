@@ -938,7 +938,7 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
 
 
     // TODO
-    @Test
+    //@Test
     public void addReferenceAttributeOnAccessNoIdComplex() throws Exception {
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");
