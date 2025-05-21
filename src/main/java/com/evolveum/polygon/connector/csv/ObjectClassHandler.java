@@ -181,11 +181,31 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			objClassBuilder.setAuxiliary(configuration.isAuxiliary());
 			objClassBuilder.setContainer(configuration.isContainer());
 			objClassBuilder.addAllAttributeInfo(createAttributeInfo(getHeader()));
+			objClassBuilder.setEmbedded(isEmbedded());
 
 			schema.defineObjectClass(objClassBuilder.build());
 		} catch (Exception ex) {
 			handleGenericException(ex, "Couldn't initialize connector");
 		}
+	}
+
+	private boolean isEmbedded() {
+		if (!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())) {
+
+			String objectClassName = getObjectClassName();
+
+			HashSet<AssociationHolder> holders = associationHolders.get(objectClassName);
+
+			for (AssociationHolder holder : holders) {
+				if (holder.isAccess()) {
+					if (objectClassName.equals(holder.getObjectObjectClassName())) {
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	private Set<AttributeInfo.Flags> createFlags(AttributeInfo.Flags... flags) {
@@ -204,9 +224,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			String objectClassName = getObjectClassName();
 
 			HashSet<AssociationHolder> holders = null;
-			for (String holderOcName :  associationHolders.keySet()){
+			for (String holderOcName : associationHolders.keySet()) {
 
-				if(holderOcName.equalsIgnoreCase(objectClassName)){
+				if (holderOcName.equalsIgnoreCase(objectClassName)) {
 
 					holders = associationHolders.get(holderOcName);
 				}
@@ -244,18 +264,33 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 
 						if (evaluatedAttribute != null) {
+							if (columns.containsKey(evaluatedAttribute)) {
+								if (!configuration.getUniqueAttribute().equals(evaluatedAttribute)) {
 
-							if (!configuration.getUniqueAttribute().equals(evaluatedAttribute)) {
-
-								if (columns.containsKey(evaluatedAttribute)) {
 									columns.remove(evaluatedAttribute);
+
 									if (multivalueAttributes.contains(evaluatedAttribute)) {
 										builder.setMultiValued(true);
 									}
 								} else {
 
-									throw new ConfigurationException("Reference Attribute \"" + evaluatedAttribute + "\" not found " + "amongst attributes.");
+									boolean containsAccessHolder = false;
+									for (AssociationHolder potentialAccessHolderholder : holders) {
+
+										if (potentialAccessHolderholder.isAccess() &&
+												objectClassName.equals(potentialAccessHolderholder.getObjectObjectClassName())) {
+
+											containsAccessHolder = true;
+											builder.setMultiValued(false);
+											break;
+										}
+									}
+									if (!containsAccessHolder) {
+										builder.setMultiValued(true);
+									}
 								}
+							} else {
+								throw new ConfigurationException("Reference Attribute \"" + evaluatedAttribute + "\" not found " + "amongst attributes.");
 							}
 						}
 						attributeInfos.add(builder.build());
@@ -316,15 +351,15 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				continue;
 			}
 
-            if (name.equals(configuration.getLastLoginDateAttribute())) {
-                AttributeInfoBuilder builder = new AttributeInfoBuilder(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
-                builder.setType(Long.class);
-                builder.setNativeName(name);
+			if (name.equals(configuration.getLastLoginDateAttribute())) {
+				AttributeInfoBuilder builder = new AttributeInfoBuilder(PredefinedAttributes.LAST_LOGIN_DATE_NAME);
+				builder.setType(Long.class);
+				builder.setNativeName(name);
 
-                infos.add(builder.build());
+				infos.add(builder.build());
 
-                continue;
-            }
+				continue;
+			}
 
 			AttributeInfoBuilder builder = new AttributeInfoBuilder(name);
 			if (name.equals(configuration.getPasswordAttribute())) {
@@ -428,7 +463,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 
 			if(referenceDataPayload!=null){
-			updateReferences(Operation.ADD_ATTR_VALUE, referenceDataPayload, false);
+
+				updateReferences(Operation.ADD_ATTR_VALUE, referenceDataPayload, false);
 			}
 		} catch (Exception ex) {
 			handleGenericException(ex, "Error during account '" + uid + "' create");
@@ -494,6 +530,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				null, null);
 	}
 
+	// TODO Access does not contain Its ID during updates, rather than that it contains the reference object and a level attribute
+	// it could be used to identify the access, or create a new access any time one is needed
 	private Set<ReferenceDataPayload> createReferenceDataFromAttributes(
 			Set<ReferenceDataDeliveryVector> referenceDataDeliveryVectors, Set<Attribute> attributes,
 			Set<Attribute> referenceAttributes, Operation operation, Uid uid) {
@@ -694,7 +732,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					if (LOG.isOk()) {
 
-						LOG.ok("About to fetch data based on the value attribute name {0} from" +
+						LOG.ok("About to fetch data based on the value attribute with the name {0} from" +
 								" the 'Base Connector Object': {1}", valueAttributeName, bco);
 					}
 
@@ -702,24 +740,31 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					if (attribute == null) {
 
-						String uidAttrName;
+						String idAttrName;
+						String nameAttrName;
 
 						if (getObjectClass().equals(objectClassOfReferencedObject)) {
 
-							uidAttrName = configuration.getUniqueAttribute();
+							idAttrName = configuration.getUniqueAttribute();
+							nameAttrName = configuration.getNameAttribute();
 						} else {
 
 							ObjectClassHandler objectClassHandler = getHandlers().get(bco.getObjectClass());
-							uidAttrName = objectClassHandler.configuration.getUniqueAttribute();
+							idAttrName = objectClassHandler.configuration.getUniqueAttribute();
+							nameAttrName = objectClassHandler.configuration.getNameAttribute();
 						}
 
 						if (Uid.NAME.equals(valueAttributeName)) {
 
+							attribute = bco.getAttributeByName(idAttrName);
+						} else if (idAttrName.equals(valueAttributeName)) {
 
-							attribute = bco.getAttributeByName(uidAttrName);
-						} else if (uidAttrName.equals(valueAttributeName)) {
-
-							attribute = bco.getAttributeByName(Uid.NAME);
+							if (idAttrName.equals(nameAttrName)) {
+								attribute = bco.getAttributeByName(Name.NAME);
+							}
+							if (attribute == null) {
+								attribute = bco.getAttributeByName(Uid.NAME);
+							}
 						}
 
 					}
@@ -734,8 +779,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							}
 						}
 					} else {
-						throw new ConnectorException("Invalid delivery vector attribute used while" +
-								" fetching object reference data. ");
+						throw new ConnectorException("Delivery vector attribute used while" +
+								" fetching object reference data is NULL. ");
 					}
 				}
 			}

@@ -186,6 +186,9 @@ public class CsvConnector implements Connector, TestOp, SchemaOp, SearchOp<Filte
 
             if(!ArrayUtils.isEmpty(configuration.getManagedAssociationPairs())){
                 executeSyncInOrder(oc, token, handler, oo);
+            } else {
+                throw new ConnectorException("Object class "+ObjectClass.ALL_NAME+" is not supported in Sync operation" +
+                        " without 'ManagedAssociationPairs' configuration");
             }
         }
         LOG.info(">>> sync finished");

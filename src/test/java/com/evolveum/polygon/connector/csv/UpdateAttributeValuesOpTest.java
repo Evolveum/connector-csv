@@ -936,6 +936,107 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
         assertEquals(expectedRecord, realRecord);
     }
 
+
+    // TODO
+    @Test
+    public void addReferenceAttributeOnAccessNoIdComplex() throws Exception {
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("id");
+        config.setNameAttribute("id");
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values =Set.of(
+                "\"account\"+id -# \"access\"+subject_id",
+                "\"access\"+object_id #- \"group\"+id"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groupsAndAccessObjectClass.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groupsAndAccessObjectClass.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-no-member.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/groups-no-member.csv"), groupsCsv);
+
+        File accessCsv = new File("./target/access.csv");
+        accessCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/access.csv"), accessCsv);
+
+        ConnectorFacade connector = setupConnector("/schema-user-basic.csv", config);
+
+        String valueUserIdUpdateAccessOnObject = "2";
+        Uid expected = new Uid(valueUserIdUpdateAccessOnObject);
+
+        Set<Attribute> secondLvlReferenceObjectAttributes = new HashSet<>();
+        secondLvlReferenceObjectAttributes.add(createAttribute(Uid.NAME, "1"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(Name.NAME, "1"));
+        secondLvlReferenceObjectAttributes.add(createAttribute(ATTR_NAME, "users"));
+
+        ConnectorObjectReference connectorObjectReferenceSecondLvl = new ConnectorObjectReference(buildConnectorObject("1",
+                "1", secondLvlReferenceObjectAttributes, new ObjectClass("group")));
+
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(createAttribute(ATTR_LEVEL, "test"));
+        referenceAttributes.add(createAttribute(ASSOC_ATTR_GROUP, connectorObjectReferenceSecondLvl));
+
+        ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
+        builder.addAttributes(referenceAttributes);
+        builder.setObjectClass(new ObjectClass("access"));
+
+        ConnectorObjectReference connectorObjectReference = new ConnectorObjectReference(builder.buildIdentification());
+        ConnectorObjectReference connectorObjectReferenceExpectedOne = new ConnectorObjectReference(buildConnectorObject("2",
+                "2", Set.of(createAttribute(Uid.NAME, "2")), new ObjectClass("access")));
+        ConnectorObjectReference connectorObjectReferenceExpectedTwo = new ConnectorObjectReference(buildConnectorObject("3",
+                "3", Set.of(createAttribute(Uid.NAME, "3")), new ObjectClass("access")));
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_ACCESS, connectorObjectReference));
+        Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(valueUserIdUpdateAccessOnObject));
+        attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
+        attributes.add(createAttribute(ATTR_NAME, "jack"));
+        attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference,
+                connectorObjectReferenceExpectedOne ,connectorObjectReferenceExpectedTwo));
+        attributes.add(createAttribute(ATTR_EMPL, "234"));
+        attributes.add(createAttribute(ATTR_TITLE, "manager"));
+        assertConnectorObject(attributes, object);
+
+        Set<Attribute> referenceAttributesExpected = new HashSet<>();
+        referenceAttributesExpected.add(createAttribute(Uid.NAME, NEW_REFERENCE_ID));
+        referenceAttributesExpected.add(createAttribute(Name.NAME, NEW_REFERENCE_ID));
+        referenceAttributesExpected.add(createAttribute(ATTR_LEVEL, "test"));
+        referenceAttributesExpected.add(createAttribute(ATTR_DESCRIPTION, "test accounts"));
+        referenceAttributesExpected.add(createAttribute(ATTR_SUBJECT_ID, "1", valueUserIdUpdateAccessOnObject));
+        referenceAttributesExpected.add(createAttribute(ASSOC_ATTR_GROUP, connectorObjectReferenceSecondLvl));
+
+        BaseConnectorObject secondLvlReferenceObject = assertReferenceAndReturnReferenceObject(
+                referenceAttributesExpected, object.getAttributeByName(ASSOC_ATTR_ACCESS), new Uid (NEW_REFERENCE_ID));
+        assertNotNull(secondLvlReferenceObject);
+
+        assertReferenceAndReturnReferenceObject(secondLvlReferenceObjectAttributes,
+                secondLvlReferenceObject.getAttributeByName(ASSOC_ATTR_GROUP));
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put(ATTR_ID, valueUserIdUpdateAccessOnObject);
+        expectedRecord.put(ATTR_EMPL, "234");
+        expectedRecord.put(ATTR_NAME, "jack");
+        expectedRecord.put(ATTR_TITLE, "manager");
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(config, ATTR_ID,
+                valueUserIdUpdateAccessOnObject);
+        assertEquals(expectedRecord, realRecord);
+    }
+
     @Test
     public void addReferenceAttributeOnAccessNew() throws Exception {
         CsvConfiguration config = createConfiguration();

@@ -1,0 +1,8 @@
+id;name;code;members-test;members-default;members-admin
+g001;users-all;ual;004;001,002,003,004;004
+g002;users-new;unw;007;008,010;004
+g003;finance-team;fin;;001,010,011;005
+g004;engineering;eng;003,010;002,003;
+g005;sw-engineering;seng;007;002,006,007,008;006
+g006;marketing-team;mkt;;009;009
+g007;infrastructure;fin;;003;
