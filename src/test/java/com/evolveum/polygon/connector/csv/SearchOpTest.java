@@ -3,6 +3,7 @@ package com.evolveum.polygon.connector.csv;
 import com.evolveum.polygon.connector.csv.util.ListResultHandler;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -76,5 +77,34 @@ public class SearchOpTest extends BaseTest {
 
         ConnectorFacade connector = setupConnector("/search-wrong-column-count-row.csv", config);
         connector.search(ObjectClass.ACCOUNT, null, new ListResultHandler(), null);
+    }
+
+    /**
+     * MID-10391
+     */
+    @Test
+    public void searchWithCustomFieldDelimiter() throws Exception {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setFilePath(new File(CSV_FILE_PATH));
+        config.setUniqueAttribute("id");
+        config.setTrim(true);
+        config.setMultivalueDelimiter("\\|");
+        ConnectorFacade connector = setupConnector("/schema-custom-field-delimiter.csv", config);
+
+        ListResultHandler handler = new ListResultHandler();
+        connector.search(ObjectClass.ACCOUNT, null, handler, null);
+
+        List<ConnectorObject> objects = handler.getObjects();
+        AssertJUnit.assertEquals(1, objects.size());
+
+        ConnectorObject object = objects.get(0);
+        AssertJUnit.assertEquals(new Uid("1"), object.getUid());
+
+        Attribute organization = object.getAttributeByName("organization");
+        List<Object> organizations = organization.getValue();
+        AssertJUnit.assertEquals(2, organizations.size());
+
+        AssertJUnit.assertTrue(organizations.contains("org1"));
+        AssertJUnit.assertTrue(organizations.contains("org2"));
     }
 }
