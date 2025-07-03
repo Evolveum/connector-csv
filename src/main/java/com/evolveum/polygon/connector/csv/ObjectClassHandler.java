@@ -769,10 +769,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					Attribute attribute = bco.getAttributeByName(valueAttributeName);
 
-					if (attribute == null) {
+					String idAttrName = null;
+					String nameAttrName = null;
 
-						String idAttrName;
-						String nameAttrName;
+					if (attribute == null) {
 
 						if (getObjectClass().equals(objectClassOfReferencedObject)) {
 
@@ -813,8 +813,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							}
 						}
 					} else {
-						throw new ConnectorException("Delivery vector attribute used while" +
-								" fetching object reference data is NULL. ");
+						StringBuilder eb = new StringBuilder("[" + Name.NAME + ", " + Uid.NAME + ", ");
+						eb.append(idAttrName != null ? idAttrName + ", " : "");
+						eb.append(nameAttrName != null ? nameAttrName : "");
+						eb.append("]");
+
+						throw new ConnectorException("Unique attribute not found during the analysis of" +
+								" object reference data. This could be a configuration problem, or the attribute set" +
+								"lacking the identification attributes. The attribute names used in the lookup: " + eb);
 					}
 				}
 			}
