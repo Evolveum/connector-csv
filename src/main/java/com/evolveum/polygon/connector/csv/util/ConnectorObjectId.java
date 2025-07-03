@@ -8,6 +8,7 @@ import java.util.Set;
 public class ConnectorObjectId {
 
     private String id;
+    private String idAttributeName;
     private ObjectClass objectClass;
     private Set<ObjectClass> relatedObjectClasses;
 
@@ -16,9 +17,16 @@ public class ConnectorObjectId {
         this(id ,objectClass, null);
     }
     public ConnectorObjectId(String id, ObjectClass objectClass, Set<ObjectClass> relatedObjectClasses) {
+
+        this(id, objectClass, relatedObjectClasses , null);
+    }
+
+    public ConnectorObjectId(String id, ObjectClass objectClass, Set<ObjectClass> relatedObjectClasses,
+                             String idAttributeName) {
         this.id = id;
         this.objectClass = objectClass;
         this.relatedObjectClasses = relatedObjectClasses;
+        this.idAttributeName = idAttributeName;
     }
 
     public ObjectClass getObjectClass() {
@@ -31,6 +39,10 @@ public class ConnectorObjectId {
 
     public Set<ObjectClass> getRelatedObjectClasses() {
         return relatedObjectClasses;
+    }
+
+    public String getIdAttributeName() {
+        return idAttributeName;
     }
 
     @Override

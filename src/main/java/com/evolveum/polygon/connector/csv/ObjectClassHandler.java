@@ -505,19 +505,24 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		if (referenceDataPayload != null && !referenceDataPayload.isEmpty()) {
 			for (ReferenceDataPayload dataPayload : referenceDataPayload) {
 
-				ObjectClass objectClass = dataPayload.getConnectorObjectId().getObjectClass();
-				String objectId = dataPayload.getConnectorObjectId().getId();
+				ConnectorObjectId coid = dataPayload.getConnectorObjectId();
+
+				ObjectClass objectClass = coid.getObjectClass();
+				String objectId = coid.getId();
+				String objectIdAttributeName = coid.getIdAttributeName();
 
 				if (!getObjectClass().equals(objectClass)) {
 					Map<ObjectClass, ObjectClassHandler> handlers = getHandlers();
 					ObjectClassHandler handler = handlers.get(objectClass);
 					
-					handler.update(operation, objectClass, new Uid(objectId),
-							dataPayload.getAttributes(), null, isAccess);
+					handler.update(operation, objectClass, objectId,
+							dataPayload.getAttributes(), null, isAccess,
+							objectIdAttributeName.equals(handler.getConfiguration().getUniqueAttribute()));
 				} else {
 
-					update(operation, objectClass, new Uid(objectId),
-							dataPayload.getAttributes(), null);
+					update(operation, objectClass, objectId,
+							dataPayload.getAttributes(), null, false,
+							objectIdAttributeName.equals(getConfiguration().getUniqueAttribute()));
 				}
 			}
 		}
@@ -536,7 +541,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			Set<ReferenceDataDeliveryVector> referenceDataDeliveryVectors, Set<Attribute> attributes,
 			Set<Attribute> referenceAttributes, Operation operation, Uid uid) {
 
-		if(LOG.isOk()) {
+		if (LOG.isOk()) {
 			LOG.ok("Computing reference data.");
 		}
 
@@ -546,7 +551,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		while (attributeIterator.hasNext()) {
 			Attribute attribute = attributeIterator.next();
 
-			if(LOG.isOk()) {
+			if (LOG.isOk()) {
 				LOG.ok("Removing connector object reference type attribute from original attribute set.");
 			}
 
@@ -561,13 +566,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 		}
 		for (ReferenceDataDeliveryVector referenceDataDeliveryVector : referenceDataDeliveryVectors) {
-			String valueAttributeName = referenceDataDeliveryVector.getIdAttributeName();
 
 			Attribute referenceAttribute = null;
 			Set<Attribute> referenceAttributeSetBasedOnId = new HashSet<>();
 
 			Iterator<Attribute> attrIterator = referenceAttributes.iterator();
-			if(referenceAttributes.size() > 1 ) {
+			if (referenceAttributes.size() > 1) {
 				while (attrIterator.hasNext()) {
 
 					referenceAttribute = attrIterator.next();
@@ -589,11 +593,34 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					LOG.ok("Reference attribute set empty.");
 				}
 			}
+// TODO review
+//			ObjectClassHandlerConfiguration usedConfig;
+//
+//			if (referenceDataDeliveryVector.originIsRecipient()) {
+//
+//				usedConfig = configuration;
+//
+//			} else {
+//				ObjectClassHandler handler = handlers.get(referenceDataDeliveryVector.getObjectClass());
+//				usedConfig = handler.getConfiguration();
+//			}
+//
+//			String valueAttributeName;
+//
+//			String nameAttr = usedConfig.getNameAttribute();
+//
+//			if (nameAttr != null && !nameAttr.isEmpty()) {
+//
+//				valueAttributeName = nameAttr;
+//			} else {
+//
+//				valueAttributeName = usedConfig.getUniqueAttribute();
+//			}
 
-			Map<String, Set<Attribute>> referencedObjectdata = getReferenceData(valueAttributeName,
-					referenceAttributeSetBasedOnId);
+			Map<String, Set<Attribute>> referencedObjectdata = getReferenceData(referenceDataDeliveryVector.
+					getIdentificatorAttributeNameObject(), referenceAttributeSetBasedOnId);
 
-			if(referencedObjectdata !=null && !referencedObjectdata.isEmpty()) {
+			if (referencedObjectdata != null && !referencedObjectdata.isEmpty()) {
 
 				if (referenceDataDeliveryVector.originIsRecipient()) {
 					processOriginAsReferenceDataVector(referenceDataDeliveryVector, referencedObjectdata.keySet(),
@@ -601,7 +628,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 				} else if (referenceDataDeliveryVector.isAccess() && operation != Operation.REMOVE_ATTR_VALUE) {
 
-					processAccessAsReferenceDataVector(referenceDataDeliveryVector.getObjectClass(),
+					processAccessAsReferenceDataVector(referenceDataDeliveryVector,
 							referencedObjectdata, referenceDataPayloadMap);
 
 				} else {
@@ -610,7 +637,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 				}
 			} else {
 
-				if(LOG.isOk()) {
+				if (LOG.isOk()) {
 					LOG.ok("Reference data empty for delivery vector: {0}. {1}The value attribute {2}. {1}",
 							referenceDataDeliveryVector, System.lineSeparator(), referenceAttribute);
 				}
@@ -639,7 +666,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		attributes.add(attributeBuilder.build());
 	}
 
-	private void processAccessAsReferenceDataVector(ObjectClass referenceObjectClass,
+	private void processAccessAsReferenceDataVector(ReferenceDataDeliveryVector deliveryVector,
 													Map<String, Set<Attribute>> referencedObjectdata,
 													Map<ConnectorObjectId, ReferenceDataPayload> referenceDataPayloadMap) {
 		if(LOG.isOk()) {
@@ -647,7 +674,8 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		for (String id : referencedObjectdata.keySet()) {
-			ConnectorObjectId connId = new ConnectorObjectId(id, referenceObjectClass);
+			ConnectorObjectId connId = new ConnectorObjectId(id, deliveryVector.getObjectClass(),
+					null, deliveryVector.getIdentificatorAttributeNameObject());
 			referenceDataPayloadMap.put(connId, new ReferenceDataPayload(connId, referencedObjectdata.get(id)));
 		}
 	}
@@ -661,7 +689,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		List dataPayloadValue;
-		Attribute attribute = getAttributeByName(referenceDataDeliveryVector.getIdAttributeName(), attributes);
+		Attribute attribute = getAttributeByName(referenceDataDeliveryVector.getIdentificatorAttributeNameSubject(), attributes);
 
 		if (attribute != null) {
 
@@ -669,7 +697,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		} else {
 
 			if (!referenceDataDeliveryVector.originIsRecipient()) {
-				if (configuration.getUniqueAttribute().equals(referenceDataDeliveryVector.getIdAttributeName())) {
+				if (configuration.getUniqueAttribute().equals(referenceDataDeliveryVector.getIdentificatorAttributeNameSubject())) {
 
 					dataPayloadValue = Arrays.asList(uid.getUidValue());
 				} else {
@@ -686,9 +714,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 			}
 		}
 
+		// TODO
+		ObjectClass referencedObjectClass = referenceDataDeliveryVector.getObjectClass();
 		for (String id : referencedObjectdata) {
 
-			ConnectorObjectId objectId = new ConnectorObjectId(id, referenceDataDeliveryVector.getObjectClass());
+			ConnectorObjectId objectId = new ConnectorObjectId(id, referencedObjectClass,null,
+					referenceDataDeliveryVector.getIdentificatorAttributeNameObject());
 
 			if (referenceDataPayloadMap.containsKey(objectId)) {
 
@@ -765,6 +796,9 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							if (attribute == null) {
 								attribute = bco.getAttributeByName(Uid.NAME);
 							}
+						} else if (nameAttrName.equals(valueAttributeName)){
+
+							attribute = bco.getAttributeByName(Name.NAME);
 						}
 
 					}
@@ -842,40 +876,6 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					}
 				}
 			}
-//		try {
-//			attribute = attributes.stream()
-//					.filter(a -> {
-//								if (fetchReferenceAttribute) {
-//									Iterator<AssociationHolder> holderIterator = associationHolderSet.iterator();
-//
-//									while (holderIterator.hasNext()) {
-//										AssociationHolder holder = holderIterator.next();
-//										if (holder.getReferenceName().equals(a.getName())) {
-//											return true;
-//										}
-//									}
-//									return false;
-//								} else {
-//
-//									return a.getName().equals(attributeName);
-//								}
-//							}
-//					)
-//					.findAny()
-//					.get();
-//		} catch (NoSuchElementException e) {
-//			if (LOG.isOk()) {
-//
-//				LOG.ok("Attribute not found among update attribute set.");
-//			}
-//		}
-//
-//		if (LOG.isOk()) {
-//			if (attribute != null) {
-//
-//				LOG.ok("About to fetch the attribute object for the attribute: {0}", attribute.getName());
-//			}
-//		}
 		return attributeSet;
 	}
 
@@ -948,7 +948,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		Set<ReferenceDataDeliveryVector> setOfVectors = new HashSet<>();
-
+		String objectIdAttrName = null;
 		for (Attribute referenceAttribute : referenceAttributes) {
 
 			List<Object> objectList = referenceAttribute.getValue();
@@ -963,6 +963,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 					BaseConnectorObject bco = ((ConnectorObjectReference) o).getValue();
 					referencedOc = bco.getObjectClass();
 
+					objectIdAttrName = determineObjectIdAttributeName(bco.getAttributes(), referencedOc);
 				} else {
 					throw new ConnectorException("Reference attribute " + referenceAttribute.getName() +
 							" is of not supported object type.");
@@ -992,12 +993,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 								ObjectClassHandler handler = getHandlers().get(Util.getObjectClass(objectObjectClassName));
 								referenceDataDeliveryVector = constructReferenceDataVector(
 										referencedOc, holder, handler.getConfiguration().getUniqueAttribute(),
-										handler.getConfiguration().getNameAttribute());
+										handler.getConfiguration().getNameAttribute(), objectIdAttrName);
 							} else {
 
 								referenceDataDeliveryVector = constructReferenceDataVector(
 										referencedOc, holder, configuration.getUniqueAttribute()
-										, configuration.getNameAttribute());
+										, configuration.getNameAttribute(), objectIdAttrName);
 							}
 
 							if (referenceDataDeliveryVector != null) {
@@ -1018,6 +1019,39 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 
 		return setOfVectors;
+	}
+
+	private String determineObjectIdAttributeName(Set<Attribute> attributes, ObjectClass objectClass) {
+
+		ObjectClassHandler handler;
+
+		if(getObjectClass().equals(objectClass)){
+			handler = this;
+		} else {
+			handler = handlers.get(objectClass);
+		}
+
+		String nameAttribute = handler.getConfiguration().getNameAttribute();
+		String uniqueAttribute = handler.getConfiguration().getUniqueAttribute();
+
+	for (Attribute attribute : attributes){
+		String name = attribute.getName();
+
+		if(Uid.NAME.equals(name)) {
+
+			return uniqueAttribute;
+		} else if (Name.NAME.equals(name)){
+
+			return nameAttribute;
+		} else if ((nameAttribute!=null && nameAttribute.equals(name)
+				|| uniqueAttribute.equals(name))){
+
+			return name;
+		}
+	}
+
+		throw new ConnectorException("Connector could not determine the reference identification attribute from the " +
+				"operations attribute set.");
 	}
 
 	private String findUidValue(Set<Attribute> attributes) {
@@ -1494,6 +1528,10 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		return uid1.equals(uid2) || ignoreCase && uid1.equalsIgnoreCase(uid2);
 	}
 
+	private boolean valueMatches(String value1, String value2, boolean ignoreCase) {
+		return uidMatches(value1, value2, ignoreCase);
+	}
+
 	private void validateAuthenticationInputs(String username, GuardedString password, boolean authenticate) {
 		if (StringUtil.isEmpty(username)) {
 			throw new InvalidCredentialException("Username must not be empty");
@@ -1592,7 +1630,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		File syncLockFile = createSyncLockFile(configuration);
 		FileLock lock = obtainTmpFileLock(syncLockFile);
 		try {
-			long tokenLongValue = Util.getTokenValue(token);
+			long tokenLongValue = getTokenValue(token);
 			LOG.info("Token {0}", tokenLongValue);
 
 			if (tokenLongValue == -1) {
@@ -2432,8 +2470,25 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 	private Uid update(Operation operation, ObjectClass objectClass, Uid uid, Set<Attribute> attributes,
 					   OperationOptions oo, boolean isSubjectForCleanup) {
 
-		notNull(uid, "Uid must not be null");
-		Uid originalUid = uid;
+		return update(operation, objectClass, uid.getUidValue(), attributes, oo, isSubjectForCleanup, true);
+	}
+
+	private Uid update(Operation operation, ObjectClass objectClass, String uniqueAttributeValue,
+					   Set<Attribute> attributes,
+					   OperationOptions oo, boolean isSubjectForCleanup, boolean isUid) {
+
+		notNull(uniqueAttributeValue, "Uid must not be null");
+
+		Uid originalUid = null;
+		Uid uid = null;
+		boolean returnAsap = false;
+
+		if(isUid){
+
+			uid = new Uid(uniqueAttributeValue);
+			originalUid = uid;
+		}
+
 		boolean areReferencesManaged = !ArrayUtils.isEmpty(configuration.getManagedAssociationPairs());
 		boolean holderOfComplexRefObject = false;
 
@@ -2444,7 +2499,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 		if ((Operation.ADD_ATTR_VALUE.equals(operation) || Operation.REMOVE_ATTR_VALUE.equals(operation))
 				&& attributes.isEmpty()) {
-			return uid;
+
+			if(isUid) {
+				return new Uid(uniqueAttributeValue);
+			}
+			returnAsap = true;
 		}
 
 		Map<Integer, String> header = reverseHeaderMap();
@@ -2481,14 +2540,30 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 						data.put(header.get(i), record.get(i));
 					}
 
-					String recordUidValue = data.get(configuration.getUniqueAttribute());
-					if (StringUtil.isEmpty(recordUidValue)) {
+					String recordUniqueValue;
+
+				 if (isUid){
+					 recordUniqueValue = data.get(configuration.getUniqueAttribute());
+				 } else {
+					 recordUniqueValue = data.get(configuration.getNameAttribute());
+				 }
+					if (StringUtil.isEmpty(recordUniqueValue)) {
 						continue;
 					}
 
-					if (!uidMatches(uid.getUidValue(), recordUidValue, configuration.isIgnoreIdentifierCase())) {
+					if (!valueMatches(uniqueAttributeValue, recordUniqueValue, configuration.isIgnoreIdentifierCase())) {
 						printer.printRecord(record);
 						continue;
+					}
+
+					if(!isUid){
+
+						uid = new Uid(data.get(configuration.getUniqueAttribute()));
+						originalUid = uid;
+					}
+					if(returnAsap){
+
+						return originalUid;
 					}
 
 					found = true;
@@ -2505,12 +2580,12 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 							if (referenceAttribute != null) {
 
 								referenceDataDeliveryVector = determineReferenceObjectDataDeliveryVectors(referenceAttribute,
-										uid.getUidValue());
+										originalUid.getUidValue());
 							}
 							if(referenceDataDeliveryVector != null) {
 
 								referenceDataPayload = createReferenceDataFromAttributes(referenceDataDeliveryVector, attributes,
-										referenceAttribute, operation, uid);
+										referenceAttribute, operation, originalUid);
 							}
 						}
 						List<Object> updated;
@@ -2552,7 +2627,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 					if (!createNewReference){
 
-						throw new UnknownUidException("Account '" + uid + "' not found");
+						throw new UnknownUidException("Row with the identification '" + uid + "' not found");
 					}
 				}
 
@@ -2577,13 +2652,13 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 
 			if (changedIdValue != null) {
 
-				ReferentialInterityHandler referentialInterityHandler = new ReferentialInterityHandler(this);
+				ReferentialInterityHandler referentialIntegrityHandler = new ReferentialInterityHandler(this);
 				if(changedIdValue.isEmpty()){
 
-					referentialInterityHandler.handle(uid.getUidValue(), operation);
+					referentialIntegrityHandler.handle(uid.getUidValue(), operation);
 				} else {
 
-					referentialInterityHandler.handle(originalUid.getUidValue(), changedIdValue, operation);
+					referentialIntegrityHandler.handle(originalUid.getUidValue(), changedIdValue, operation);
 				}
 
 			}

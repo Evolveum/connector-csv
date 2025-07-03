@@ -8,20 +8,17 @@ public class ReferenceDataDeliveryVector {
     private ObjectClass objectClass;
     private Boolean originIsRecipient;
     private String attributeName;
-    private String identificatorAttributeName;
+    private String identificatorAttributeNameSubject;
+    private String identificatorAttributeNameObject;
     boolean isAccess;
 
     public ReferenceDataDeliveryVector(ObjectClass objectClass, Boolean isRecipient, String attributeName,
-                                       String identificatorAttributeName) {
-        this(objectClass, isRecipient, attributeName, identificatorAttributeName, false);
-    }
-
-    public ReferenceDataDeliveryVector(ObjectClass objectClass, Boolean isRecipient, String attributeName,
-                                       String identificatorAttributeName, boolean isAccess) {
+                                       String identificatorAttributeNameSubject, String identificatorAttributeNameObject, boolean isAccess) {
         this.objectClass = objectClass;
         this.originIsRecipient = isRecipient;
         this.attributeName = attributeName;
-        this.identificatorAttributeName = identificatorAttributeName;
+        this.identificatorAttributeNameSubject = identificatorAttributeNameSubject;
+        this.identificatorAttributeNameObject = identificatorAttributeNameObject;
         this.isAccess = isAccess;
     }
 
@@ -37,12 +34,28 @@ public class ReferenceDataDeliveryVector {
         return attributeName;
     }
 
-    public String getIdAttributeName() {
-        return identificatorAttributeName;
+    public String getIdentificatorAttributeNameSubject() {
+        return identificatorAttributeNameSubject;
+    }
+
+    public String getIdentificatorAttributeNameObject() {
+        return identificatorAttributeNameObject;
     }
 
     public boolean isAccess() {
         return isAccess;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        ReferenceDataDeliveryVector that = (ReferenceDataDeliveryVector) o;
+        return isAccess() == that.isAccess() && Objects.equals(getObjectClass(), that.getObjectClass()) && Objects.equals(originIsRecipient, that.originIsRecipient) && Objects.equals(getAttributeName(), that.getAttributeName()) && Objects.equals(identificatorAttributeNameSubject, that.identificatorAttributeNameSubject) && Objects.equals(identificatorAttributeNameObject, that.identificatorAttributeNameObject);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getObjectClass(), originIsRecipient, getAttributeName(), identificatorAttributeNameSubject, identificatorAttributeNameObject, isAccess());
     }
 
     @Override
@@ -51,21 +64,9 @@ public class ReferenceDataDeliveryVector {
                 "objectClass=" + objectClass +
                 ", originIsRecipient=" + originIsRecipient +
                 ", attributeName='" + attributeName + '\'' +
-                ", identificatorAttributeName='" + identificatorAttributeName + '\'' +
+                ", identificatorAttributeNameSubject='" + identificatorAttributeNameSubject + '\'' +
+                ", identificatorAttributeNameObject='" + identificatorAttributeNameObject + '\'' +
                 ", isAccess=" + isAccess +
                 '}';
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ReferenceDataDeliveryVector that = (ReferenceDataDeliveryVector) o;
-        return isAccess() == that.isAccess() && Objects.equals(getObjectClass(), that.getObjectClass()) && Objects.equals(originIsRecipient, that.originIsRecipient) && Objects.equals(getAttributeName(), that.getAttributeName()) && Objects.equals(identificatorAttributeName, that.identificatorAttributeName);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(getObjectClass(), originIsRecipient, getAttributeName(), identificatorAttributeName, isAccess());
     }
 }

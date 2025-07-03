@@ -182,25 +182,23 @@ public class ReferentialInterityHandler {
 
                 boolean isPartOfAccess = isPartOfAccess(holder, associationHolders.get(vectorObjectClassName));
 
-//                    referenceDataDeliveryVector = Util.constructReferenceDataVector(
-//                            Util.getObjectClass(vectorObjectClassName), holder,
-//                            configuration.getUniqueAttribute(),currentObjectClassName, objectClassHandler.getHandlers(),
-//                            null, isPartOfAccess);
-
                 if (!currentObjectClassName.equals(holder.getObjectObjectClassName())) {
                     ObjectClassHandler handler = objectClassHandler.getHandlers()
                             .get(Util.getObjectClass(holder.getObjectObjectClassName()));
 
+                    String uniqueAttribute = handler.getConfiguration().getUniqueAttribute();
+
                     referenceDataDeliveryVector = constructReferenceDataVector(
                             Util.getObjectClass(vectorObjectClassName), holder,
-                            handler.getConfiguration().getUniqueAttribute(),
-                            handler.getConfiguration().getNameAttribute(), isPartOfAccess);
+                            uniqueAttribute, handler.getConfiguration().getNameAttribute(),
+                            isPartOfAccess, uniqueAttribute);
                 } else {
 
+                    String uniqueAttribute = configuration.getUniqueAttribute();
                     referenceDataDeliveryVector = constructReferenceDataVector(
                             Util.getObjectClass(vectorObjectClassName),
                             holder, configuration.getUniqueAttribute()
-                            , configuration.getNameAttribute(), isPartOfAccess);
+                            , configuration.getNameAttribute(), isPartOfAccess, uniqueAttribute);
                 }
 
                 if (referenceDataDeliveryVector != null) {

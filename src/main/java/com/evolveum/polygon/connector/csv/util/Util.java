@@ -501,39 +501,41 @@ public class Util {
 
     public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
                                                                            AssociationHolder holder,
-                                                                           String uniqueAttrName, String nameAttrName){
-        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName, nameAttrName, null);
+                                                                           String uniqueAttrName, String nameAttrName,  String identificatorAttributeNameObject){
+        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName, nameAttrName, null,
+                identificatorAttributeNameObject);
     }
 
-        public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
+    public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
                                                                            AssociationHolder holder,
                                                                            String uniqueAttrName, String nameAttrName,
-                                                                               Boolean isPartOfAccess) {
+                                                                           Boolean isPartOfAccess,
+                                                                           String identificatorAttributeNameObject) {
 
-            String referenceAttrName = holder.getValueAttributeName();
-            String identificatorAttributeName = holder.getAssociationAttributeName();
-            String objectObjectClassName = holder.getObjectObjectClassName();
-            boolean isRecipient = objectObjectClassName.equals(holder.getSubjectObjectClassName());
+        String referenceAttrName = holder.getValueAttributeName();
+        String identificatorAttributeNameSubject = holder.getAssociationAttributeName();
+        String objectObjectClassName = holder.getObjectObjectClassName();
+        boolean isRecipient = objectObjectClassName.equals(holder.getSubjectObjectClassName());
 
-            if (uniqueAttrName.equals(referenceAttrName) ||
-                    (nameAttrName!=null && nameAttrName.equals(referenceAttrName))) {
+        if (uniqueAttrName.equals(referenceAttrName) ||
+                (nameAttrName != null && nameAttrName.equals(referenceAttrName))) {
 
-                    identificatorAttributeName = Name.NAME;
+            identificatorAttributeNameSubject = Name.NAME;
 
-                referenceAttrName = holder.getAssociationAttributeName();
+            referenceAttrName = holder.getAssociationAttributeName();
 
-                isRecipient = true;
-            }
-
-            if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
-                isRecipient = true;
-            }
-
-            boolean vectorIsAccess = isPartOfAccess != null ? isPartOfAccess : holder.isAccess();
-
-                return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
-                        , referenceAttrName, identificatorAttributeName, vectorIsAccess);
+            isRecipient = true;
         }
+
+        if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
+            isRecipient = true;
+        }
+
+        boolean vectorIsAccess = isPartOfAccess != null ? isPartOfAccess : holder.isAccess();
+
+        return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
+                , referenceAttrName, identificatorAttributeNameSubject, identificatorAttributeNameObject, vectorIsAccess);
+    }
 
     public static long getTokenValue(SyncToken token) {
         if (token == null || token.getValue() == null) {

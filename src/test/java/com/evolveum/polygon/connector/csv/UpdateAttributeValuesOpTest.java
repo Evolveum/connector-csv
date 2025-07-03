@@ -684,6 +684,92 @@ public class UpdateAttributeValuesOpTest extends UpdateOpTest {
                 valueUserIdUpdateAccessOnObject);
         assertEquals(expectedRecord, realRecord);
     }
+    @Test
+    public void addReferenceAttributeOnObjectComplexStoryOtherId() throws Exception {
+
+        CsvConfiguration config = createConfiguration();
+        config.setUniqueAttribute("uid");
+        config.setNameAttribute("uid");
+
+        config.setTrim(true);
+        config.setPasswordAttribute(null);
+
+        Set<String> values = Set.of(
+                "\"account\"+uid -# \"group\"+members-test",
+                "\"account\"+uid -# \"group\"+members-default",
+                "\"account\"+uid -# \"group\"+members-admin"
+        );
+
+        config.setManagedAssociationPairs(values.toArray(new String[values.size()]));
+
+        File groupsProperties = new File("./target/groupsAccessParametersOtherId.properties");
+        groupsProperties.delete();
+        config.setObjectClassDefinition(groupsProperties);
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/story/groupsAccessParametersOtherId.properties"), groupsProperties);
+        File groupsCsv = new File("./target/groups-access-parameters-other-name.csv");
+        groupsCsv.delete();
+        FileUtils.copyFile(new File(TEMPLATE_FOLDER_PATH + "/story/groups-access-parameters-other-name.csv"), groupsCsv);
+
+        ConnectorFacade connector = setupConnector("/story/account-basic-other-id.csv", config);
+
+        String valueUserIdUpdateAccessOnObject = "002";
+        Uid expected = new Uid(valueUserIdUpdateAccessOnObject);
+
+        Set<Attribute> referenceAttributes = new HashSet<>();
+        referenceAttributes.add(createAttribute(Uid.NAME, "g005"));
+        referenceAttributes.add(createAttribute(Name.NAME, "sw-engineering"));
+
+        ConnectorObjectReference reference = new ConnectorObjectReference(buildConnectorObject("sw-engineering",
+                "g005", referenceAttributes, new ObjectClass("group")));
+
+        Set<Attribute> attributes = new HashSet<>();
+        attributes.add(AttributeBuilder.build(ASSOC_ATTR_GROUP + "-" + ATTR_MEMBERS_ADMIN, reference));
+
+        Set<Attribute> referenceAttributesOld = new HashSet<>();
+        referenceAttributesOld.add(createAttribute(Uid.NAME, "g001"));
+        referenceAttributesOld.add(createAttribute(Name.NAME, "users-all"));
+
+        ConnectorObjectReference referenceOld = new ConnectorObjectReference(buildConnectorObject("g001",
+                "g001", referenceAttributesOld, new ObjectClass("group")));
+
+        Uid real = connector.addAttributeValues(ObjectClass.ACCOUNT, expected, attributes, null);
+
+        assertEquals(expected, real);
+
+        ConnectorObject object = connector.getObject(ObjectClass.ACCOUNT, real, null);
+        assertNotNull(object);
+
+        attributes = new HashSet<>();
+        attributes.add(new Name(valueUserIdUpdateAccessOnObject));
+        attributes.add(createAttribute(Uid.NAME, valueUserIdUpdateAccessOnObject));
+        attributes.add(createAttribute(ATTR_NAME, "lyra"));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP + "-" + ATTR_MEMBERS_DEFAULT, referenceOld));
+        attributes.add(createAttribute(ASSOC_ATTR_GROUP + "-" + ATTR_MEMBERS_ADMIN, reference, referenceOld));
+        attributes.add(createAttribute(ATTR_EMPL, "67890"));
+        attributes.add(createAttribute(ATTR_TITLE, "senior project manager"));
+        assertConnectorObject(attributes, object);
+
+        Set<Attribute> referenceAttributesToCheck = new HashSet<>();
+        referenceAttributesToCheck.add(createAttribute(Uid.NAME, "g005"));
+        referenceAttributesToCheck.add(createAttribute(Name.NAME, "sw-engineering"));
+        referenceAttributesToCheck.add(createAttribute("code", "seng"));
+        referenceAttributesToCheck.add(createAttribute(ATTR_MEMBERS_TEST, "007"));
+        referenceAttributesToCheck.add(createAttribute(ATTR_MEMBERS_DEFAULT, "006", "007", "008"));
+        referenceAttributesToCheck.add(createAttribute(ATTR_MEMBERS_ADMIN, "006", valueUserIdUpdateAccessOnObject));
+
+        assertReferenceAndReturnReferenceObject(referenceAttributesToCheck,
+                object.getAttributeByName(ASSOC_ATTR_GROUP + "-" + ATTR_MEMBERS_ADMIN), new Uid("g005"));
+
+        Map<String, String> expectedRecord = new HashMap<>();
+        expectedRecord.put("uid", valueUserIdUpdateAccessOnObject);
+        expectedRecord.put(ATTR_EMPL, "67890");
+        expectedRecord.put(ATTR_NAME, "lyra");
+        expectedRecord.put(ATTR_TITLE, "senior project manager");
+
+        Map<String, String> realRecord = CsvTestUtil.findRecord(config, "uid",
+                valueUserIdUpdateAccessOnObject);
+        assertEquals(expectedRecord, realRecord);
+    }
 
     @Test
     public void removeReferenceAttributeOnObjectComplexSpecial() throws Exception {
