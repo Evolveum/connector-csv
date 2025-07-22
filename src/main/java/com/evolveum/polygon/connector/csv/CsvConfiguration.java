@@ -385,4 +385,5 @@ public class CsvConfiguration extends AbstractConfiguration {
 
         return configs;
     }
+    ERROR
 }
