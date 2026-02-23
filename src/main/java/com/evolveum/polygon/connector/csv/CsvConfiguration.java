@@ -16,6 +16,16 @@ import java.util.*;
  */
 public class CsvConfiguration extends AbstractConfiguration {
 
+    // Names of configuration properties to be used e.g. for auto-detection.
+
+    public static final String PROP_QUOTE = "quote";
+    public static final String PROP_COMMENT_MARKER = "commentMarker";
+    public static final String PROP_FIELD_DELIMITER = "fieldDelimiter";
+    public static final String PROP_MULTIVALUE_DELIMITER = "multivalueDelimiter";
+    public static final String PROP_UNIQUE_ATTRIBUTE = "uniqueAttribute";
+    public static final String PROP_NAME_ATTRIBUTE = "nameAttribute";
+    public static final String PROP_PASSWORD_ATTRIBUTE = "passwordAttribute";
+
     private static final Log LOG = Log.getLog(CsvConfiguration.class);
 
     private ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration();
@@ -30,6 +40,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            order = 500,
             displayMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE",
             helpMessageKey = "UI_CSV_UNIQUE_ATTRIBUTE_HELP")
     public String getUniqueAttribute() {
@@ -37,6 +48,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            order = 510,
             displayMessageKey = "UI_CSV_NAME_ATTRIBUTE",
             helpMessageKey = "UI_CSV_NAME_ATTRIBUTE_HELP")
     public String getNameAttribute() {
@@ -44,6 +56,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            order = 100,
             displayMessageKey = "UI_CSV_FILE_PATH",
             helpMessageKey = "UI_CSV_FILE_PATH_HELP", required = true)
     public File getFilePath() {
@@ -51,6 +64,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            order = 520,
             displayMessageKey = "UI_CSV_PASSWORD_ATTRIBUTE",
             helpMessageKey = "UI_CSV_PASSWORD_ATTRIBUTE_HELP")
     public String getPasswordAttribute() {
@@ -65,6 +79,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            order = 200,
             displayMessageKey = "UI_CSV_FIELD_DELIMITER",
             helpMessageKey = "UI_CSV_FIELD_DELIMITER_HELP")
     public String getFieldDelimiter() {
@@ -93,6 +108,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            order = 210,
             displayMessageKey = "UI_CSV_QUOTE",
             helpMessageKey = "UI_CSV_QUOTE_HELP")
     public String getQuote() {
@@ -135,6 +151,7 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            order = 220,
             displayMessageKey = "UI_CSV_MULTI_VALUE_DELIMITER",
             helpMessageKey = "UI_CSV_MULTI_VALUE_DELIMITER_HELP")
     public String getMultivalueDelimiter() {

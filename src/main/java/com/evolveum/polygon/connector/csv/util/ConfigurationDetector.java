@@ -1,8 +1,11 @@
 package com.evolveum.polygon.connector.csv.util;
 
 
+import com.evolveum.polygon.connector.csv.CsvConfiguration;
 import com.evolveum.polygon.connector.csv.CsvConnector;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
+import com.evolveum.polygon.connector.csv.util.Util.ParametersForDiscovery;
+import org.apache.commons.csv.CSVRecord;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
@@ -11,8 +14,13 @@ import org.identityconnectors.framework.common.objects.SuggestedValuesBuilder;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static com.evolveum.polygon.connector.csv.CsvConfiguration.*;
+import static com.evolveum.polygon.connector.csv.CsvConfiguration.PROP_FIELD_DELIMITER;
+import static com.evolveum.polygon.connector.csv.CsvConfiguration.PROP_MULTIVALUE_DELIMITER;
 
 public class ConfigurationDetector {
 
@@ -48,13 +56,13 @@ public class ConfigurationDetector {
                         allSymbols.add(ch);
                     }
                     increment(symbols, ch, isFirstInRow(i, characters));
-                } else if (isNewLineChar(ch) && symbols.size() > 0) {
+                } else if (isNewLineChar(ch) && !symbols.isEmpty()) {
                     symbolsPerRow.add(symbols);
                     symbols = new HashMap<>();
                 }
             }
 
-            if (symbols.size() > 0 && i == characters.size()) {
+            if (!symbols.isEmpty() && i == characters.size()) {
                 symbolsPerRow.add(symbols);
             }
 
@@ -91,27 +99,26 @@ public class ConfigurationDetector {
             });
 
             if (!commentSuggestions.isEmpty()) {
-                suggestions.put("commentMarker",
+                suggestions.put(PROP_COMMENT_MARKER,
                         SuggestedValuesBuilder.buildOpen(commentSuggestions.toArray()));
             }
             if (!delimiters.isEmpty()) {
-                suggestions.put("fieldDelimiter",
+                suggestions.put(PROP_FIELD_DELIMITER,
                         SuggestedValuesBuilder.buildOpen(delimiters.toArray()));
             }
 
             Set<Character> multivalueDelimiters = createMultivalueDelimitersSuggestions(characters, delimiters, quote);
 
             if (!quote.isEmpty()) {
-                suggestions.put("quote",
+                suggestions.put(PROP_QUOTE,
                         SuggestedValuesBuilder.buildOpen(quote.toArray()));
             }
             if (!multivalueDelimiters.isEmpty()) {
-                suggestions.put("multivalueDelimiter",
+                suggestions.put(PROP_MULTIVALUE_DELIMITER,
                         SuggestedValuesBuilder.buildOpen(multivalueDelimiters.toArray()));
             }
 
-        } catch (
-                IOException e) {
+        } catch (IOException e) {
             LOG.error("Couldn't create reader for file: {1} ({2})", configuration.getFilePath().getPath(), e.getMessage());
             throw new ConnectorIOException(e.getMessage(), e);
         }
@@ -325,7 +332,7 @@ public class ConfigurationDetector {
         return characters;
     }
 
-    public Map<String, ? extends SuggestedValues> detectAttributes() {
+    public Map<String, ? extends SuggestedValues> detectAttributes(Map<String, SuggestedValues> suggestedDelimiters) {
         Map<String, SuggestedValues> suggestions = new HashMap<>();
 
         try {
@@ -339,24 +346,18 @@ public class ConfigurationDetector {
             }
 
             List<String> attributes = getAttributes(firstLine);
+            List<String> potentialIdentifiers = getPotentialIdentifiers(attributes, suggestedDelimiters);
 
-            List<String> passwordAttr = attributes;
-
-            if (!passwordAttr.isEmpty()) {
-                suggestions.put("passwordAttribute",
-                        SuggestedValuesBuilder.buildOpen(passwordAttr.toArray()));
+            if (!potentialIdentifiers.isEmpty()) {
+                suggestions.put(CsvConfiguration.PROP_UNIQUE_ATTRIBUTE,
+                        SuggestedValuesBuilder.buildOpen(potentialIdentifiers.toArray()));
+                suggestions.put(CsvConfiguration.PROP_NAME_ATTRIBUTE,
+                        SuggestedValuesBuilder.buildOpen(potentialIdentifiers.toArray()));
             }
 
-            List<String> nameAttr = attributes;
-            if (!nameAttr.isEmpty()) {
-                suggestions.put("nameAttribute",
-                        SuggestedValuesBuilder.buildOpen(nameAttr.toArray()));
-            }
-
-            List<String> idAttr = attributes;
-            if (!idAttr.isEmpty()) {
-                suggestions.put("uniqueAttribute",
-                        SuggestedValuesBuilder.buildOpen(idAttr.toArray()));
+            if (!attributes.isEmpty()) {
+                suggestions.put(CsvConfiguration.PROP_PASSWORD_ATTRIBUTE,
+                        SuggestedValuesBuilder.buildOpen(attributes.toArray()));
             }
 
         } catch (IOException e) {
@@ -364,6 +365,104 @@ public class ConfigurationDetector {
             throw new ConnectorIOException(e.getMessage(), e);
         }
         return suggestions;
+    }
+
+    /**
+     * Tries to select attributes that are good candidates for unique identifier and (unique) name. Analyzes first
+     * {@link #MAX_PROCESSED_ROW} rows and checks for presence and uniqueness of each attribute.
+     *
+     * Note that this depends on the quality of suggested delimiters.
+     *
+     * If we don't know what to suggest, we return all attributes as potential candidates.
+     * This is better than returning empty list and not suggesting anything at all.
+     */
+    private List<String> getPotentialIdentifiers(List<String> attributes, Map<String, SuggestedValues> suggestedDelimiters) {
+        var parametersForDiscovery = determineParametersForDiscovery(suggestedDelimiters);
+        if (parametersForDiscovery == null) {
+            return attributes; // reason is already logged
+        }
+
+        LOG.ok("Trying to detect potential identifiers using {0}; known attributes: {1}", parametersForDiscovery, attributes);
+
+        try {
+            var potentialIdentifiers = new LinkedHashSet<>(attributes); // we want to preserve order of columns
+            var valuesPerAttribute = new HashMap<String, Set<String>>(); // used to determine uniqueness of values per attribute
+            var format = Util.createCsvFormatForDiscovery(parametersForDiscovery);
+            int rowCount = 0;
+            try (Reader reader = Util.createReader(configuration)) {
+                for (CSVRecord record : format.parse(reader)) {
+                    // TODO check and skip empty records
+                    if (++rowCount >= MAX_PROCESSED_ROW) {
+                        break;
+                    }
+                    for (Iterator<String> identifierIterator = potentialIdentifiers.iterator(); identifierIterator.hasNext(); ) {
+                        String potentialIdentifier = identifierIterator.next();
+                        String rawValue = record.get(potentialIdentifier);
+                        String value = rawValue != null && rawValue.isBlank() ? null : rawValue;
+                        boolean eligible;
+                        if (value != null) {
+                            if (!valuesPerAttribute
+                                    .computeIfAbsent(potentialIdentifier, k -> new HashSet<>())
+                                    .add(value)) {
+                                LOG.ok("Value ''{0}'' for attribute {1} in row {2} is not unique, it cannot be an identifier",
+                                        value, potentialIdentifier, rowCount);
+                                eligible = false;
+                            } else {
+                                eligible = true;
+                            }
+                        } else {
+                            LOG.ok("Empty value for attribute {0} in row {1}, it cannot be an identifier",
+                                    potentialIdentifier, rowCount);
+                            eligible = false;
+                        }
+                        if (!eligible) {
+                            identifierIterator.remove();
+                            valuesPerAttribute.remove(potentialIdentifier);
+                        }
+                    }
+                }
+            }
+            LOG.ok("Detected potential identifiers: {0}", potentialIdentifiers);
+            return new ArrayList<>(potentialIdentifiers);
+        } catch (Exception e) {
+            LOG.error(e, "Couldn't detect potential identifiers");
+            return attributes;
+        }
+    }
+
+    /**
+     * Tries to determine parameters for potential identifiers discovery. If not successful, logs the reason and returns `null`.
+     *
+     * Preliminary version. We could e.g. try to determine things using multiple suggested delimiters, if there are more than one.
+     */
+    private static ParametersForDiscovery determineParametersForDiscovery(Map<String, SuggestedValues> suggestedDelimiters) {
+        var fieldDelimiters = suggestedDelimiters.get(PROP_FIELD_DELIMITER);
+        if (fieldDelimiters == null || fieldDelimiters.getValues().isEmpty()) {
+            LOG.info("Couldn't find field delimiter, skipping potential identifiers detection");
+            return null;
+        }
+        if (fieldDelimiters.getValues().size() > 1) {
+            LOG.info("Multiple field delimiters were suggested, skipping potential identifiers detection");
+            return null;
+        }
+        char fieldDelimiter = (char) fieldDelimiters.getValues().iterator().next();
+
+        var commentMarkers = suggestedDelimiters.get(PROP_COMMENT_MARKER);
+        Character commentMarker;
+        if (commentMarkers != null && commentMarkers.getValues().size() == 1) {
+            commentMarker = (char) commentMarkers.getValues().iterator().next();
+        } else {
+            commentMarker = null; // TODO resolve somehow
+        }
+        var quotes = suggestedDelimiters.get(PROP_QUOTE);
+        Character quote;
+        if (quotes != null && quotes.getValues().size() == 1) {
+            quote = (char) quotes.getValues().iterator().next();
+        } else {
+            quote = null; // TODO resolve somehow
+        }
+
+        return new ParametersForDiscovery(fieldDelimiter, commentMarker, quote);
     }
 
     private List<String> getAttributes(String firstLine) {
@@ -429,15 +528,15 @@ public class ConfigurationDetector {
         return ch == '\n' || ch == '\r';
     }
 
-    protected boolean isSymbol(char ch) {
+    private boolean isSymbol(char ch) {
         return !Character.isLetterOrDigit(ch) && (ch == '\t' || ch >= ' ');
     }
 
-    protected void increment(Map<Character, SymbolWrapper> map, char symbol, boolean isFirstInRow) {
+    private void increment(Map<Character, SymbolWrapper> map, char symbol, boolean isFirstInRow) {
         this.increment(map, symbol, isFirstInRow, 1);
     }
 
-    protected void increment(Map<Character, SymbolWrapper> map, char symbol, boolean isFirstInRow, int incrementSize) {
+    private void increment(Map<Character, SymbolWrapper> map, char symbol, boolean isFirstInRow, int incrementSize) {
         SymbolWrapper wrapper = map.get(symbol);
         if (wrapper == null) {
             wrapper = new SymbolWrapper(isFirstInRow, 0);
@@ -454,7 +553,7 @@ public class ConfigurationDetector {
         map.put(symbol, count + increment);
     }
 
-    private class SymbolWrapper {
+    private static class SymbolWrapper {
 
         private final boolean isFirstInRow;
         private int countInRow;

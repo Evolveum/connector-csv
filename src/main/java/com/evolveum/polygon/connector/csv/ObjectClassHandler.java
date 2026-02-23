@@ -889,7 +889,7 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         ConfigurationDetector detector = new ConfigurationDetector(configuration);
 
         suggestions.putAll(detector.detectDelimiters());
-        suggestions.putAll(detector.detectAttributes());
+        suggestions.putAll(detector.detectAttributes(suggestions));
 
         return suggestions;
     }

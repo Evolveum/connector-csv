@@ -265,6 +265,18 @@ public class Util {
                 .withTrim(configuration.isTrim());
     }
 
+    /** The format should be good enough to do some preliminary analysis. The exact form of this method is to be fine-tuned. */
+    public static CSVFormat createCsvFormatForDiscovery(ParametersForDiscovery parametersForDiscovery) {
+        return CSVFormat.Builder.create()
+                .setDelimiter(parametersForDiscovery.fieldDelimiter)
+                .setHeader()
+                .setSkipHeaderRecord(true) // TODO what if there is no header?
+                .setCommentMarker(parametersForDiscovery.commentMarker)
+                .setQuote(parametersForDiscovery.quote)
+                .setIgnoreHeaderCase(false)
+                .build();
+    }
+
     public static String createRawValue(Attribute attribute, ObjectClassHandlerConfiguration configuration) {
         if (attribute == null) {
             return null;
@@ -465,5 +477,9 @@ public class Util {
         }
 
         return Collections.unmodifiableList(list);
+    }
+
+    /** Basic parameters needed for opening the CSV file for discovery. */
+    public record ParametersForDiscovery(char fieldDelimiter, Character commentMarker, Character quote) {
     }
 }
