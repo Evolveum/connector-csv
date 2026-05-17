@@ -3,6 +3,7 @@ package com.evolveum.polygon.connector.csv;
 import com.evolveum.polygon.connector.csv.util.ListResultHandler;
 import org.identityconnectors.framework.api.ConnectorFacade;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -28,6 +29,52 @@ public class SearchOpTest extends BaseTest {
 
         List<ConnectorObject> objects = handler.getObjects();
         AssertJUnit.assertEquals(2, objects.size());
+    }
+
+    @Test
+    public void emptyQuotedUniqueAttributeValue() throws Exception {
+        assertSearchFails(
+                "/search-empty-unique-quoted.csv"
+        );
+    }
+
+    @Test
+    public void emptyUnquotedUniqueAttributeValue() throws Exception {
+        assertSearchFails(
+                "/search-empty-unique-unquoted.csv"
+        );
+    }
+
+    @Test
+    public void blankUniqueAttributeValue() throws Exception {
+        assertSearchFails(
+                "/search-blank-unique.csv"
+        );
+    }
+
+    @Test
+    public void validRowsWithUniqueAttribute() throws Exception {
+        ConnectorFacade connector = setupConnector("/search-empnum-valid.csv", createEmpnumConfiguration());
+
+        ListResultHandler handler = new ListResultHandler();
+        connector.search(ObjectClass.ACCOUNT, null, handler, null);
+
+        List<ConnectorObject> objects = handler.getObjects();
+        AssertJUnit.assertEquals(2, objects.size());
+        AssertJUnit.assertEquals(new Uid("1001"), objects.get(0).getUid());
+        AssertJUnit.assertEquals(new Uid("1002"), objects.get(1).getUid());
+    }
+
+    @Test
+    public void noConfiguredNameAttributeUsesUniqueAttributeFallback() throws Exception {
+        ConnectorFacade connector = setupConnector("/search-empnum-valid.csv", createEmpnumConfiguration());
+
+        ListResultHandler handler = new ListResultHandler();
+        connector.search(ObjectClass.ACCOUNT, null, handler, null);
+
+        List<ConnectorObject> objects = handler.getObjects();
+        AssertJUnit.assertEquals(2, objects.size());
+        AssertJUnit.assertEquals("1001", objects.get(0).getName().getNameValue());
     }
 
     @Test
@@ -106,5 +153,27 @@ public class SearchOpTest extends BaseTest {
 
         AssertJUnit.assertTrue(organizations.contains("org1"));
         AssertJUnit.assertTrue(organizations.contains("org2"));
+    }
+
+    private CsvConfiguration createEmpnumConfiguration() {
+        CsvConfiguration config = new CsvConfiguration();
+        config.setFilePath(new File(CSV_FILE_PATH));
+        config.setFieldDelimiter(",");
+        config.setUniqueAttribute("empnum");
+        config.setPasswordAttribute(null);
+        return config;
+    }
+
+    private void assertSearchFails(String csvTemplate) throws Exception {
+        ConnectorFacade connector = setupConnector(csvTemplate, createEmpnumConfiguration());
+
+        try {
+            connector.search(ObjectClass.ACCOUNT, null, new ListResultHandler(), null);
+            AssertJUnit.fail("Expected " + InvalidAttributeValueException.class.getSimpleName());
+        } catch (Exception ex) {
+            AssertJUnit.assertEquals(InvalidAttributeValueException.class, ex.getClass());
+            AssertJUnit.assertEquals("CSV validation failed. Required unique attribute 'empnum' is empty at record 2. " +
+                    "Each record must contain a non-empty value for 'empnum'.", ex.getMessage());
+        }
     }
 }

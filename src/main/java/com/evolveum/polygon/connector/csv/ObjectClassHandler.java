@@ -946,6 +946,14 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
         return reversed;
     }
 
+    private void validateRequiredAttributeValue(CSVRecord record, String value, String attributeName, String role) {
+        if (StringUtil.isBlank(value)) {
+            throw new InvalidAttributeValueException("CSV validation failed. Required " + role
+                    + " attribute '" + attributeName + "' is empty at record " + record.getRecordNumber()
+                    + ". Each record must contain a non-empty value for '" + attributeName + "'.");
+        }
+    }
+
     private ConnectorObject createConnectorObject(CSVRecord record) {
         ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
 
@@ -961,16 +969,17 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
             String name = header.get(i);
             String value = record.get(i);
 
-            if (StringUtil.isEmpty(value)) {
-                continue;
-            }
-
             if (name.equals(configuration.getUniqueAttribute())) {
+                validateRequiredAttributeValue(record, value, configuration.getUniqueAttribute(), "unique");
                 builder.setUid(value);
 
                 if (!isUniqueAndNameAttributeEqual()) {
                     continue;
                 }
+            }
+
+            if (StringUtil.isEmpty(value)) {
+                continue;
             }
 
             if (name.equals(configuration.getNameAttribute())) {
