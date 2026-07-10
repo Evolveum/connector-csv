@@ -566,7 +566,7 @@ public class CreateOpTest extends BaseTest {
         assertEquals(expectedRecord, realRecord);
     }
 
-    @Test
+    @Test(expectedExceptions = ConnectorException.class)
     public void createComplexAccountWithReferenceOnObjectIndirect() throws Exception {
         CsvConfiguration config = createConfiguration();
         config.setUniqueAttribute("id");
@@ -622,37 +622,37 @@ public class CreateOpTest extends BaseTest {
                 NEW_REFERENCE_ID, referenceAttributes, new ObjectClass("access")));
 
         attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference));
-
-        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
-        assertNotNull(uid);
-        assertEquals(NEW_USER_UID, uid.getUidValue());
-
-        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
-        assertNotNull(newObject);
-
-        attributes = new HashSet<>();
-        attributes.add(new Name(NEW_USER_UID));
-        attributes.add(createAttribute(Uid.NAME, NEW_USER_UID));
-        attributes.add(createAttribute(ATTR_NAME, NEW_USER_NAME));
-        attributes.add(createAttribute(ATTR_EMPL, NEW_USER_EMPL));
-        attributes.add(createAttribute(ATTR_TITLE, NEW_USER_TITLE));
-        attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference));
-        assertConnectorObject(attributes, newObject);
-        
-        BaseConnectorObject secondLvlReferenceObject = assertReferenceAndReturnReferenceObject(referenceAttributes,
-                newObject.getAttributeByName(ASSOC_ATTR_ACCESS));
-        assertNotNull(secondLvlReferenceObject);
-
-        assertReferenceAndReturnReferenceObject(secondLvlReferenceObjectAttributes,
-                secondLvlReferenceObject.getAttributeByName(ASSOC_ATTR_GROUP));
-
-        Map<String, String> expectedRecord = new HashMap<>();
-        expectedRecord.put(ATTR_ID, NEW_USER_UID);
-        expectedRecord.put(ATTR_NAME, NEW_USER_NAME);
-        expectedRecord.put(ATTR_EMPL, NEW_USER_EMPL);
-        expectedRecord.put(ATTR_TITLE, NEW_USER_TITLE);
-
-        Map<String, String> realRecord = CsvTestUtil.findRecord(config, ATTR_ID, NEW_USER_UID);
-        assertEquals(expectedRecord, realRecord);
+        connector.create(ObjectClass.ACCOUNT, attributes, null);
+//        Uid uid = connector.create(ObjectClass.ACCOUNT, attributes, null);
+//        assertNotNull(uid);
+//        assertEquals(NEW_USER_UID, uid.getUidValue());
+//
+//        ConnectorObject newObject = connector.getObject(ObjectClass.ACCOUNT, uid, null);
+//        assertNotNull(newObject);
+//
+//        attributes = new HashSet<>();
+//        attributes.add(new Name(NEW_USER_UID));
+//        attributes.add(createAttribute(Uid.NAME, NEW_USER_UID));
+//        attributes.add(createAttribute(ATTR_NAME, NEW_USER_NAME));
+//        attributes.add(createAttribute(ATTR_EMPL, NEW_USER_EMPL));
+//        attributes.add(createAttribute(ATTR_TITLE, NEW_USER_TITLE));
+//        attributes.add(createAttribute(ASSOC_ATTR_ACCESS, connectorObjectReference));
+//        assertConnectorObject(attributes, newObject);
+//
+//        BaseConnectorObject secondLvlReferenceObject = assertReferenceAndReturnReferenceObject(referenceAttributes,
+//                newObject.getAttributeByName(ASSOC_ATTR_ACCESS));
+//        assertNotNull(secondLvlReferenceObject);
+//
+//        assertReferenceAndReturnReferenceObject(secondLvlReferenceObjectAttributes,
+//                secondLvlReferenceObject.getAttributeByName(ASSOC_ATTR_GROUP));
+//
+//        Map<String, String> expectedRecord = new HashMap<>();
+//        expectedRecord.put(ATTR_ID, NEW_USER_UID);
+//        expectedRecord.put(ATTR_NAME, NEW_USER_NAME);
+//        expectedRecord.put(ATTR_EMPL, NEW_USER_EMPL);
+//        expectedRecord.put(ATTR_TITLE, NEW_USER_TITLE);
+//
+//        Map<String, String> realRecord = CsvTestUtil.findRecord(config, ATTR_ID, NEW_USER_UID);
+//        assertEquals(expectedRecord, realRecord);
     }
 }

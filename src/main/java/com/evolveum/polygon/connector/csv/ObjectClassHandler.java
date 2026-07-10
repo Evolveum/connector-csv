@@ -567,6 +567,11 @@ public class ObjectClassHandler implements CreateOp, DeleteOp, TestOp, SearchOp<
 		}
 		for (ReferenceDataDeliveryVector referenceDataDeliveryVector : referenceDataDeliveryVectors) {
 
+			if(referenceDataDeliveryVector.isAccess()){
+
+				throw new ConnectorException("Unsupported operation, the creation of a complex association is not supported by the connector, only read operations are supported in such case. " + referenceDataDeliveryVector);
+			}
+
 			Attribute referenceAttribute = null;
 			Set<Attribute> referenceAttributeSetBasedOnId = new HashSet<>();
 
