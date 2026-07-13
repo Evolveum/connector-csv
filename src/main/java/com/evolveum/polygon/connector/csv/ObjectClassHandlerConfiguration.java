@@ -56,11 +56,17 @@ public class ObjectClassHandlerConfiguration {
 
     private boolean container = false;
     private boolean auxiliary = false;
+    private String[] managedAssociationPairs;
 
     private String lastLoginDateAttribute;
     private String lastLoginDateFormat;
 
     private DateFormat lastLoginDateFormatInstance;
+
+    private Integer maxImmersion= 2;
+
+    private String assocAttrDirect ="group";
+    private String assocAttrIndirect ="access";
 
     public ObjectClassHandlerConfiguration() {
         this(ObjectClass.ACCOUNT, null);
@@ -99,7 +105,7 @@ public class ObjectClassHandlerConfiguration {
 
         setContainer(Util.getSafeValue(values, "container", false, Boolean.class));
         setAuxiliary(Util.getSafeValue(values, "auxiliary", false, Boolean.class));
-
+        setManagedAssociationPairs(Util.getSafeValue(values, "managedAssociationPairs", null, String[].class));
         setLastLoginDateAttribute(Util.getSafeValue(values, "lastLoginDateAttribute", null));
         setLastLoginDateFormat(Util.getSafeValue(values, "lastLoginDateFormat", null));
     }
@@ -334,6 +340,38 @@ public class ObjectClassHandlerConfiguration {
 
     public void setIgnoreIdentifierCase(boolean ignoreIdentifierCase) {
         this.ignoreIdentifierCase = ignoreIdentifierCase;
+    }
+
+    public String[] getManagedAssociationPairs() {
+        return managedAssociationPairs;
+    }
+
+    public void setManagedAssociationPairs(String[] managedAssociationPairs) {
+        this.managedAssociationPairs = managedAssociationPairs;
+    }
+
+    public Integer getMaxImmersion() {
+        return maxImmersion;
+    }
+
+    public void setMaxImmersion(Integer maximumImmersion) {
+        this.maxImmersion = maximumImmersion;
+    }
+
+    public String getAssocAttrDirect() {
+        return assocAttrDirect;
+    }
+
+    public void setAssocAttrDirect(String assocAttrDirect) {
+        this.assocAttrDirect = assocAttrDirect;
+    }
+
+    public String getAssocAttrIndirect() {
+        return assocAttrIndirect;
+    }
+
+    public void setAssocAttrIndirect(String assocAttrIndirect) {
+        this.assocAttrIndirect = assocAttrIndirect;
     }
 
     public void validate() {

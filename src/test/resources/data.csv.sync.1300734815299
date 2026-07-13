@@ -1,0 +1,5 @@
+firstName;id;lastName;password;memberOf
+john;123;doe;qwe123;3
+jack;321;black;qwe321;1,3
+joey;121;t;qwe321;1
+gandalf;111;grey;qwe321;

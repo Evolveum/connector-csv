@@ -2,10 +2,11 @@ package com.evolveum.polygon.connector.csv.util;
 
 import com.evolveum.polygon.connector.csv.CsvConfiguration;
 import com.evolveum.polygon.connector.csv.CsvConnector;
+import com.evolveum.polygon.connector.csv.ObjectClassHandler;
 import com.evolveum.polygon.connector.csv.ObjectClassHandlerConfiguration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.QuoteMode;
-import org.identityconnectors.common.Base64;
+import java.util.Base64;
 import org.identityconnectors.common.StringUtil;
 import org.identityconnectors.common.logging.Log;
 import org.identityconnectors.common.security.GuardedByteArray;
@@ -13,8 +14,7 @@ import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.ConnectorIOException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.PredefinedAttributes;
+import org.identityconnectors.framework.common.objects.*;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
@@ -41,6 +41,9 @@ public class Util {
     public static final String DEFAULT_COLUMN_NAME = "col";
 
     public static final String UTF8_BOM = "\uFEFF";
+
+    public static final String R_I_R_SUBJECT = AttributeUtil.createSpecialName("SUBJECT");
+    public static final String R_I_R_OBJECT = AttributeUtil.createSpecialName("OBJECT");
 
     public static void closeQuietly(Closeable closeable) {
         if (closeable == null) {
@@ -146,6 +149,10 @@ public class Util {
         Object value = map.get(key);
         if (value == null) {
             return defValue;
+        }
+
+        if (String[].class.equals(type)) {
+            return (T) value;
         }
 
         String strValue = value.toString();
@@ -315,7 +322,7 @@ public class Util {
                 ByteArrayAccessor ba = new ByteArrayAccessor();
                 ga.access(ba);
 
-                String value = org.identityconnectors.common.Base64.encode(ba.getValue());
+                String value = Base64.getEncoder().encodeToString(ba.getValue());
                 sb.append(value);
             } else {
                 sb.append(obj);
@@ -367,7 +374,7 @@ public class Util {
         if (GuardedString.class.equals(type)) {
             return new GuardedString(raw.toCharArray());
         } else if (GuardedByteArray.class.equals(type)) {
-            byte[] bytes = Base64.decode(raw);
+            byte[] bytes = Base64.getDecoder().decode(raw);
             return new GuardedByteArray(bytes);
         }
 
@@ -480,6 +487,80 @@ public class Util {
     }
 
     /** Basic parameters needed for opening the CSV file for discovery. */
-    public record ParametersForDiscovery(char fieldDelimiter, Character commentMarker, Character quote) {
+    public record ParametersForDiscovery(char fieldDelimiter, Character commentMarker, Character quote) {}
+
+    public static String getObjectClassName(ObjectClass objectClass) {
+        if (ObjectClass.ACCOUNT.equals(objectClass)) {
+
+            return "account";
+        } else if (ObjectClass.GROUP.equals(objectClass)) {
+
+            return "group";
+        } else {
+            return objectClass.getObjectClassValue();
+        }
+    }
+
+    public static ObjectClass getObjectClass(String objectClassName) {
+
+        if ("account".equals(objectClassName)) {
+
+            return ObjectClass.ACCOUNT;
+//        } else if ("group".equals(objectClassName)) {
+//
+//            return ObjectClass.GROUP;
+        } else {
+            return new ObjectClass(objectClassName);
+        }
+    }
+
+    public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
+                                                                           AssociationHolder holder,
+                                                                           String uniqueAttrName, String nameAttrName,  String identificatorAttributeNameObject){
+        return constructReferenceDataVector(referenceObjectClass, holder, uniqueAttrName, nameAttrName, null,
+                identificatorAttributeNameObject);
+    }
+
+    public static ReferenceDataDeliveryVector constructReferenceDataVector(ObjectClass referenceObjectClass,
+                                                                           AssociationHolder holder,
+                                                                           String uniqueAttrName, String nameAttrName,
+                                                                           Boolean isPartOfAccess,
+                                                                           String identificatorAttributeNameObject) {
+
+        String referenceAttrName = holder.getValueAttributeName();
+        String identificatorAttributeNameSubject = holder.getAssociationAttributeName();
+        String objectObjectClassName = holder.getObjectObjectClassName();
+        boolean isRecipient = objectObjectClassName.equals(holder.getSubjectObjectClassName());
+
+        if (uniqueAttrName.equals(referenceAttrName) ||
+                (nameAttrName != null && nameAttrName.equals(referenceAttrName))) {
+
+            identificatorAttributeNameSubject = Name.NAME;
+
+            referenceAttrName = holder.getAssociationAttributeName();
+
+            isRecipient = true;
+        }
+
+        if (AssociationCharacter.REFERS_TO.equals(holder.getCharacter())) {
+            isRecipient = true;
+        }
+
+        boolean vectorIsAccess = isPartOfAccess != null ? isPartOfAccess : holder.isAccess();
+
+        return new ReferenceDataDeliveryVector(referenceObjectClass, isRecipient
+                , referenceAttrName, identificatorAttributeNameSubject, identificatorAttributeNameObject, vectorIsAccess);
+    }
+
+    public static long getTokenValue(SyncToken token) {
+        if (token == null || token.getValue() == null) {
+            return -1;
+        }
+        String object = token.getValue().toString();
+        if (!object.matches("[0-9]{13}")) {
+            return -1;
+        }
+
+        return Long.parseLong(object);
     }
 }

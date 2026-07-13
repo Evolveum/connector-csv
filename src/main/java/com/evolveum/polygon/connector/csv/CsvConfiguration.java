@@ -215,6 +215,17 @@ public class CsvConfiguration extends AbstractConfiguration {
     }
 
     @ConfigurationProperty(
+            displayMessageKey = "UI_MANAGED_ASSOCIATION_PAIRS",
+            helpMessageKey = "UI_MANAGED_ASSOCIATION_PAIRS_HELP")
+    public String[] getManagedAssociationPairs() {
+        return config.getManagedAssociationPairs();
+    }
+
+    public void setManagedAssociationPairs(String[] managedAssociationPairs) {
+        config.setManagedAssociationPairs(managedAssociationPairs);
+    }
+
+    @ConfigurationProperty(
             displayMessageKey = "UI_LAST_LOGIN_DATE",
             helpMessageKey = "UI_LAST_LOGIN_DATE_HELP")
     public String getLastLoginDateAttribute() {
@@ -336,6 +347,28 @@ public class CsvConfiguration extends AbstractConfiguration {
         config.setIgnoreIdentifierCase(ignoreIdentifierCase);
     }
 
+    @ConfigurationProperty(
+            displayMessageKey = "UI_REFERENCE_ATTRIBUTE_DIRECT_NAME",
+            helpMessageKey = "UI_REFERENCE_ATTRIBUTE_DIRECT_HELP")
+    public String getAssocAttrDirect() {
+        return config.getAssocAttrDirect();
+    }
+
+    public void setAssocAttrDirect(String assocAttrDirect) {
+        config.setAssocAttrDirect(assocAttrDirect);
+    }
+
+    @ConfigurationProperty(
+            displayMessageKey = "UI_REFERENCE_ATTRIBUTE_INDIRECT_NAME",
+            helpMessageKey = "UI_REFERENCE_ATTRIBUTE_INDIRECT_HELP")
+    public String getAssocAttrIndirect() {
+        return config.getAssocAttrIndirect();
+    }
+
+    public void setAssocAttrIndirect(String assocAttrIndirect) {
+        config.setAssocAttrIndirect(assocAttrIndirect);
+    }
+
     @Override
     public void validate() {
         LOG.info("Csv configuration validation started");
@@ -393,6 +426,8 @@ public class CsvConfiguration extends AbstractConfiguration {
         ocMap.keySet().forEach(key -> {
 
             Map<String, Object> values = ocMap.get(key);
+
+            values.put("managedAssociationPairs",getManagedAssociationPairs());
 
             ObjectClassHandlerConfiguration config = new ObjectClassHandlerConfiguration(new ObjectClass(key), values);
             config.recompute();
