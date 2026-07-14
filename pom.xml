@@ -38,6 +38,7 @@
         <connectorClass>CsvConnector</connectorClass>
 
         <commons.csv.version>1.10.0</commons.csv.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
     </properties>
 
     <repositories>
@@ -110,7 +111,7 @@
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
-            <version>3.18.0</version>
+            <version>${commons-lang3.version}</version>
         </dependency>
 
 
