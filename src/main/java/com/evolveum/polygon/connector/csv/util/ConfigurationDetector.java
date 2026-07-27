@@ -76,7 +76,7 @@ public class ConfigurationDetector {
                 });
             });
 
-            Set<Character> commentSuggestions = createCommentSuggestions(isNotInEveryRow, symbolsPerRow);
+            Set<Character> commentSuggestions = createCommentSuggestions(isNotInEveryRow, symbolsPerRow, allSymbols);
 
             removeRowWithComment(symbolsPerRow, commentSuggestions);
 
@@ -285,7 +285,10 @@ public class ConfigurationDetector {
         }
     }
 
-    private Set<Character> createCommentSuggestions(Set<Character> isNotInEveryRow, List<Map<Character, SymbolWrapper>> symbolsPerRow) {
+    private Set<Character> createCommentSuggestions(
+            Set<Character> isNotInEveryRow,
+            List<Map<Character, SymbolWrapper>> symbolsPerRow,
+            Set<Character> allSymbols) {
         Set<Character> commentSuggestions = new HashSet<>();
         isNotInEveryRow.forEach(character -> {
             boolean isFirstInEveryRow = true;
@@ -295,11 +298,66 @@ public class ConfigurationDetector {
                     isFirstInEveryRow = false;
                 }
             }
-            if (isFirstInEveryRow) {
+            if (isFirstInEveryRow && hasStructurallyDistinctRows(character, symbolsPerRow, allSymbols)) {
                 commentSuggestions.add(character);
             }
         });
         return commentSuggestions;
+    }
+
+    /**
+     * A leading symbol alone is not enough evidence for a comment marker. For example, values in the first column
+     * can legitimately start with {@code +}. We consider the rows to be comments only if they lack a potential
+     * delimiter that occurs with the same positive count in at least two remaining rows.
+     */
+    private boolean hasStructurallyDistinctRows(
+            Character commentCandidate,
+            List<Map<Character, SymbolWrapper>> symbolsPerRow,
+            Set<Character> allSymbols) {
+        List<Map<Character, SymbolWrapper>> commentRows = new ArrayList<>();
+        List<Map<Character, SymbolWrapper>> recordRows = new ArrayList<>();
+
+        for (Map<Character, SymbolWrapper> row : symbolsPerRow) {
+            SymbolWrapper wrapper = row.get(commentCandidate);
+            if (wrapper != null && wrapper.isFirstInRow()) {
+                commentRows.add(row);
+            } else {
+                recordRows.add(row);
+            }
+        }
+
+        if (commentRows.isEmpty() || recordRows.size() < 2) {
+            return false;
+        }
+
+        for (Character symbol : allSymbols) {
+            if (symbol.equals(commentCandidate) || !isPotentialFieldDelimiter(symbol)) {
+                continue;
+            }
+
+            int expectedCount = getSymbolCount(recordRows.get(0), symbol);
+            if (expectedCount == 0) {
+                continue;
+            }
+
+            boolean consistentInRecords = recordRows.stream()
+                    .allMatch(row -> getSymbolCount(row, symbol) == expectedCount);
+            boolean absentFromComments = commentRows.stream()
+                    .allMatch(row -> getSymbolCount(row, symbol) == 0);
+            if (consistentInRecords && absentFromComments) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isPotentialFieldDelimiter(Character symbol) {
+        return symbol != '_' && symbol != '-' && symbol != '"' && symbol != '\'';
+    }
+
+    private int getSymbolCount(Map<Character, SymbolWrapper> row, Character symbol) {
+        SymbolWrapper wrapper = row.get(symbol);
+        return wrapper != null ? wrapper.getCountInRow() : 0;
     }
 
     private List<Character> readCharacters() throws IOException {
