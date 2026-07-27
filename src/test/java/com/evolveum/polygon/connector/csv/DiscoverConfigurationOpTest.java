@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.testng.AssertJUnit.assertEquals;
+import static org.testng.AssertJUnit.assertFalse;
 import static org.testng.AssertJUnit.assertTrue;
 
 /**
@@ -77,6 +78,43 @@ public class DiscoverConfigurationOpTest extends BaseTest {
                 List.of("userid","firstname","lastname","email"));
     }
 
+    @Test
+    public void testDiscoverConfigurationDoesNotTreatInternationalPhonePrefixAsComment() throws Exception {
+        ConnectorFacade connector = setupConnector("/discover-international-phone.csv");
+        Map<String, SuggestedValues> suggestions = connector.discoverConfiguration();
+
+        assertFalse(suggestions.containsKey("commentMarker"));
+        assertSuggestion(suggestions, "fieldDelimiter", ';');
+    }
+
+    @Test
+    public void testDiscoverConfigurationDetectsStructurallyDistinctComment() throws Exception {
+        ConnectorFacade connector = setupConnector("/discover-custom-comment.csv");
+        Map<String, SuggestedValues> suggestions = connector.discoverConfiguration();
+
+        assertSuggestion(suggestions, "commentMarker", '!');
+        assertSuggestion(suggestions, "fieldDelimiter", ';');
+    }
+
+    @Test
+    public void testDiscoverConfigurationDoesNotTreatOccasionalValuePrefixAsComment() throws Exception {
+        ConnectorFacade connector = setupConnector("/discover-occasional-prefix.csv");
+        Map<String, SuggestedValues> suggestions = connector.discoverConfiguration();
+
+        assertFalse(suggestions.containsKey("commentMarker"));
+        assertSuggestion(suggestions, "fieldDelimiter", ';');
+    }
+
+    @Test
+    public void testDiscoverConfigurationDoesNotUseColumnNamePunctuationAsCommentEvidence() throws Exception {
+        ConnectorFacade connector = setupConnector("/discover-comment-with-column-name-punctuation.csv");
+        Map<String, SuggestedValues> suggestions = connector.discoverConfiguration();
+
+        assertSuggestion(suggestions, "commentMarker", '#');
+        assertSuggestionDoesNotContain(suggestions, "commentMarker", '+');
+        assertSuggestion(suggestions, "fieldDelimiter", ';');
+    }
+
     private void assertSuggestion(Map<String, SuggestedValues> suggestions, String attributeName, Object expectedValue) {
         assertTrue("Suggestions not contain suggestion for attribute " + attributeName, suggestions.containsKey(attributeName));
         List<Object> values = suggestions.get(attributeName).getValues();
@@ -84,6 +122,15 @@ public class DiscoverConfigurationOpTest extends BaseTest {
             assertTrue("Suggestions contains wrong suggestion value for attribute " + attributeName, values.containsAll((Collection) expectedValue));
         } else {
             assertTrue("Suggestions contains wrong suggestion value for attribute " + attributeName, values.contains(expectedValue));
+        }
+    }
+
+    private void assertSuggestionDoesNotContain(
+            Map<String, SuggestedValues> suggestions, String attributeName, Object unexpectedValue) {
+        if (suggestions.containsKey(attributeName)) {
+            assertFalse(
+                    "Suggestions contains unexpected value for attribute " + attributeName,
+                    suggestions.get(attributeName).getValues().contains(unexpectedValue));
         }
     }
 
